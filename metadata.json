@@ -1,0 +1,6 @@
+{
+  "name": "جا به جا",
+  "description": "ایمیل یک بار مصرف فقط در جا به جا پیدا میشه. سرویس ایمیل موقت جا به جا با قابلیت ساخت فوری ایمیل موقت، دریافت زنده پیام‌ها، ساخت ایمیل نامحدود و حفظ حریم خصوصی.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

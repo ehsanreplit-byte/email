@@ -1,0 +1,117 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Vazirmatn", "Vazir", system-ui, -apple-system, sans-serif;
+}
+
+@layer base {
+  html, body, #root, * {
+    font-family: "Vazirmatn", "Vazir", system-ui, -apple-system, sans-serif !important;
+  }
+  
+  code, pre, .font-mono, code *, pre * {
+    font-family: 'JetBrains Mono', monospace !important;
+  }
+}
+
+/* Smooth custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(241, 245, 249, 0.8);
+}
+.dark ::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.6);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.6);
+  border-radius: 9999px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(71, 85, 105, 0.6);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.8);
+}
+
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(0.98); }
+}
+
+@keyframes bounce-subtle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+@keyframes beam-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes rainbow-shift {
+  0% { filter: hue-rotate(0deg) saturate(2) brightness(1.3) drop-shadow(0 0 18px rgba(255, 0, 100, 0.9)) drop-shadow(0 0 6px rgba(99, 102, 241, 0.9)); }
+  50% { filter: hue-rotate(180deg) saturate(2.2) brightness(1.35) drop-shadow(0 0 22px rgba(0, 255, 170, 0.9)) drop-shadow(0 0 6px rgba(236, 72, 153, 0.9)); }
+  100% { filter: hue-rotate(360deg) saturate(2) brightness(1.3) drop-shadow(0 0 18px rgba(255, 0, 100, 0.9)) drop-shadow(0 0 6px rgba(99, 102, 241, 0.9)); }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-bounce-subtle {
+  animation: bounce-subtle 3s ease-in-out infinite;
+}
+
+.animate-beam-spin {
+  animation: beam-spin 4s linear infinite;
+  will-change: transform;
+}
+
+.animate-rainbow-beam {
+  animation: beam-spin 3.5s linear infinite, rainbow-shift 5s ease-in-out infinite;
+  will-change: transform, filter;
+}
+
+/* Realistic Webmail HTML viewer responsive rules */
+.email-html-viewer {
+  width: 100% !important;
+  max-width: 100% !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+}
+
+.email-html-viewer img {
+  max-width: 100% !important;
+  height: auto !important;
+  display: inline-block !important;
+  object-fit: contain !important;
+  border-radius: 8px !important;
+}
+
+.email-html-viewer table {
+  max-width: 100% !important;
+  width: 100% !important;
+  border-collapse: collapse !important;
+}
+
+.email-html-viewer td,
+.email-html-viewer th {
+  word-break: break-word !important;
+}
+
+.email-html-viewer pre,
+.email-html-viewer code {
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+  max-width: 100% !important;
+}
+
+.email-html-viewer a {
+  color: #4f46e5 !important;
+  text-decoration: underline !important;
+  word-break: break-all !important;
+}
+

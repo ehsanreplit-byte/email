@@ -1,0 +1,153 @@
+import fs from 'fs';
+import path from 'path';
+import crypto from 'crypto';
+import { Ticket, TicketMessage } from '../src/types';
+
+const TICKETS_FILE = path.join(process.cwd(), 'server', 'telegram_tickets.json');
+
+class TicketStore {
+  private tickets: Ticket[] = [];
+
+  constructor() {
+    this.loadFromStorage();
+  }
+
+  private loadFromStorage(): void {
+    try {
+      if (fs.existsSync(TICKETS_FILE)) {
+        const data = fs.readFileSync(TICKETS_FILE, 'utf-8');
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed)) {
+          this.tickets = parsed;
+        }
+      }
+    } catch (err) {
+      console.error('[TicketStore] Error loading tickets:', err);
+    }
+  }
+
+  private saveToStorage(): void {
+    try {
+      const dir = path.dirname(TICKETS_FILE);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.writeFileSync(TICKETS_FILE, JSON.stringify(this.tickets, null, 2), 'utf-8');
+    } catch (err) {
+      console.error('[TicketStore] Error saving tickets:', err);
+    }
+  }
+
+  public getAllTickets(): Ticket[] {
+    return [...this.tickets].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  }
+
+  public getTicketById(id: string): Ticket | undefined {
+    return this.tickets.find((t) => t.id === id);
+  }
+
+  public getOpenTicketByChatId(chatId: number): Ticket | undefined {
+    return this.tickets.find((t) => t.chatId === chatId && t.status === 'open');
+  }
+
+  public addMessage(params: {
+    chatId: number;
+    userName: string;
+    phone: string;
+    sender: 'user' | 'admin';
+    text?: string;
+    photoUrl?: string;
+    voiceUrl?: string;
+  }): Ticket {
+    const { chatId, userName, phone, sender, text, photoUrl, voiceUrl } = params;
+    
+    // Find open ticket or create a new one
+    let ticket = this.getOpenTicketByChatId(chatId);
+    if (!ticket) {
+      ticket = {
+        id: `t_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
+        chatId,
+        userName: userName || 'کاربر تلگرام',
+        phone: phone || 'بدون شماره',
+        subject: 'پشتیبانی ربات',
+        status: 'open',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        messages: []
+      };
+      this.tickets.push(ticket);
+    }
+
+    const newMessage: TicketMessage = {
+      id: `msg_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
+      sender,
+      text,
+      photoUrl,
+      voiceUrl,
+      createdAt: new Date().toISOString()
+    };
+
+    ticket.messages.push(newMessage);
+    ticket.updatedAt = new Date().toISOString();
+    ticket.isRead = sender === 'admin';
+    if (sender === 'user') {
+      ticket.status = 'open';
+    }
+    
+    this.saveToStorage();
+    return ticket;
+  }
+
+  public getUnreadCount(): number {
+    return this.tickets.filter((t) => !t.isRead).length;
+  }
+
+  public markTicketAsRead(id: string): boolean {
+    const ticket = this.getTicketById(id);
+    if (ticket) {
+      ticket.isRead = true;
+      this.saveToStorage();
+      return true;
+    }
+    return false;
+  }
+
+  public closeTicket(id: string): boolean {
+    const ticket = this.getTicketById(id);
+    if (ticket) {
+      ticket.status = 'closed';
+      ticket.updatedAt = new Date().toISOString();
+      this.saveToStorage();
+      return true;
+    }
+    return false;
+  }
+
+  public openTicket(id: string): boolean {
+    const ticket = this.getTicketById(id);
+    if (ticket) {
+      ticket.status = 'open';
+      ticket.updatedAt = new Date().toISOString();
+      this.saveToStorage();
+      return true;
+    }
+    return false;
+  }
+
+  public deleteTicket(id: string): boolean {
+    const initialLen = this.tickets.length;
+    this.tickets = this.tickets.filter((t) => t.id !== id);
+    if (this.tickets.length !== initialLen) {
+      this.saveToStorage();
+      return true;
+    }
+    return false;
+  }
+
+  public deleteTicketsByChatId(chatId: number): void {
+    this.tickets = this.tickets.filter((t) => t.chatId !== chatId);
+    this.saveToStorage();
+  }
+}
+
+export const ticketStore = new TicketStore();
