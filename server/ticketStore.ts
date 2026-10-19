@@ -1,9 +1,8 @@
-import fs from 'fs';
-import path from 'path';
 import crypto from 'crypto';
 import { Ticket, TicketMessage } from '../src/types';
+import { storage } from './storage';
 
-const TICKETS_FILE = path.join(process.cwd(), 'server', 'telegram_tickets.json');
+const TICKETS_FILE = 'telegram_tickets.json';
 
 class TicketStore {
   private tickets: Ticket[] = [];
@@ -12,10 +11,10 @@ class TicketStore {
     this.loadFromStorage();
   }
 
-  private loadFromStorage(): void {
+  public loadFromStorage(): void {
     try {
-      if (fs.existsSync(TICKETS_FILE)) {
-        const data = fs.readFileSync(TICKETS_FILE, 'utf-8');
+      if (storage.existsSync(TICKETS_FILE)) {
+        const data = storage.readFileSync(TICKETS_FILE);
         const parsed = JSON.parse(data);
         if (Array.isArray(parsed)) {
           this.tickets = parsed;
@@ -26,13 +25,9 @@ class TicketStore {
     }
   }
 
-  private saveToStorage(): void {
+  public saveToStorage(): void {
     try {
-      const dir = path.dirname(TICKETS_FILE);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-      fs.writeFileSync(TICKETS_FILE, JSON.stringify(this.tickets, null, 2), 'utf-8');
+      storage.writeFileSync(TICKETS_FILE, JSON.stringify(this.tickets, null, 2));
     } catch (err) {
       console.error('[TicketStore] Error saving tickets:', err);
     }

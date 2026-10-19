@@ -1,5 +1,4 @@
-import fs from 'fs';
-import path from 'path';
+import { storage } from './storage';
 import { telegramBotService } from './telegramBot';
 import { eitaaBotService } from './eitaaBot';
 import { subscriptionStore } from './subscriptionStore';
@@ -11,25 +10,27 @@ import { emailStore } from './emailStore';
 import { systemStore } from './systemStore';
 import { analyticsStore } from './analyticsStore';
 
-const BACKUP_CONFIG_FILE = path.join(process.cwd(), 'server', 'backup_config.json');
+const BACKUP_CONFIG_FILE = 'backup_config.json';
 
-// List of all JSON database files to back up
-const DB_FILES = {
-  telegram_config: path.join(process.cwd(), 'server', 'telegram_config.json'),
-  telegram_users: path.join(process.cwd(), 'server', 'telegram_users.json'),
-  telegram_tickets: path.join(process.cwd(), 'server', 'telegram_tickets.json'),
-  eitaa_config: path.join(process.cwd(), 'server', 'eitaa_config.json'),
-  eitaa_users: path.join(process.cwd(), 'server', 'eitaa_users.json'),
-  subscriptions: path.join(process.cwd(), 'server', 'subscriptions.json'),
-  blupal_config: path.join(process.cwd(), 'server', 'blupal_config.json'),
-  blupal_transactions: path.join(process.cwd(), 'server', 'blupal_transactions.json'),
-  admin_auth: path.join(process.cwd(), 'server', 'admin_auth.json'),
-  email_registry: path.join(process.cwd(), 'server', 'email_registry.json'),
-  email_provider_config: path.join(process.cwd(), 'server', 'email_provider_config.json'),
-  outbox_emails: path.join(process.cwd(), 'server', 'outbox_emails.json'),
-  system_config: path.join(process.cwd(), 'server', 'system_config.json'),
-  backup_config: path.join(process.cwd(), 'server', 'backup_config.json'),
-  user_accounts: path.join(process.cwd(), 'server', 'user_accounts.json'),
+// List of all JSON database documents to back up
+const DB_FILES: Record<string, string> = {
+  telegram_config: 'telegram_config.json',
+  telegram_users: 'telegram_users.json',
+  telegram_tickets: 'telegram_tickets.json',
+  eitaa_config: 'eitaa_config.json',
+  eitaa_users: 'eitaa_users.json',
+  subscriptions: 'subscriptions.json',
+  blupal_config: 'blupal_config.json',
+  blupal_transactions: 'blupal_transactions.json',
+  admin_auth: 'admin_auth.json',
+  email_registry: 'email_registry.json',
+  email_provider_config: 'email_provider_config.json',
+  outbox_emails: 'outbox_emails.json',
+  system_config: 'system_config.json',
+  backup_config: 'backup_config.json',
+  user_accounts: 'user_accounts.json',
+  inboxes_store: 'inboxes_store.json',
+  analytics_logins: 'analytics_logins.json',
 };
 
 export interface BackupConfig {
@@ -90,8 +91,8 @@ class BackupService {
 
   private loadConfig(): void {
     try {
-      if (fs.existsSync(BACKUP_CONFIG_FILE)) {
-        const data = fs.readFileSync(BACKUP_CONFIG_FILE, 'utf-8');
+      if (storage.existsSync(BACKUP_CONFIG_FILE)) {
+        const data = storage.readFileSync(BACKUP_CONFIG_FILE);
         const parsed = JSON.parse(data);
         if (parsed && typeof parsed === 'object') {
           this.config = { ...this.config, ...parsed };
@@ -104,7 +105,7 @@ class BackupService {
 
   private saveConfig(): void {
     try {
-      fs.writeFileSync(BACKUP_CONFIG_FILE, JSON.stringify(this.config, null, 2), 'utf-8');
+      storage.writeFileSync(BACKUP_CONFIG_FILE, JSON.stringify(this.config, null, 2));
     } catch (err) {
       console.error('[BackupService] Error saving config:', err);
     }
@@ -112,6 +113,11 @@ class BackupService {
 
   public getConfig(): BackupConfig {
     return { ...this.config };
+  }
+
+  /** Reloads the backup configuration from storage (used after storage bootstrap). */
+  public loadFromStorage(): void {
+    this.loadConfig();
   }
 
   private getIntervalMs(interval: BackupConfig['scheduleInterval']): number {
@@ -155,10 +161,10 @@ class BackupService {
       databases: {},
     };
 
-    for (const [key, filepath] of Object.entries(DB_FILES)) {
+    for (const [key, docKey] of Object.entries(DB_FILES)) {
       try {
-        if (fs.existsSync(filepath)) {
-          const content = fs.readFileSync(filepath, 'utf-8');
+        if (storage.existsSync(docKey)) {
+          const content = storage.readFileSync(docKey);
           backup.databases[key] = JSON.parse(content);
         } else {
           backup.databases[key] = null;
@@ -184,14 +190,10 @@ class BackupService {
     }
 
     try {
-      for (const [key, filepath] of Object.entries(DB_FILES)) {
+      for (const [key, docKey] of Object.entries(DB_FILES)) {
         const data = backup.databases[key];
         if (data !== undefined && data !== null) {
-          const dir = path.dirname(filepath);
-          if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
-          }
-          fs.writeFileSync(filepath, JSON.stringify(data, null, 2), 'utf-8');
+          storage.writeFileSync(docKey, JSON.stringify(data, null, 2));
         }
       }
 

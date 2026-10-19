@@ -1,8 +1,7 @@
-import fs from 'fs';
-import path from 'path';
 import crypto from 'crypto';
 import { EmailMessage, TempInbox } from '../src/types';
 import { fixMojibake, decodeMimeHeader, decodeQuotedPrintable } from './mimeDecoder';
+import { storage } from './storage';
 
 // Available disposable domains
 export const AVAILABLE_DOMAINS = [
@@ -16,9 +15,9 @@ interface StoredInbox {
   messages: EmailMessage[];
 }
 
-const REGISTRY_FILE_PATH = path.join(process.cwd(), 'server', 'email_registry.json');
-const USERS_FILE_PATH = path.join(process.cwd(), 'server', 'telegram_users.json');
-const INBOXES_STORE_PATH = path.join(process.cwd(), 'server', 'inboxes_store.json');
+const REGISTRY_FILE_PATH = 'email_registry.json';
+const USERS_FILE_PATH = 'telegram_users.json';
+const INBOXES_STORE_PATH = 'inboxes_store.json';
 
 export function cleanAndDeduplicateOtp(rawOtp: string): string {
   if (!rawOtp) return '';
@@ -86,8 +85,8 @@ class EmailStore {
   private loadInboxesFromStorage(): void {
     try {
       this.inboxes.clear();
-      if (fs.existsSync(INBOXES_STORE_PATH)) {
-        const raw = fs.readFileSync(INBOXES_STORE_PATH, 'utf-8');
+      if (storage.existsSync(INBOXES_STORE_PATH)) {
+        const raw = storage.readFileSync(INBOXES_STORE_PATH);
         const list: Array<{ inbox: TempInbox; messages: EmailMessage[] }> = JSON.parse(raw);
         if (Array.isArray(list)) {
           for (const item of list) {
@@ -143,12 +142,8 @@ class EmailStore {
 
   public saveInboxesToStorage(): void {
     try {
-      const dir = path.dirname(INBOXES_STORE_PATH);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
       const list = Array.from(this.inboxes.values());
-      fs.writeFileSync(INBOXES_STORE_PATH, JSON.stringify(list, null, 2), 'utf-8');
+      storage.writeFileSync(INBOXES_STORE_PATH, JSON.stringify(list, null, 2));
     } catch (err) {
       console.error('[EmailStore] Error saving inboxes_store.json:', err);
     }
@@ -167,8 +162,8 @@ class EmailStore {
     try {
       this.allHistoricalEmails.clear();
       // Load from email_registry.json if exists
-      if (fs.existsSync(REGISTRY_FILE_PATH)) {
-        const data = fs.readFileSync(REGISTRY_FILE_PATH, 'utf-8');
+      if (storage.existsSync(REGISTRY_FILE_PATH)) {
+        const data = storage.readFileSync(REGISTRY_FILE_PATH);
         const parsed = JSON.parse(data);
         if (Array.isArray(parsed)) {
           for (const em of parsed) {
@@ -180,8 +175,8 @@ class EmailStore {
       }
 
       // Scan telegram_users.json for any created email in history
-      if (fs.existsSync(USERS_FILE_PATH)) {
-        const usersData = fs.readFileSync(USERS_FILE_PATH, 'utf-8');
+      if (storage.existsSync(USERS_FILE_PATH)) {
+        const usersData = storage.readFileSync(USERS_FILE_PATH);
         const users = JSON.parse(usersData);
         if (Array.isArray(users)) {
           for (const u of users) {
@@ -200,9 +195,9 @@ class EmailStore {
       }
 
       // Scan eitaa_users.json for any created email in history
-      const EITAA_USERS_FILE_PATH = path.join(process.cwd(), 'server', 'eitaa_users.json');
-      if (fs.existsSync(EITAA_USERS_FILE_PATH)) {
-        const eitaaData = fs.readFileSync(EITAA_USERS_FILE_PATH, 'utf-8');
+      const EITAA_USERS_FILE_PATH = 'eitaa_users.json';
+      if (storage.existsSync(EITAA_USERS_FILE_PATH)) {
+        const eitaaData = storage.readFileSync(EITAA_USERS_FILE_PATH);
         const eitaaUsers = JSON.parse(eitaaData);
         if (Array.isArray(eitaaUsers)) {
           for (const u of eitaaUsers) {
@@ -233,11 +228,7 @@ class EmailStore {
 
   public saveEmailRegistry(): void {
     try {
-      const dir = path.dirname(REGISTRY_FILE_PATH);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-      fs.writeFileSync(REGISTRY_FILE_PATH, JSON.stringify(Array.from(this.allHistoricalEmails), null, 2), 'utf-8');
+      storage.writeFileSync(REGISTRY_FILE_PATH, JSON.stringify(Array.from(this.allHistoricalEmails), null, 2));
     } catch (err) {
       console.error('[EmailStore] Error saving email registry:', err);
     }
@@ -250,8 +241,8 @@ class EmailStore {
 
     // Safety live check from disk
     try {
-      if (fs.existsSync(USERS_FILE_PATH)) {
-        const usersData = fs.readFileSync(USERS_FILE_PATH, 'utf-8');
+      if (storage.existsSync(USERS_FILE_PATH)) {
+        const usersData = storage.readFileSync(USERS_FILE_PATH);
         const users = JSON.parse(usersData);
         if (Array.isArray(users)) {
           for (const u of users) {

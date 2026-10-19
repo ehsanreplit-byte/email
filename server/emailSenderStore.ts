@@ -1,5 +1,4 @@
-import fs from 'fs';
-import path from 'path';
+import { storage } from './storage';
 
 export interface EmailProviderConfig {
   provider: 'resend' | 'sendgrid' | 'brevo' | 'custom_http' | 'smtp_relay';
@@ -24,8 +23,8 @@ export interface SentEmailRecord {
   errorMessage?: string;
 }
 
-const CONFIG_PATH = path.join(process.cwd(), 'server', 'email_provider_config.json');
-const OUTBOX_PATH = path.join(process.cwd(), 'server', 'outbox_emails.json');
+const CONFIG_PATH = 'email_provider_config.json';
+const OUTBOX_PATH = 'outbox_emails.json';
 
 class EmailSenderStore {
   private config: EmailProviderConfig = {
@@ -46,8 +45,8 @@ class EmailSenderStore {
 
   private loadConfig(): void {
     try {
-      if (fs.existsSync(CONFIG_PATH)) {
-        const raw = fs.readFileSync(CONFIG_PATH, 'utf-8');
+      if (storage.existsSync(CONFIG_PATH)) {
+        const raw = storage.readFileSync(CONFIG_PATH);
         const parsed = JSON.parse(raw);
         if (parsed && typeof parsed === 'object') {
           this.config = { ...this.config, ...parsed };
@@ -60,11 +59,7 @@ class EmailSenderStore {
 
   private saveConfig(): void {
     try {
-      const dir = path.dirname(CONFIG_PATH);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-      fs.writeFileSync(CONFIG_PATH, JSON.stringify(this.config, null, 2), 'utf-8');
+      storage.writeFileSync(CONFIG_PATH, JSON.stringify(this.config, null, 2));
     } catch (err) {
       console.error('[EmailSenderStore] Error saving config:', err);
     }
@@ -72,8 +67,8 @@ class EmailSenderStore {
 
   private loadOutbox(): void {
     try {
-      if (fs.existsSync(OUTBOX_PATH)) {
-        const raw = fs.readFileSync(OUTBOX_PATH, 'utf-8');
+      if (storage.existsSync(OUTBOX_PATH)) {
+        const raw = storage.readFileSync(OUTBOX_PATH);
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
           this.sentEmails = parsed;
@@ -86,13 +81,9 @@ class EmailSenderStore {
 
   private saveOutbox(): void {
     try {
-      const dir = path.dirname(OUTBOX_PATH);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
       // keep latest 500 emails
       const slice = this.sentEmails.slice(0, 500);
-      fs.writeFileSync(OUTBOX_PATH, JSON.stringify(slice, null, 2), 'utf-8');
+      storage.writeFileSync(OUTBOX_PATH, JSON.stringify(slice, null, 2));
     } catch (err) {
       console.error('[EmailSenderStore] Error saving outbox:', err);
     }

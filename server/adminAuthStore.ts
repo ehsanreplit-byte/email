@@ -1,6 +1,5 @@
-import fs from 'fs';
-import path from 'path';
 import bcrypt from 'bcryptjs';
+import { storage } from './storage';
 
 export interface AdminAuthConfig {
   phone: string;
@@ -9,7 +8,8 @@ export interface AdminAuthConfig {
   updatedAt: string;
 }
 
-const AUTH_FILE = path.join(process.cwd(), 'server', 'admin_auth.json');
+const AUTH_FILE = 'admin_auth.json';
+const USERS_FILE = 'user_accounts.json';
 
 const DEFAULT_PLAIN_PASS = process.env.ADMIN_INITIAL_PASSWORD || '232111Eee@';
 const DEFAULT_AUTH: AdminAuthConfig = {
@@ -39,9 +39,9 @@ class AdminAuthStore {
   private loadUsers(): void {
     try {
       this.users.clear();
-      const usersFile = path.join(process.cwd(), 'server', 'user_accounts.json');
-      if (fs.existsSync(usersFile)) {
-        const raw = fs.readFileSync(usersFile, 'utf8');
+      const usersFile = USERS_FILE;
+      if (storage.existsSync(usersFile)) {
+        const raw = storage.readFileSync(usersFile);
         const list: UserAccount[] = JSON.parse(raw);
         list.forEach(u => {
           const norm = this.normalizePhone(u.phone);
@@ -55,9 +55,9 @@ class AdminAuthStore {
 
   private saveUsers(): void {
     try {
-      const usersFile = path.join(process.cwd(), 'server', 'user_accounts.json');
+      const usersFile = USERS_FILE;
       const list = Array.from(this.users.values());
-      fs.writeFileSync(usersFile, JSON.stringify(list, null, 2), 'utf8');
+      storage.writeFileSync(usersFile, JSON.stringify(list, null, 2));
     } catch (e) {
       console.error('[AdminAuthStore] Error saving user_accounts.json:', e);
     }
@@ -96,8 +96,8 @@ class AdminAuthStore {
 
   private loadConfig(): AdminAuthConfig {
     try {
-      if (fs.existsSync(AUTH_FILE)) {
-        const raw = fs.readFileSync(AUTH_FILE, 'utf8');
+      if (storage.existsSync(AUTH_FILE)) {
+        const raw = storage.readFileSync(AUTH_FILE);
         const parsed = JSON.parse(raw);
         if (parsed.password && (parsed.phone || parsed.username)) {
           let passHash = parsed.password;
@@ -128,7 +128,7 @@ class AdminAuthStore {
 
   private saveConfig(data: AdminAuthConfig): void {
     try {
-      fs.writeFileSync(AUTH_FILE, JSON.stringify(data, null, 2), 'utf8');
+      storage.writeFileSync(AUTH_FILE, JSON.stringify(data, null, 2));
       this.config = { ...data };
     } catch (err) {
       console.error('[AdminAuthStore] Error saving admin_auth.json:', err);

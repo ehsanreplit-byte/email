@@ -1,6 +1,5 @@
-import fs from 'fs';
-import path from 'path';
 import crypto from 'crypto';
+import { storage } from './storage';
 
 export interface BluPalConfig {
   enabled?: boolean;
@@ -36,8 +35,8 @@ export interface BluPalTransaction {
   channel?: 'telegram' | 'eitaa' | 'web';
 }
 
-const CONFIG_FILE = path.join(process.cwd(), 'server', 'blupal_config.json');
-const TRANSACTIONS_FILE = path.join(process.cwd(), 'server', 'blupal_transactions.json');
+const CONFIG_FILE = 'blupal_config.json';
+const TRANSACTIONS_FILE = 'blupal_transactions.json';
 
 class BluPalStore {
   private config: BluPalConfig = {
@@ -57,17 +56,17 @@ class BluPalStore {
     this.loadFromStorage();
   }
 
-  private loadFromStorage(): void {
+  public loadFromStorage(): void {
     try {
-      if (fs.existsSync(CONFIG_FILE)) {
-        const data = fs.readFileSync(CONFIG_FILE, 'utf-8');
+      if (storage.existsSync(CONFIG_FILE)) {
+        const data = storage.readFileSync(CONFIG_FILE);
         const parsed = JSON.parse(data);
         if (parsed && typeof parsed === 'object') {
           this.config = { ...this.config, ...parsed };
         }
       }
-      if (fs.existsSync(TRANSACTIONS_FILE)) {
-        const txData = fs.readFileSync(TRANSACTIONS_FILE, 'utf-8');
+      if (storage.existsSync(TRANSACTIONS_FILE)) {
+        const txData = storage.readFileSync(TRANSACTIONS_FILE);
         const parsedTx = JSON.parse(txData);
         if (Array.isArray(parsedTx)) {
           this.transactions = parsedTx;
@@ -80,11 +79,7 @@ class BluPalStore {
 
   private saveConfigToStorage(): void {
     try {
-      const dir = path.dirname(CONFIG_FILE);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-      fs.writeFileSync(CONFIG_FILE, JSON.stringify(this.config, null, 2), 'utf-8');
+      storage.writeFileSync(CONFIG_FILE, JSON.stringify(this.config, null, 2));
     } catch (err) {
       console.error('[BluPalStore] Error saving config:', err);
     }
@@ -92,11 +87,7 @@ class BluPalStore {
 
   private saveTransactionsToStorage(): void {
     try {
-      const dir = path.dirname(TRANSACTIONS_FILE);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-      fs.writeFileSync(TRANSACTIONS_FILE, JSON.stringify(this.transactions, null, 2), 'utf-8');
+      storage.writeFileSync(TRANSACTIONS_FILE, JSON.stringify(this.transactions, null, 2));
     } catch (err) {
       console.error('[BluPalStore] Error saving transactions:', err);
     }

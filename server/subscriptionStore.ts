@@ -1,9 +1,8 @@
-import fs from 'fs';
-import path from 'path';
 import { SubscriptionPlan, UserSubscription } from '../src/types';
 import { extractValidPhoneNumber, formatIranianMobile } from '../src/utils/phone';
+import { storage } from './storage';
 
-const SUBSCRIPTIONS_FILE = path.join(process.cwd(), 'server', 'subscriptions.json');
+const SUBSCRIPTIONS_FILE = 'subscriptions.json';
 
 const DEFAULT_PLANS: SubscriptionPlan[] = [
   {
@@ -64,10 +63,10 @@ class SubscriptionStore {
     this.loadFromStorage();
   }
 
-  private loadFromStorage(): void {
+  public loadFromStorage(): void {
     try {
-      if (fs.existsSync(SUBSCRIPTIONS_FILE)) {
-        const data = fs.readFileSync(SUBSCRIPTIONS_FILE, 'utf-8');
+      if (storage.existsSync(SUBSCRIPTIONS_FILE)) {
+        const data = storage.readFileSync(SUBSCRIPTIONS_FILE);
         const parsed = JSON.parse(data);
         
         if (Array.isArray(parsed)) {
@@ -101,17 +100,13 @@ class SubscriptionStore {
     }
   }
 
-  private saveToStorage(): void {
+  public saveToStorage(): void {
     try {
-      const dir = path.dirname(SUBSCRIPTIONS_FILE);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
       const dataToSave = {
         plans: this.plans,
         subscriptions: this.subscriptions
       };
-      fs.writeFileSync(SUBSCRIPTIONS_FILE, JSON.stringify(dataToSave, null, 2), 'utf-8');
+      storage.writeFileSync(SUBSCRIPTIONS_FILE, JSON.stringify(dataToSave, null, 2));
     } catch (err) {
       console.error('[SubscriptionStore] Error saving to storage:', err);
     }

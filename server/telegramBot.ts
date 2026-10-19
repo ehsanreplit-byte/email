@@ -1,6 +1,5 @@
-import fs from 'fs';
-import path from 'path';
 import { emailStore, cleanAndDeduplicateOtp } from './emailStore';
+import { storage } from './storage';
 import { subscriptionStore } from './subscriptionStore';
 import { blupalStore } from './blupalStore';
 import { ticketStore } from './ticketStore';
@@ -41,8 +40,8 @@ interface RegisteredUser {
   history: CreatedEmailRecord[];
 }
 
-const CONFIG_FILE_PATH = path.join(process.cwd(), 'server', 'telegram_config.json');
-const USERS_FILE_PATH = path.join(process.cwd(), 'server', 'telegram_users.json');
+const CONFIG_FILE_PATH = 'telegram_config.json';
+const USERS_FILE_PATH = 'telegram_users.json';
 
 class TelegramBotService {
   private botToken: string = process.env.TELEGRAM_BOT_TOKEN || '';
@@ -97,8 +96,8 @@ class TelegramBotService {
 
   private loadUsersFromStorage(): void {
     try {
-      if (fs.existsSync(USERS_FILE_PATH)) {
-        const fileData = fs.readFileSync(USERS_FILE_PATH, 'utf-8');
+      if (storage.existsSync(USERS_FILE_PATH)) {
+        const fileData = storage.readFileSync(USERS_FILE_PATH);
         const parsed: RegisteredUser[] = JSON.parse(fileData);
         if (Array.isArray(parsed)) {
           for (const u of parsed) {
@@ -128,12 +127,8 @@ class TelegramBotService {
 
   private saveUsersToStorage(): void {
     try {
-      const dir = path.dirname(USERS_FILE_PATH);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
       const list = Array.from(this.registeredUsers.values());
-      fs.writeFileSync(USERS_FILE_PATH, JSON.stringify(list, null, 2), 'utf-8');
+      storage.writeFileSync(USERS_FILE_PATH, JSON.stringify(list, null, 2));
     } catch (err) {
       console.error('[TelegramBot] Error saving registered users to storage:', err);
     }
@@ -141,8 +136,8 @@ class TelegramBotService {
 
   private loadConfigFromStorage(): void {
     try {
-      if (fs.existsSync(CONFIG_FILE_PATH)) {
-        const fileData = fs.readFileSync(CONFIG_FILE_PATH, 'utf-8');
+      if (storage.existsSync(CONFIG_FILE_PATH)) {
+        const fileData = storage.readFileSync(CONFIG_FILE_PATH);
         const parsed: SavedTelegramConfig = JSON.parse(fileData);
         if (parsed && parsed.token) {
           this.botToken = parsed.token.trim();
@@ -170,16 +165,12 @@ class TelegramBotService {
 
   private saveConfigToStorage(): void {
     try {
-      const dir = path.dirname(CONFIG_FILE_PATH);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
       const dataToSave: SavedTelegramConfig = {
         token: this.botToken,
         appUrl: this.appUrl,
         updatedAt: new Date().toISOString(),
       };
-      fs.writeFileSync(CONFIG_FILE_PATH, JSON.stringify(dataToSave, null, 2), 'utf-8');
+      storage.writeFileSync(CONFIG_FILE_PATH, JSON.stringify(dataToSave, null, 2));
     } catch (err) {
       console.error('[TelegramBot] Error saving config to storage:', err);
     }

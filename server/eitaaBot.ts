@@ -1,7 +1,6 @@
-import fs from 'fs';
-import path from 'path';
 import crypto from 'crypto';
 import { emailStore, cleanAndDeduplicateOtp } from './emailStore';
+import { storage } from './storage';
 import { EmailMessage } from '../src/types';
 import { extractValidPhoneNumber, formatIranianMobile } from '../src/utils/phone';
 
@@ -28,8 +27,8 @@ export interface EitaaRegisteredUser {
   history?: Array<{ email: string; createdAt: string }>;
 }
 
-const CONFIG_FILE_PATH = path.join(process.cwd(), 'server', 'eitaa_config.json');
-const USERS_FILE_PATH = path.join(process.cwd(), 'server', 'eitaa_users.json');
+const CONFIG_FILE_PATH = 'eitaa_config.json';
+const USERS_FILE_PATH = 'eitaa_users.json';
 
 const DEFAULT_WELCOME_MESSAGE = `👋 **سلام {name} عزیز، به سرویس ایمیل موقت خوش آمدید!**
 
@@ -70,8 +69,8 @@ export class EitaaBotService {
 
   public loadConfig() {
     try {
-      if (fs.existsSync(CONFIG_FILE_PATH)) {
-        const data = fs.readFileSync(CONFIG_FILE_PATH, 'utf-8');
+      if (storage.existsSync(CONFIG_FILE_PATH)) {
+        const data = storage.readFileSync(CONFIG_FILE_PATH);
         const parsed = JSON.parse(data);
         this.config = {
           ...this.config,
@@ -87,7 +86,7 @@ export class EitaaBotService {
   public saveConfig() {
     try {
       this.config.updatedAt = new Date().toISOString();
-      fs.writeFileSync(CONFIG_FILE_PATH, JSON.stringify(this.config, null, 2), 'utf-8');
+      storage.writeFileSync(CONFIG_FILE_PATH, JSON.stringify(this.config, null, 2));
     } catch (err) {
       console.error('[EitaaBot] Failed to save config:', err);
     }
@@ -114,8 +113,8 @@ export class EitaaBotService {
 
   public loadUsers() {
     try {
-      if (fs.existsSync(USERS_FILE_PATH)) {
-        const data = fs.readFileSync(USERS_FILE_PATH, 'utf-8');
+      if (storage.existsSync(USERS_FILE_PATH)) {
+        const data = storage.readFileSync(USERS_FILE_PATH);
         const list: EitaaRegisteredUser[] = JSON.parse(data);
         this.users.clear();
         this.emailToPhoneMap.clear();
@@ -153,7 +152,7 @@ export class EitaaBotService {
   public saveUsers() {
     try {
       const list = Array.from(this.users.values());
-      fs.writeFileSync(USERS_FILE_PATH, JSON.stringify(list, null, 2), 'utf-8');
+      storage.writeFileSync(USERS_FILE_PATH, JSON.stringify(list, null, 2));
     } catch (err) {
       console.error('[EitaaBot] Failed to save users:', err);
     }

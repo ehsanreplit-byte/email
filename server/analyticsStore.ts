@@ -1,6 +1,5 @@
-import fs from 'fs';
-import path from 'path';
 import crypto from 'crypto';
+import { storage } from './storage';
 
 export interface LoginEvent {
   id: string;
@@ -11,7 +10,7 @@ export interface LoginEvent {
   timestamp: string;
 }
 
-const LOGINS_FILE = path.join(process.cwd(), 'server', 'analytics_logins.json');
+const LOGINS_FILE = 'analytics_logins.json';
 
 export class AnalyticsStore {
   private loginEvents: LoginEvent[] = [];
@@ -20,10 +19,10 @@ export class AnalyticsStore {
     this.loadFromStorage();
   }
 
-  private loadFromStorage(): void {
+  public loadFromStorage(): void {
     try {
-      if (fs.existsSync(LOGINS_FILE)) {
-        const raw = fs.readFileSync(LOGINS_FILE, 'utf8');
+      if (storage.existsSync(LOGINS_FILE)) {
+        const raw = storage.readFileSync(LOGINS_FILE);
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
           this.loginEvents = parsed;
@@ -36,13 +35,9 @@ export class AnalyticsStore {
 
   private saveToStorage(): void {
     try {
-      const dir = path.dirname(LOGINS_FILE);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
       // Keep recent 5000 events to prevent uncontrolled file growth
       const recent = this.loginEvents.slice(-5000);
-      fs.writeFileSync(LOGINS_FILE, JSON.stringify(recent, null, 2), 'utf8');
+      storage.writeFileSync(LOGINS_FILE, JSON.stringify(recent, null, 2));
     } catch (err) {
       console.error('[AnalyticsStore] Error saving logins file:', err);
     }

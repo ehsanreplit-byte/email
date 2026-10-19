@@ -1,12 +1,11 @@
-import fs from 'fs';
-import path from 'path';
+import { storage } from './storage';
 
 export interface SystemConfig {
   maintenance: boolean;
   maintenanceMessage: string;
 }
 
-const CONFIG_FILE = path.join(process.cwd(), 'server', 'system_config.json');
+const CONFIG_FILE = 'system_config.json';
 
 class SystemStore {
   private config: SystemConfig = {
@@ -20,8 +19,8 @@ class SystemStore {
 
   private loadConfig(): void {
     try {
-      if (fs.existsSync(CONFIG_FILE)) {
-        const raw = fs.readFileSync(CONFIG_FILE, 'utf-8');
+      if (storage.existsSync(CONFIG_FILE)) {
+        const raw = storage.readFileSync(CONFIG_FILE);
         const parsed = JSON.parse(raw);
         this.config = {
           maintenance: typeof parsed.maintenance === 'boolean' ? parsed.maintenance : false,
@@ -37,7 +36,7 @@ class SystemStore {
 
   private saveConfig(): void {
     try {
-      fs.writeFileSync(CONFIG_FILE, JSON.stringify(this.config, null, 2), 'utf-8');
+      storage.writeFileSync(CONFIG_FILE, JSON.stringify(this.config, null, 2));
     } catch (err) {
       console.error('[SystemStore] Failed to save system config:', err);
     }

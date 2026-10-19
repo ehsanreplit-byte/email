@@ -1,6 +1,5 @@
 import express from 'express';
 import path from 'path';
-import { createServer as createViteServer } from 'vite';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { emailStore } from './server/emailStore';
@@ -20,6 +19,7 @@ import { getUserUnifiedUsageStats } from './server/userQuotaService';
 import { parseInboundEmail, decodeMimeHeader, fixMojibake } from './server/mimeDecoder';
 import { inboundWebhookGuard } from './server/webhookGuard';
 import { signToken, requireAdmin } from './server/authMiddleware';
+import { storage } from './server/storage';
 import fs from 'fs';
 import crypto from 'crypto';
 
@@ -34,7 +34,26 @@ function escapeHtml(input: unknown): string {
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+
+  // --- Persistence bootstrap: connect to MongoDB and hydrate every store ---
+  await storage.init();
+  systemStore.loadFromStorage();
+  adminAuthStore.loadFromStorage();
+  analyticsStore.loadFromStorage();
+  emailStore.loadFromStorage();
+  emailSenderStore.loadFromStorage();
+  subscriptionStore.loadFromStorage();
+  blupalStore.loadFromStorage();
+  ticketStore.loadFromStorage();
+  backupService.loadFromStorage();
+  telegramBotService.loadUsers();
+  telegramBotService.loadConfig();
+  eitaaBotService.loadUsers();
+  eitaaBotService.loadConfig();
+
+  // Safety net: flush any queued MongoDB writes periodically.
+  const flushTimer = setInterval(() => { void storage.flush(); }, 5000);
+  (flushTimer as any).unref?.();
 
   app.use(helmet({
     contentSecurityPolicy: false,
@@ -76,20 +95,37 @@ async function startServer() {
   app.use(express.urlencoded({ extended: true, limit: '5mb' }));
   app.use(express.text({ type: ['text/*', 'message/*', 'application/x-raw-email'], limit: '5mb' }));
 
-  // Ensure uploads directory exists
-  const uploadsDir = path.join(process.cwd(), 'uploads');
-  if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
-  }
-  app.use('/uploads', (req, res, next) => {
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Content-Disposition', 'inline');
+  // Persist all pending MongoDB writes before a response is sent, so data is
+  // never lost when the process is frozen/recycled (e.g. on serverless).
+  app.use((req, res, next) => {
+    const originalEnd = res.end.bind(res);
+    let ended = false;
+    (res as any).end = ((...args: any[]) => {
+      if (ended) return res;
+      ended = true;
+      void storage.flush().finally(() => { originalEnd(...(args as [any, any, any])); });
+      return res;
+    }) as any;
     next();
-  }, express.static(uploadsDir, {
-    setHeaders: (res) => {
+  });
+
+  // Serve uploaded attachments. Files live in MongoDB; a local-file fallback is
+  // kept for development when MONGODB_URI is not configured.
+  app.get('/uploads/:name', async (req, res) => {
+    try {
+      const name = path.basename(req.params.name);
+      const file = await storage.getUpload(name);
+      if (!file) return res.status(404).end();
       res.setHeader('X-Content-Type-Options', 'nosniff');
-    },
-  }));
+      res.setHeader('Content-Disposition', 'inline');
+      res.setHeader('Content-Type', file.contentType || 'application/octet-stream');
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      return res.send(file.data);
+    } catch (err) {
+      console.error('[Uploads] Failed to serve attachment:', err);
+      return res.status(500).end();
+    }
+  });
 
   // SEO Static Files Handler
   app.get('/robots.txt', (req, res) => {
@@ -918,8 +954,7 @@ async function startServer() {
         }
 
         const randomName = `${Date.now()}_${crypto.randomBytes(4).toString('hex')}.${extension}`;
-        const localFilePath = path.join(process.cwd(), 'uploads', randomName);
-        fs.writeFileSync(localFilePath, buffer);
+        await storage.saveUpload(randomName, buffer, contentType);
         const relativeUrl = `/uploads/${randomName}`;
 
         if (fileType === 'photo') {
@@ -2182,6 +2217,7 @@ async function startServer() {
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
@@ -2195,9 +2231,28 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://0.0.0.0:${PORT}`);
-  });
+  return app;
 }
 
-startServer();
+let appPromise: Promise<express.Express> | null = null;
+
+/** Returns the shared Express application (created once per process). */
+export function getApp(): Promise<express.Express> {
+  if (!appPromise) appPromise = startServer();
+  return appPromise;
+}
+
+// Start the HTTP listener only when running as a standalone server.
+// Inside a serverless platform (Vercel) the exported handler is used instead.
+if (!process.env.VERCEL && process.env.SERVERLESS !== 'true') {
+  getApp()
+    .then((app) => {
+      app.listen(3000, '0.0.0.0', () => {
+        console.log('Server running on http://0.0.0.0:3000');
+      });
+    })
+    .catch((err) => {
+      console.error('[Server] Failed to start:', err);
+      process.exit(1);
+    });
+}
