@@ -144,11 +144,15 @@ class TelegramBotService {
           this.appUrl = parsed.appUrl || '';
           console.log(`[TelegramBot] Restored bot token from database storage file (${this.botToken.substring(0, 6)}...)`);
           
-          // Start Direct Receiving (Long Polling) automatically
-          this.startPolling();
+          // Long polling only works in a long-lived process.
+          if (!this.isServerless()) {
+            this.startPolling();
+          }
         }
       } else if (this.botToken) {
-        this.startPolling();
+        if (!this.isServerless()) {
+          this.startPolling();
+        }
       }
     } catch (err) {
       console.error('[TelegramBot] Failed to load config from storage file:', err);
@@ -182,7 +186,12 @@ class TelegramBotService {
       this.appUrl = appUrl.trim();
     }
     this.saveConfigToStorage();
-    this.startPolling();
+    if (this.isServerless()) {
+      // Serverless: register a webhook instead of long polling.
+      void this.setWebhook(this.appUrl || this.resolvePublicUrl());
+    } else {
+      this.startPolling();
+    }
   }
 
   public getToken(): string {
@@ -506,14 +515,52 @@ class TelegramBotService {
     if (!this.isConfigured()) {
       return { success: false, error: 'Bot Token is not configured' };
     }
-    this.appUrl = webhookUrl.trim();
+    const base = (webhookUrl || this.resolvePublicUrl()).trim().replace(/\/+$/, '');
+    if (!base) {
+      return { success: false, error: 'Public app URL is not configured' };
+    }
+    this.appUrl = base;
     this.saveConfigToStorage();
-    this.startPolling();
-    return { success: true, result: 'Direct receiving (Long Polling) active' };
+
+    const payload: any = {
+      url: `${base}/api/telegram/webhook`,
+      allowed_updates: ['message', 'callback_query'],
+      drop_pending_updates: false,
+    };
+    const secret = (process.env.TELEGRAM_WEBHOOK_SECRET || '').trim();
+    if (secret) payload.secret_token = secret;
+
+    const res = await this.callTelegramApi('setWebhook', payload);
+    if (res && res.ok) {
+      console.log('[TelegramBot] Webhook registered:', payload.url);
+      return { success: true, result: res };
+    }
+    return { success: false, error: res?.description || 'Failed to register Telegram webhook' };
+  }
+
+  /** True when running inside a serverless platform (no long-lived process). */
+  private isServerless(): boolean {
+    return Boolean(process.env.VERCEL || process.env.SERVERLESS === 'true');
+  }
+
+  /** Public base URL of this deployment, used to build the Telegram webhook URL. */
+  public resolvePublicUrl(): string {
+    const fromEnv = (process.env.APP_URL || '').trim();
+    if (fromEnv) return fromEnv.replace(/\/+$/, '');
+    const vercelProd = (process.env.VERCEL_PROJECT_PRODUCTION_URL || '').trim();
+    if (vercelProd) return `https://${vercelProd}`.replace(/\/+$/, '');
+    const vercelUrl = (process.env.VERCEL_URL || '').trim();
+    if (vercelUrl) return `https://${vercelUrl}`.replace(/\/+$/, '');
+    return (this.appUrl || '').trim().replace(/\/+$/, '');
   }
 
   public startPolling(): void {
     if (!this.isConfigured()) return;
+    // Long polling needs a long-lived process; it cannot run on serverless.
+    if (this.isServerless()) {
+      console.log('[TelegramBot] Serverless environment detected — long polling disabled (webhook mode).');
+      return;
+    }
     this.isPolling = true;
 
     // Delete webhook first to avoid conflicts with getUpdates

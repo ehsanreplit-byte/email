@@ -51,6 +51,20 @@ async function startServer() {
   eitaaBotService.loadUsers();
   eitaaBotService.loadConfig();
 
+  // On serverless platforms (Vercel) long polling is impossible, so register a
+  // real Telegram webhook pointing at this deployment.
+  if (process.env.VERCEL || process.env.SERVERLESS === 'true') {
+    if (telegramBotService.isConfigured()) {
+      const publicUrl = telegramBotService.resolvePublicUrl();
+      if (publicUrl && publicUrl !== telegramBotService.getAppUrl()) {
+        telegramBotService
+          .setWebhook(publicUrl)
+          .then((r) => console.log('[Telegram] Webhook registration:', r.success ? 'ok' : r.error))
+          .catch((e) => console.error('[Telegram] Webhook registration failed:', e));
+      }
+    }
+  }
+
   // Safety net: flush any queued MongoDB writes periodically.
   const flushTimer = setInterval(() => { void storage.flush(); }, 5000);
   (flushTimer as any).unref?.();
