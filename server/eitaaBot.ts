@@ -784,7 +784,6 @@ export class EitaaBotService {
     const senderName = message.from?.name || message.from?.address || 'نامشخص';
     const senderAddr = message.from?.address || '';
     const subject = message.subject || 'بدون موضوع';
-    const appUrl = this.config.appUrl || 'https://tempmail.ir';
 
     let textMsg = `📬 **ایمیل جدید دریافت شد!**\n\n` +
       `📩 **گیرنده:** \`${normalizedEmail}\`\n` +
@@ -828,8 +827,6 @@ export class EitaaBotService {
         }
       }
     }
-
-    textMsg += `🔗 جهت مشاهده و مدیریت کامل این پیام:\n${appUrl}`;
 
     console.log(`[EitaaBot] Forwarding incoming email for ${normalizedEmail} to Eitaa user ${userPhone}...`);
     const res = user ? await this.sendMessageToUser(user, textMsg) : await this.sendMessage(userPhone, textMsg);
