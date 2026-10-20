@@ -346,13 +346,28 @@ export default function App() {
           const userInboxesKey = `tempmail_inboxes_${authed}`;
           const prevEmails = inboxes.map(i => i.email).sort().join(',');
           const nextEmails = fetchedInboxes.map(i => i.email).sort().join(',');
-          
-          if (prevEmails !== nextEmails) {
-            localStorage.setItem(userInboxesKey, JSON.stringify(fetchedInboxes));
-            localStorage.setItem('tempmail_inboxes', JSON.stringify(fetchedInboxes));
-            setInboxes(fetchedInboxes);
+          // Also refresh when unread/total counts change (not only when the
+          // list of inboxes changes), otherwise the counters stay stale.
+          const countsChanged = fetchedInboxes.some((fi) => {
+            const ex = inboxes.find(i => i.email.trim().toLowerCase() === fi.email.trim().toLowerCase());
+            return !ex || (ex.unreadCount || 0) !== (fi.unreadCount || 0) || (ex.totalCount || 0) !== (fi.totalCount || 0);
+          });
+
+          if (prevEmails !== nextEmails || countsChanged) {
             currentInboxesList = fetchedInboxes;
-            
+
+            if (prevEmails !== nextEmails) {
+              localStorage.setItem(userInboxesKey, JSON.stringify(fetchedInboxes));
+              localStorage.setItem('tempmail_inboxes', JSON.stringify(fetchedInboxes));
+              setCurrentInbox((curr) => {
+                if (!curr) return fetchedInboxes[0] || null;
+                const isStillValid = fetchedInboxes.some(i => i.email === curr.email);
+                return isStillValid ? curr : (fetchedInboxes[0] || null);
+              });
+            }
+
+            setInboxes(fetchedInboxes);
+
             if (syncRes.remainingEmails !== undefined && syncRes.limit !== undefined) {
               setUserQuota({
                 limit: syncRes.limit,
@@ -360,12 +375,6 @@ export default function App() {
                 remaining: syncRes.remainingEmails
               });
             }
-
-            setCurrentInbox((curr) => {
-              if (!curr) return fetchedInboxes[0] || null;
-              const isStillValid = fetchedInboxes.some(i => i.email === curr.email);
-              return isStillValid ? curr : (fetchedInboxes[0] || null);
-            });
           }
         }
       } catch (syncErr) {
@@ -677,13 +686,37 @@ export default function App() {
     }
   };
 
-  const handleMessageClick = (msg: EmailMessage) => {
+  const handleMessageClick = async (msg: EmailMessage) => {
     if (!isAuthenticated) {
       showToast('⚠️ جهت دیدن و خواندن متن کامل پیام، ثبت‌نام کنید یا وارد شوید!', 'info');
       setIsAuthModalOpen(true);
       return;
     }
-    setSelectedMessage(msg);
+
+    if (!msg.isRead) {
+      const inboxEmail = (msg.inboxEmail || currentInbox?.email || '').trim().toLowerCase();
+
+      // Update the UI immediately so every unread counter decreases right away.
+      setSelectedMessage({ ...msg, isRead: true });
+      setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, isRead: true } : m)));
+      if (inboxEmail) {
+        setInboxes((prev) =>
+          prev.map((ib) =>
+            ib.email.trim().toLowerCase() === inboxEmail
+              ? { ...ib, unreadCount: Math.max(0, (ib.unreadCount || 0) - 1) }
+              : ib
+          )
+        );
+        // Persist the read state on the server so it survives refreshes.
+        try {
+          await api.getMessage(inboxEmail, msg.id);
+        } catch (err) {
+          console.warn('Failed to mark message as read on server:', err);
+        }
+      }
+    } else {
+      setSelectedMessage(msg);
+    }
   };
 
   const formatDate = (isoString: string) => {

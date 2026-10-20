@@ -480,8 +480,14 @@ class EmailStore {
     if (!item) return null;
     const msg = item.messages.find(m => m.id === messageId);
     if (msg) {
+      const wasUnread = !msg.isRead;
       msg.isRead = true;
       item.inbox.unreadCount = item.messages.filter(m => !m.isRead).length;
+      item.inbox.totalCount = item.messages.length;
+      // Persist so the read state and unread counter survive restarts / syncs.
+      if (wasUnread) {
+        this.saveInboxesToStorage();
+      }
     }
     return msg || null;
   }

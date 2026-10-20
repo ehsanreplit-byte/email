@@ -172,6 +172,29 @@ export const WebAppInboxView: React.FC<WebAppInboxViewProps> = ({ onBack }) => {
     }
   }, [inboxes, currentUser, showToast]);
 
+  // Mark a message as read (locally + on the server) when it is opened.
+  const handleOpenMessage = useCallback(async (msg: EmailMessage) => {
+    setSelectedMessage({ ...msg, isRead: true });
+    if (!msg.isRead) {
+      setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, isRead: true } : m)));
+      const inboxEmail = (msg.inboxEmail || '').trim().toLowerCase();
+      if (inboxEmail) {
+        setInboxes((prev) =>
+          prev.map((ib) =>
+            ib.email.trim().toLowerCase() === inboxEmail
+              ? { ...ib, unreadCount: Math.max(0, (ib.unreadCount || 0) - 1) }
+              : ib
+          )
+        );
+        try {
+          await api.getMessage(inboxEmail, msg.id);
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  }, []);
+
   // Trigger fetch whenever inboxes change or user is set
   useEffect(() => {
     if (currentUser) {
@@ -321,7 +344,7 @@ export const WebAppInboxView: React.FC<WebAppInboxViewProps> = ({ onBack }) => {
               {messages.map((msg) => (
                 <div
                   key={msg.id}
-                  onClick={() => setSelectedMessage(msg)}
+                  onClick={() => handleOpenMessage(msg)}
                   className="p-3.5 rounded-xl bg-slate-950/90 border border-slate-800 hover:border-indigo-500/50 hover:bg-slate-950 transition-all cursor-pointer space-y-2 shadow-sm group active:scale-[0.99]"
                 >
                   <div className="flex items-center justify-between text-xs">

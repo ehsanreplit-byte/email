@@ -153,7 +153,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       id: 'inbox' as ActiveTab,
       label: isFa ? 'صندوق ورودی' : 'Inbox',
       icon: Mail,
-      badge: totalMessagesCount > 0 ? totalMessagesCount : null,
+      badge: unreadMessagesCount > 0 ? unreadMessagesCount : null,
       activeColor: 'bg-indigo-50/80 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border-indigo-100 dark:border-indigo-900/50',
     },
     {
