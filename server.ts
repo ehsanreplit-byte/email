@@ -1114,6 +1114,44 @@ async function startServer() {
     }
   });
 
+  // Vercel Cron endpoint — runs the scheduled Telegram backup when it is due.
+  // Vercel sends `Authorization: Bearer <CRON_SECRET>` automatically when the
+  // CRON_SECRET env var is configured for the project.
+  app.get('/api/cron/backup', async (req, res) => {
+    const secret = (process.env.CRON_SECRET || '').trim();
+    if (secret) {
+      const auth = req.headers.authorization || '';
+      if (auth !== `Bearer ${secret}`) {
+        return res.status(401).json({ error: 'UNAUTHORIZED' });
+      }
+    }
+
+    try {
+      const cfg = backupService.getConfig();
+      const force = req.query.force === '1' || req.query.force === 'true';
+
+      if (!force) {
+        if (cfg.scheduleInterval === 'disabled' || !cfg.adminChatId || !cfg.nextBackupAt) {
+          return res.json({ skipped: true, reason: 'backup schedule is not active', config: cfg });
+        }
+        if (Date.now() < new Date(cfg.nextBackupAt).getTime()) {
+          return res.json({ skipped: true, reason: 'not due yet', nextBackupAt: cfg.nextBackupAt });
+        }
+      }
+
+      console.log('[Cron] Running scheduled database backup...');
+      const result = await backupService.sendBackupToTelegram();
+      return res.status(result.success ? 200 : 500).json({
+        ...result,
+        nextBackupAt: backupService.getConfig().nextBackupAt,
+        at: new Date().toISOString(),
+      });
+    } catch (err: any) {
+      console.error('[Cron] Backup failed:', err);
+      return res.status(500).json({ success: false, error: err.message || 'Backup failed' });
+    }
+  });
+
   // Subscriptions & Models Management API
   app.get('/api/subscription-plans', (req, res) => {
     try {

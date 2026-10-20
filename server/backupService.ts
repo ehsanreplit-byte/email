@@ -318,6 +318,14 @@ class BackupService {
    * Background checker for scheduled backups
    */
   private startScheduler(): void {
+    // On serverless platforms (e.g. Vercel) the process is frozen between
+    // requests, so an in-process timer never fires. Scheduled backups there are
+    // driven by a Vercel Cron job hitting `/api/cron/backup` instead.
+    if (process.env.VERCEL || process.env.SERVERLESS === 'true') {
+      console.log('[BackupService] Serverless environment — in-process scheduler disabled (using external cron).');
+      return;
+    }
+
     // Check every 1 minute
     setInterval(async () => {
       if (this.config.scheduleInterval === 'disabled' || !this.config.nextBackupAt || !this.config.adminChatId) {

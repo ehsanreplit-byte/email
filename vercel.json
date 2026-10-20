@@ -2,14 +2,17 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "buildCommand": "npm run build:vercel",
+  "outputDirectory": "dist",
   "functions": {
-    "api/index.ts": {
+    "api/index.js": {
       "maxDuration": 60,
-      "memory": 1024,
-      "includeFiles": ["dist/**", "public/**"]
+      "includeFiles": "{dist,public}/**"
     }
   },
   "rewrites": [
     { "source": "/(.*)", "destination": "/api/index" }
+  ],
+  "crons": [
+    { "path": "/api/cron/backup", "schedule": "0 * * * *" }
   ]
 }
