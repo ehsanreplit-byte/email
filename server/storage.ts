@@ -39,7 +39,7 @@ class Storage {
   private pending = new Map<string, Promise<unknown>>();
 
   public get mongoEnabled(): boolean {
-    return Boolean(MONGODB_URI);
+    return Boolean(this.db);
   }
 
   public get isReady(): boolean {
@@ -58,40 +58,50 @@ class Storage {
       return;
     }
 
-    this.client = new MongoClient(MONGODB_URI, {
-      serverSelectionTimeoutMS: 15000,
-      connectTimeoutMS: 15000,
-      maxPoolSize: 10,
-      promoteBuffers: true,
-    });
+    try {
+      this.client = new MongoClient(MONGODB_URI, {
+        serverSelectionTimeoutMS: 15000,
+        connectTimeoutMS: 15000,
+        maxPoolSize: 10,
+        promoteBuffers: true,
+      });
 
-    await this.client.connect();
-    this.db = this.client.db(MONGODB_DB);
+      await this.client.connect();
+      this.db = this.client.db(MONGODB_DB);
 
-    const col = this.jsonCollection();
-    const docs = await col.find({}).toArray();
-    const found = new Set<string>();
+      const col = this.jsonCollection();
+      const docs = await col.find({}).toArray();
+      const found = new Set<string>();
 
-    for (const doc of docs as any[]) {
-      const key = String(doc._id);
-      found.add(key);
-      if (typeof doc.data === 'string') {
-        this.cache.set(key, doc.data);
+      for (const doc of docs as any[]) {
+        const key = String(doc._id);
+        found.add(key);
+        if (typeof doc.data === 'string') {
+          this.cache.set(key, doc.data);
+        }
       }
-    }
 
-    // Any document created by store constructors (defaults) that does not yet
-    // exist in MongoDB is seeded now, so a fresh database is initialised.
-    this.ready = true;
-    const toSeed: Array<{ key: string; value: string }> = [];
-    for (const [key, value] of this.cache.entries()) {
-      if (!found.has(key)) toSeed.push({ key, value });
-    }
-    await Promise.all(toSeed.map(({ key, value }) => this.upsert(key, value)));
+      // Any document created by store constructors (defaults) that does not yet
+      // exist in MongoDB is seeded now, so a fresh database is initialised.
+      this.ready = true;
+      const toSeed: Array<{ key: string; value: string }> = [];
+      for (const [key, value] of this.cache.entries()) {
+        if (!found.has(key)) toSeed.push({ key, value });
+      }
+      await Promise.all(toSeed.map(({ key, value }) => this.upsert(key, value)));
 
-    console.log(
-      `[Storage] MongoDB connected (db=${MONGODB_DB}). Loaded ${docs.length} document(s), seeded ${toSeed.length}.`
-    );
+      console.log(
+        `[Storage] MongoDB connected (db=${MONGODB_DB}). Loaded ${docs.length} document(s), seeded ${toSeed.length}.`
+      );
+    } catch (err: any) {
+      // Never take the whole service down because of a database outage: log the
+      // problem and continue with local (ephemeral) storage instead.
+      console.error('[Storage] MongoDB connection failed; falling back to local storage:', err?.message || err);
+      try { await this.client?.close(); } catch { /* ignore */ }
+      this.client = null;
+      this.db = null;
+      this.ready = true;
+    }
   }
 
   private jsonCollection(): Collection {
@@ -155,8 +165,7 @@ class Storage {
       } catch (err) {
         console.error(`[Storage] Local write failed for "${key}":`, err);
       }
-    }
-  }
+    }  }
 
   /** Kept for API compatibility with the previous fs-based stores. */
   public mkdirSync(): void {
