@@ -116,11 +116,18 @@ class Storage {
 
   private upsert(key: string, value: string): Promise<unknown> {
     if (!this.db) return Promise.resolve();
-    const promise = this.jsonCollection()
-      .updateOne(
-        { _id: key as any },
-        { $set: { data: value, updatedAt: new Date() } },
-        { upsert: true }
+    // Serialize writes per key: without this, two concurrent writes for the same
+    // document can be applied out of order and an older value would clobber a
+    // newer one.
+    const previous = this.pending.get(key) ?? Promise.resolve();
+    const promise = previous
+      .catch(() => undefined)
+      .then(() =>
+        this.jsonCollection().updateOne(
+          { _id: key as any },
+          { $set: { data: value, updatedAt: new Date() } },
+          { upsert: true }
+        )
       )
       .catch((err: any) => {
         console.error(`[Storage] MongoDB write failed for "${key}":`, err?.message || err);
@@ -186,26 +193,31 @@ class Storage {
 
   public async saveUpload(key: string, data: Buffer, contentType: string): Promise<void> {
     if (this.db) {
-      const promise = this.uploadsCollection()
-        .updateOne(
-          { _id: key as any },
-          {
-            $set: {
-              contentType,
-              size: data.length,
-              data,
-              createdAt: new Date(),
-            } as any,
-          },
-          { upsert: true }
+      const pendingKey = `upload:${key}`;
+      const previous = this.pending.get(pendingKey) ?? Promise.resolve();
+      const promise = previous
+        .catch(() => undefined)
+        .then(() =>
+          this.uploadsCollection().updateOne(
+            { _id: key as any },
+            {
+              $set: {
+                contentType,
+                size: data.length,
+                data,
+                createdAt: new Date(),
+              } as any,
+            },
+            { upsert: true }
+          )
         )
         .catch((err: any) => {
           console.error(`[Storage] MongoDB upload write failed for "${key}":`, err?.message || err);
         })
         .finally(() => {
-          if (this.pending.get(`upload:${key}`) === promise) this.pending.delete(`upload:${key}`);
+          if (this.pending.get(pendingKey) === promise) this.pending.delete(pendingKey);
         });
-      this.pending.set(`upload:${key}`, promise);
+      this.pending.set(pendingKey, promise);
       await promise;
       return;
     }
