@@ -26,7 +26,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
   // مرحلهٔ دریافت شماره موبایل برای کاربرانی که با شناسهٔ ایتا ثبت‌نام کرده‌اند
   const [step, setStep] = useState<'plans' | 'phone' | 'credentials'>('plans');
   const [hasCredentials, setHasCredentials] = useState<boolean>(false);
-  const [credUsername, setCredUsername] = useState<string>('');
+  const [credPhone, setCredPhone] = useState<string>('');
   const [credPassword, setCredPassword] = useState<string>('');
   const [credConfirm, setCredConfirm] = useState<string>('');
   const [credError, setCredError] = useState<string | null>(null);
@@ -57,7 +57,8 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
           const creds = Boolean(res.success && res.hasCredentials);
 
           setHasCredentials(creds);
-          if (res.success && res.username) setCredUsername(res.username);
+          if (phone) setCredPhone(phone);
+          else if (res.success && res.username) setCredPhone(res.username);
 
           if (phone) {
             setResolvedPhone(phone);
@@ -135,11 +136,14 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
     if (!currentUser) return;
     setCredError(null);
 
-    const username = credUsername.trim();
+    const clean = credPhone.replace(/[^0-9]/g, '');
+    const loginPhone = clean.startsWith('98') && clean.length === 12
+      ? '0' + clean.slice(2)
+      : (clean.length === 10 && clean.startsWith('9') ? '0' + clean : clean);
     const pass = credPassword;
 
-    if (!/^[a-zA-Z0-9_.]{3,24}$/.test(username)) {
-      setCredError('نام کاربری باید ۳ تا ۲۴ کاراکتر و شامل حروف انگلیسی، عدد، نقطه یا زیرخط باشد.');
+    if (!/^09\d{9}$/.test(loginPhone)) {
+      setCredError('شماره موبایل معتبر نیست. مثال: 09121234567');
       return;
     }
     if (pass.length < 6) {
@@ -153,13 +157,15 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
 
     setIsSavingCred(true);
     try {
-      const res = await api.setUserCredentials(currentUser, username, pass);
+      const res = await api.setUserCredentials(currentUser, loginPhone, pass);
       if (res.success) {
         setHasCredentials(true);
+        setResolvedPhone(res.phone || loginPhone);
+        try { localStorage.setItem(`eitaa_phone_${currentUser}`, res.phone || loginPhone); } catch {}
         setStep('plans');
-        showToast('نام کاربری و رمز عبور ثبت شد؛ از این پس می‌توانید از سایت وارد شوید.', 'success');
+        showToast('شماره موبایل و رمز عبور ثبت شد؛ از این پس می‌توانید از سایت وارد شوید.', 'success');
       } else {
-        setCredError(res.error || 'خطا در ثبت نام کاربری.');
+        setCredError(res.error || 'خطا در ثبت شماره موبایل.');
       }
     } catch {
       setCredError('خطا در ارتباط با سرور.');
@@ -237,23 +243,24 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
               </div>
 
               <div className="space-y-1.5">
-                <h4 className="font-extrabold text-slate-900 text-sm sm:text-base">نام کاربری و رمز عبور بسازید</h4>
+                <h4 className="font-extrabold text-slate-900 text-sm sm:text-base">شماره موبایل و رمز عبور</h4>
                 <p className="text-slate-500 text-xs leading-relaxed">
-                  با این اطلاعات می‌توانید علاوه بر ایتا، از طریق سایت هم وارد حساب خود شوید.
+                  با شماره موبایل و رمز عبور می‌توانید علاوه بر ایتا، از طریق سایت هم وارد حساب خود شوید.
                 </p>
               </div>
 
               <div className="space-y-2.5 text-right">
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-slate-700 block">نام کاربری</label>
+                  <label className="text-[11px] font-bold text-slate-700 block">شماره موبایل</label>
                   <input
-                    type="text"
+                    type="tel"
+                    inputMode="numeric"
                     dir="ltr"
-                    autoComplete="username"
-                    value={credUsername}
-                    onChange={(e) => { setCredUsername(e.target.value); setCredError(null); }}
-                    placeholder="username"
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none text-sm font-mono text-center min-h-[48px]"
+                    autoComplete="tel"
+                    value={credPhone}
+                    onChange={(e) => { setCredPhone(e.target.value); setCredError(null); }}
+                    placeholder="09121234567"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none text-sm font-mono text-center tracking-widest min-h-[48px]"
                   />
                 </div>
 
