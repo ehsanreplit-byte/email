@@ -378,6 +378,9 @@ export default function App() {
   // شمارهٔ درخواست برای نادیده گرفتن پاسخ‌های قدیمی (جلوگیری از بازنویسی لیست جدید)
   const fetchSeqRef = useRef(0);
 
+  // تا پایان بارگذاری اولیه (رفرش/باز شدن مجدد صفحه) هیچ پیامی «جدید» اعلام نمی‌شود
+  const bootstrappedRef = useRef(false);
+
   // syncList=false یعنی فقط پیام‌ها را بگیر و لیست ایمیل‌ها را دست نزن (جلوگیری از پرش لیست)
   const fetchInboxMessages = useCallback(async (isManual = false, syncList = true) => {
     const authed = resolveAccountKey();
@@ -400,7 +403,8 @@ export default function App() {
       };
 
       const applyMessages = async (emails: string[]) => {
-        if (emails.length === 0) return;
+        // اگر لیست محلی خالی است ولی حساب کاربر مشخص است، سرور خودش ایمیل‌های حساب را پیدا می‌کند
+        if (emails.length === 0 && !authed) return;
         const msgs = await api.getMessagesForUser(emails, authed);
         if (isStale()) return;
 
@@ -411,7 +415,8 @@ export default function App() {
         setMessages((prev) => mergeMessagesById(prev, msgs));
         for (const m of msgs) knownIds.add(m.id);
 
-        if (hadMessagesBefore && newMessages.length > 0) {
+        // فقط وقتی اعلان بده که بارگذاری اولیه تمام شده باشد و پیام واقعاً تازه باشد
+        if (bootstrappedRef.current && hadMessagesBefore && newMessages.length > 0) {
           const newest = newMessages[0];
           try { playNewEmailSound(); } catch {}
           showToast(
@@ -514,9 +519,11 @@ export default function App() {
       if (!isStale()) {
         setIsLoadingMessages(false);
         if (isManual) setIsRefreshing(false);
+        // اولین بارگذاری (رفرش یا باز شدن مجدد) اعلان «پیام جدید» تولید نمی‌کند
+        bootstrappedRef.current = true;
       }
     }
-  }, [showToast]);
+  }, [resolveAccountKey, showToast]);
 
   // Trigger fetch only when the selected inbox actually changes
   useEffect(() => {
