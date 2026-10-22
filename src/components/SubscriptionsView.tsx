@@ -475,21 +475,21 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ lang }) =>
 
       {/* Header Card */}
       <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
+        <div className="flex items-center gap-3.5 min-w-0">
           <div className="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-600/30 shrink-0">
             <CreditCard className="w-6 h-6" />
           </div>
-          <div>
-            <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tight break-words">
               {isFa ? 'مدیریت مدل‌ها و اشتراک‌های ربات' : 'Subscription Models & Plans Management'}
             </h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed break-words">
               {isFa ? 'تعریف پلن‌ها و مدل‌های اشتراک، قابلیت انتخاب کاربر از ربات تلگرام و تخصیص مستقیم' : 'Create subscription plans for user selection in Telegram Bot and assign active plans.'}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto shrink-0">
           <button
             onClick={() => handleOpenNewPlanModal()}
             className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 cursor-pointer transition-all"
@@ -511,10 +511,10 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ lang }) =>
 
 
       {/* Main Navigation Tabs */}
-      <div className="flex border-b border-slate-200 dark:border-slate-800 gap-2">
+      <div className="flex border-b border-slate-200 dark:border-slate-800 gap-2 overflow-x-auto">
         <button
           onClick={() => setActiveSubTab('plans')}
-          className={`pb-3 px-4 text-xs sm:text-sm font-bold transition-all border-b-2 cursor-pointer flex items-center gap-2 ${
+          className={`pb-3 px-3 sm:px-4 text-xs sm:text-sm font-bold transition-all border-b-2 cursor-pointer flex items-center gap-2 shrink-0 whitespace-nowrap ${
             activeSubTab === 'plans'
               ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
               : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
@@ -529,7 +529,7 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ lang }) =>
 
         <button
           onClick={() => setActiveSubTab('users')}
-          className={`pb-3 px-4 text-xs sm:text-sm font-bold transition-all border-b-2 cursor-pointer flex items-center gap-2 ${
+          className={`pb-3 px-3 sm:px-4 text-xs sm:text-sm font-bold transition-all border-b-2 cursor-pointer flex items-center gap-2 shrink-0 whitespace-nowrap ${
             activeSubTab === 'users'
               ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
               : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
@@ -545,13 +545,13 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ lang }) =>
 
       {/* Generated Payment Link Box if available */}
       {paymentLink && (
-        <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 flex items-center justify-between gap-3 animate-in fade-in">
+        <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
           <div className="space-y-1">
             <div className="text-xs font-bold text-emerald-900 dark:text-emerald-300 flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
               <span>{isFa ? 'لینک درگاه پرداخت بلوپال برای مدل اشتراک تولید شد:' : 'BluPal payment link generated:'}</span>
             </div>
-            <div className="text-xs font-mono font-bold text-slate-800 dark:text-slate-200 dir-ltr truncate max-w-xl">
+            <div className="text-xs font-mono font-bold text-slate-800 dark:text-slate-200 dir-ltr truncate w-full max-w-full sm:max-w-xl">
               {paymentLink}
             </div>
           </div>
@@ -580,8 +580,8 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ lang }) =>
       {/* TAB 1: SUBSCRIPTION PLANS / MODELS */}
       {activeSubTab === 'plans' && (
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-sm font-bold text-slate-800 dark:text-slate-200 min-w-0 break-words">
               {isFa ? 'مدل‌های اشتراک قابل انتخاب در ربات تلگرام:' : 'Subscription Models selectable by Telegram Users:'}
             </h2>
 
@@ -594,7 +594,7 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ lang }) =>
           </div>
 
           {plans.length === 0 ? (
-            <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-3">
+            <div className="p-8 sm:p-12 text-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-3">
               <Layers className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto" />
               <div className="text-sm font-bold text-slate-700 dark:text-slate-300">
                 {isFa ? 'هنوز هیچ مدل اشتراکی تعریف نشده است.' : 'No subscription models defined yet.'}
@@ -614,7 +614,7 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ lang }) =>
               {plans.map((p) => (
                 <div
                   key={p.id}
-                  className={`p-6 rounded-2xl bg-white dark:bg-slate-900 border transition-all space-y-5 relative flex flex-col justify-between ${
+                  className={`p-5 sm:p-6 rounded-2xl bg-white dark:bg-slate-900 border transition-all space-y-5 relative flex flex-col justify-between ${
                     p.isFeatured 
                       ? 'border-indigo-500 dark:border-indigo-600 shadow-md ring-1 ring-indigo-500/30' 
                       : 'border-slate-200/80 dark:border-slate-800 shadow-sm'
@@ -622,8 +622,8 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ lang }) =>
                 >
                   {/* Card Header & Badges */}
                   <div>
-                    <div className="flex items-center justify-between gap-2 mb-3">
-                      <div className="flex items-center gap-2">
+                    <div className="flex items-start justify-between gap-2 mb-3 flex-wrap">
+                      <div className="flex items-center gap-2 flex-wrap min-w-0">
                         {p.id === 'plan_free_default' ? (
                           <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300">
                             {isFa ? 'سهمیه پیش‌فرض اعضا (مخفی در ربات)' : 'Default Quota (Hidden in Bot)'}
@@ -666,7 +666,7 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ lang }) =>
                       </div>
                     </div>
 
-                    <h3 className="text-base font-black text-slate-900 dark:text-white">
+                    <h3 className="text-base font-black text-slate-900 dark:text-white break-words">
                       {p.title}
                     </h3>
 
@@ -676,22 +676,22 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ lang }) =>
 
                     {/* Price & Specs */}
                     <div className="my-4 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800/80 space-y-2">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-500 dark:text-slate-400">{isFa ? 'مبلغ به تومان:' : 'Price:'}</span>
-                        <span className="font-mono font-black text-indigo-600 dark:text-indigo-400 text-sm">
+                      <div className="flex items-center justify-between gap-2 text-xs">
+                        <span className="text-slate-500 dark:text-slate-400 shrink-0">{isFa ? 'مبلغ به تومان:' : 'Price:'}</span>
+                        <span className="font-mono font-black text-indigo-600 dark:text-indigo-400 text-sm text-left">
                           {p.priceToman > 0 ? `${p.priceToman.toLocaleString('fa-IR')} تومان` : (isFa ? 'رایگان' : 'Free')}
                         </span>
                       </div>
 
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-500 dark:text-slate-400">{isFa ? 'سقف ساخت ایمیل:' : 'Email Limit:'}</span>
+                      <div className="flex items-center justify-between gap-2 text-xs">
+                        <span className="text-slate-500 dark:text-slate-400 shrink-0">{isFa ? 'سقف ساخت ایمیل:' : 'Email Limit:'}</span>
                         <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
                           {p.monthlyEmailLimit.toLocaleString('fa-IR')} {isFa ? 'ایمیل در ماه' : '/ month'}
                         </span>
                       </div>
 
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-500 dark:text-slate-400">{isFa ? 'مدت اعتبار:' : 'Duration:'}</span>
+                      <div className="flex items-center justify-between gap-2 text-xs">
+                        <span className="text-slate-500 dark:text-slate-400 shrink-0">{isFa ? 'مدت اعتبار:' : 'Duration:'}</span>
                         <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
                           {p.durationDays} {isFa ? 'روز' : 'days'}
                         </span>
@@ -793,29 +793,29 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ lang }) =>
 
           {/* Subscriptions Table / List */}
           {filteredSubs.length === 0 ? (
-            <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 text-slate-400 text-xs space-y-2">
+            <div className="p-8 sm:p-12 text-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 text-slate-400 text-xs space-y-2">
               <CreditCard className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto" />
               <div>{isFa ? 'هیچ اشتراکی با مشخصات جستجویافته پیدا نشد.' : 'No subscriptions found.'}</div>
             </div>
           ) : (
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-right rtl:text-right ltr:text-left border-collapse">
+                <table className="w-full min-w-[860px] text-right rtl:text-right ltr:text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50 dark:bg-slate-950 border-b border-slate-200/80 dark:border-slate-800 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                      <th className="p-4">{isFa ? 'کاربر / شماره تلفن' : 'User / Phone'}</th>
-                      <th className="p-4">{isFa ? 'عنوان پلن اشتراک' : 'Plan Title'}</th>
-                      <th className="p-4">{isFa ? 'سقف ماهانه' : 'Monthly Limit'}</th>
-                      <th className="p-4">{isFa ? 'مبلغ (تومان)' : 'Price'}</th>
-                      <th className="p-4">{isFa ? 'تاریخ شروع و پایان' : 'Start / End Date'}</th>
-                      <th className="p-4">{isFa ? 'وضعیت' : 'Status'}</th>
-                      <th className="p-4 text-center">{isFa ? 'عملیات' : 'Actions'}</th>
+                      <th className="p-3 sm:p-4 whitespace-nowrap">{isFa ? 'کاربر / شماره تلفن' : 'User / Phone'}</th>
+                      <th className="p-3 sm:p-4 whitespace-nowrap">{isFa ? 'عنوان پلن اشتراک' : 'Plan Title'}</th>
+                      <th className="p-3 sm:p-4 whitespace-nowrap">{isFa ? 'سقف ماهانه' : 'Monthly Limit'}</th>
+                      <th className="p-3 sm:p-4 whitespace-nowrap">{isFa ? 'مبلغ (تومان)' : 'Price'}</th>
+                      <th className="p-3 sm:p-4 whitespace-nowrap">{isFa ? 'تاریخ شروع و پایان' : 'Start / End Date'}</th>
+                      <th className="p-3 sm:p-4 whitespace-nowrap">{isFa ? 'وضعیت' : 'Status'}</th>
+                      <th className="p-3 sm:p-4 text-center whitespace-nowrap">{isFa ? 'عملیات' : 'Actions'}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
                     {filteredSubs.map((sub) => (
                       <tr key={sub.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-950/40 transition-colors">
-                        <td className="p-4">
+                        <td className="p-3 sm:p-4 align-top">
                           <div className="font-bold text-slate-900 dark:text-white">
                             {sub.userName || 'کاربر تلگرام'}
                           </div>
@@ -824,7 +824,7 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ lang }) =>
                           </div>
                         </td>
 
-                        <td className="p-4">
+                        <td className="p-3 sm:p-4 align-top">
                           <div className="font-bold text-indigo-600 dark:text-indigo-400">
                             {sub.planTitle}
                           </div>
@@ -835,7 +835,7 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ lang }) =>
                           )}
                         </td>
 
-                        <td className="p-4 font-mono font-bold text-slate-800 dark:text-slate-200">
+                        <td className="p-3 sm:p-4 align-top font-mono font-bold text-slate-800 dark:text-slate-200">
                           <div>{sub.monthlyEmailLimit.toLocaleString('fa-IR')} {isFa ? 'ایمیل' : 'emails'}</div>
                           {sub.addedEmails && sub.addedEmails > 0 && (
                             <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-sans font-medium flex items-center gap-1 mt-0.5">
@@ -844,16 +844,16 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ lang }) =>
                           )}
                         </td>
 
-                        <td className="p-4 font-mono font-bold text-slate-800 dark:text-slate-200">
+                        <td className="p-3 sm:p-4 align-top font-mono font-bold text-slate-800 dark:text-slate-200">
                           {sub.priceToman.toLocaleString('fa-IR')}
                         </td>
 
-                        <td className="p-4 text-[11px] text-slate-500 font-mono space-y-0.5">
+                        <td className="p-3 sm:p-4 align-top text-[11px] text-slate-500 font-mono space-y-0.5 whitespace-nowrap">
                           <div>شروع: {new Date(sub.startDate).toLocaleDateString('fa-IR')}</div>
                           <div>پایان: {new Date(sub.endDate).toLocaleDateString('fa-IR')}</div>
                         </td>
 
-                        <td className="p-4">
+                        <td className="p-3 sm:p-4 align-top">
                           <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
                             sub.status === 'active'
                               ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
@@ -866,7 +866,7 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ lang }) =>
                           </span>
                         </td>
 
-                        <td className="p-4 text-center">
+                        <td className="p-3 sm:p-4 align-top text-center">
                           <div className="flex items-center justify-center gap-1.5">
                             <button
                               onClick={() => handleOpenEditUserSubModal(sub)}
@@ -909,10 +909,10 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ lang }) =>
 
       {/* MODAL 1: CREATE / EDIT SUBSCRIPTION MODEL (PLAN) */}
       {showPlanModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-lg w-full p-6 space-y-5 relative">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
-              <div className="flex items-center gap-2.5">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-lg w-full p-4 sm:p-6 pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-6 space-y-5 relative admin-sheet overflow-y-auto overscroll-contain">
+            <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-4">
+              <div className="flex items-center gap-2.5 min-w-0">
                 <Layers className="w-5 h-5 text-indigo-600" />
                 <div>
                   <h3 className="font-bold text-base text-slate-900 dark:text-white">
@@ -931,7 +931,7 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ lang }) =>
               </div>
               <button
                 onClick={() => setShowPlanModal(false)}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer shrink-0"
               >
                 <XCircle className="w-5 h-5" />
               </button>
@@ -965,7 +965,7 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ lang }) =>
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
                     {isFa ? 'سقف ایمیل در ماه:' : 'Monthly Email Limit:'}
@@ -995,7 +995,7 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ lang }) =>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
                     {isFa ? 'قیمت (تومان):' : 'Price (Toman):'}
@@ -1027,7 +1027,7 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ lang }) =>
                 </div>
               </div>
 
-              <div className="pt-2 flex items-center justify-between">
+              <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between items-start gap-3">
                 <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-700 dark:text-slate-300">
                   <input
                     type="checkbox"
@@ -1049,18 +1049,18 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ lang }) =>
                 </label>
               </div>
 
-              <div className="pt-3 flex justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
+              <div className="pt-3 flex flex-col-reverse sm:flex-row sm:justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setShowPlanModal(false)}
-                  className="px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold cursor-pointer"
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold cursor-pointer text-center"
                 >
                   {isFa ? 'انصراف' : 'Cancel'}
                 </button>
                 <button
                   type="submit"
                   disabled={savingPlan}
-                  className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-md shadow-indigo-600/20 cursor-pointer disabled:opacity-50"
+                  className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-md shadow-indigo-600/20 cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {savingPlan ? (isFa ? 'در حال ذخیره‌سازی...' : 'Saving...') : (isFa ? 'ذخیره مدل اشتراک' : 'Save Model')}
                 </button>
@@ -1072,15 +1072,15 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ lang }) =>
 
       {/* MODAL 2: ASSIGN PLAN TO USER */}
       {showAssignModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-lg w-full p-6 space-y-5 relative max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
-              <div className="flex items-center gap-2.5">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-lg w-full p-4 sm:p-6 pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-6 space-y-5 relative admin-sheet overflow-y-auto overscroll-contain">
+            <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-4">
+              <div className="flex items-center gap-2.5 min-w-0">
                 <div className="w-10 h-10 rounded-2xl bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold">
                   <UserCheck className="w-5 h-5" />
                 </div>
-                <div>
-                  <h3 className="font-bold text-base text-slate-900 dark:text-white">
+                <div className="min-w-0">
+                  <h3 className="font-bold text-base text-slate-900 dark:text-white break-words">
                     {isFa ? 'تخصیص و فعال‌سازی اشتراک به کاربر' : 'Assign Subscription to User'}
                   </h3>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
@@ -1090,7 +1090,7 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ lang }) =>
               </div>
               <button
                 onClick={() => setShowAssignModal(false)}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer shrink-0"
               >
                 <XCircle className="w-5 h-5" />
               </button>
@@ -1135,7 +1135,7 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ lang }) =>
               </div>
 
               {/* Phone & Name input if custom or verification */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
                     {isFa ? 'شماره موبایل کاربر:' : 'User Phone Number:'}
@@ -1218,7 +1218,7 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ lang }) =>
               </div>
 
               {/* Quota & Duration adjustment */}
-              <div className="grid grid-cols-2 gap-3 p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800">
                 <div>
                   <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
                     {assignAddToExisting 
@@ -1300,18 +1300,18 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ lang }) =>
                 />
               </div>
 
-              <div className="pt-3 flex justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
+              <div className="pt-3 flex flex-col-reverse sm:flex-row sm:justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setShowAssignModal(false)}
-                  className="px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold cursor-pointer"
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold cursor-pointer text-center"
                 >
                   {isFa ? 'انصراف' : 'Cancel'}
                 </button>
                 <button
                   type="submit"
                   disabled={submittingAssign}
-                  className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-md shadow-indigo-600/20 cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                  className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-md shadow-indigo-600/20 cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {submittingAssign ? (
                     <>
@@ -1333,15 +1333,15 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ lang }) =>
 
       {/* MODAL 3: EDIT USER SUBSCRIPTION */}
       {showEditUserSubModal && editingUserSub && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-lg w-full p-6 space-y-5 relative max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-lg w-full p-4 sm:p-6 pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-6 space-y-5 relative admin-sheet overflow-y-auto overscroll-contain">
+            <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-4">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold shrink-0">
                   <Edit className="w-5 h-5" />
                 </div>
-                <div>
-                  <h3 className="font-bold text-base text-slate-900 dark:text-white">
+                <div className="min-w-0">
+                  <h3 className="font-bold text-base text-slate-900 dark:text-white break-words">
                     {isFa ? 'ویرایش تمامی آیتم‌های اشتراک کاربر' : 'Edit User Subscription Details'}
                   </h3>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
@@ -1351,14 +1351,14 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ lang }) =>
               </div>
               <button
                 onClick={() => setShowEditUserSubModal(false)}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer shrink-0"
               >
                 <XCircle className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleSaveUserSub} className="space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
                     {isFa ? 'نام کاربر:' : 'User Name:'}
@@ -1385,7 +1385,7 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ lang }) =>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
                     {isFa ? 'شناسه تلگرام (Chat ID):' : 'Telegram Chat ID:'}
@@ -1413,7 +1413,7 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ lang }) =>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
                     {isFa ? 'سقف ماهانه (تعداد ایمیل):' : 'Monthly Email Limit:'}
@@ -1443,7 +1443,7 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ lang }) =>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
                     {isFa ? 'مبلغ پرداختی (تومان):' : 'Price (Toman):'}
@@ -1487,18 +1487,18 @@ export const SubscriptionsView: React.FC<SubscriptionsViewProps> = ({ lang }) =>
                 />
               </div>
 
-              <div className="pt-3 flex justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
+              <div className="pt-3 flex flex-col-reverse sm:flex-row sm:justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setShowEditUserSubModal(false)}
-                  className="px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold cursor-pointer"
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold cursor-pointer text-center"
                 >
                   {isFa ? 'انصراف' : 'Cancel'}
                 </button>
                 <button
                   type="submit"
                   disabled={savingUserSub}
-                  className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-md shadow-indigo-600/20 cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                  className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-md shadow-indigo-600/20 cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {savingUserSub ? (
                     <>
