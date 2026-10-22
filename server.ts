@@ -545,6 +545,25 @@ async function startServer() {
       });
 
       console.log(`[Real Webhook] Successfully received and stored clean Persian/MIME email for [${targetEmail}] from [${senderAddress}] (Subject: ${parsed.subject})`);
+
+      // ارسال اعلان را داخل همین درخواست و قبل از پاسخ await می‌کنیم؛
+      // در غیر این صورت نمونهٔ سرورلس بعد از پاسخ فریز می‌شود و پیام با تأخیر می‌رسد.
+      if (newMessage) {
+        const notifyStarted = Date.now();
+        try {
+          await Promise.race([
+            Promise.allSettled([
+              eitaaBotService.notifyNewEmail(targetEmail, newMessage),
+              telegramBotService.notifyNewEmail(targetEmail, newMessage)
+            ]),
+            new Promise((resolve) => setTimeout(resolve, 8000))
+          ]);
+          console.log(`[Real Webhook] Notifications finished in ${Date.now() - notifyStarted}ms`);
+        } catch (notifyErr) {
+          console.error('[Real Webhook] Notification dispatch failed:', notifyErr);
+        }
+      }
+
       res.json({ success: true, messageId: newMessage?.id || 'msg_1', email: targetEmail });
     } catch (err) {
       console.error('Webhook processing error:', err);
