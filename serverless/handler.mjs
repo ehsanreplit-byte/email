@@ -2418,6 +2418,7 @@ var EitaaBotService = class {
     this.emailToPhoneMap = /* @__PURE__ */ new Map();
     /** ایندکس شناسه ایتا → کلید حساب کاربر در users */
     this.eitaaIdIndex = /* @__PURE__ */ new Map();
+    this.lastUsersRefreshAt = 0;
     this.loadConfig();
     this.loadUsers();
     emailStore.onNewMessage((email, message) => {
@@ -3089,12 +3090,30 @@ var EitaaBotService = class {
     return { success: true, user: userRecord, accountKey, isNew, messageSent, error: sendError };
   }
   /**
+   * حافظهٔ این نمونه را با MongoDB تازه می‌کند.
+   * لازم است چون هر نمونهٔ سرورلس کش مستقل دارد و ممکن است ایمیل‌های تازه
+   * (که نمونهٔ دیگری به کاربر متصل کرده) را نداشته باشد.
+   */
+  async refreshUsersFromDb(minIntervalMs = 500) {
+    if (!storage.mongoEnabled) return;
+    const now = Date.now();
+    if (now - this.lastUsersRefreshAt < minIntervalMs) return;
+    this.lastUsersRefreshAt = now;
+    try {
+      await storage.refreshFromDb([USERS_FILE_PATH2]);
+      this.loadUsers();
+    } catch (err) {
+      console.error("[EitaaBot] refreshUsersFromDb failed:", err);
+    }
+  }
+  /**
    * Handles incoming email notifications and forwards them directly to the user's Eitaa account
    */
   async handleIncomingEmailNotification(email, message) {
     if (!this.config.isEnabled || !this.config.token.trim()) {
       return;
     }
+    await this.refreshUsersFromDb();
     const normalizedEmail = (email || "").toLowerCase().trim();
     if (!normalizedEmail) return;
     let userPhone = this.emailToPhoneMap.get(normalizedEmail);
@@ -3270,6 +3289,7 @@ var TelegramBotService = class {
       resize_keyboard: true,
       persistent: true
     };
+    this.lastUsersRefreshAt = 0;
     this.loadUsersFromStorage();
     this.loadConfigFromStorage();
     emailStore.onNewMessage((email, message) => {
@@ -4886,7 +4906,21 @@ var TelegramBotService = class {
       }
     });
   }
+  /** تازه‌کردن حافظهٔ این نمونه از MongoDB (هر نمونه کش مستقل دارد) */
+  async refreshUsersFromDb(minIntervalMs = 500) {
+    if (!storage.mongoEnabled) return;
+    const now = Date.now();
+    if (now - this.lastUsersRefreshAt < minIntervalMs) return;
+    this.lastUsersRefreshAt = now;
+    try {
+      await storage.refreshFromDb([USERS_FILE_PATH3]);
+      this.loadUsers();
+    } catch (err) {
+      console.error("[TelegramBot] refreshUsersFromDb failed:", err);
+    }
+  }
   async handleIncomingEmailNotification(email, message) {
+    await this.refreshUsersFromDb();
     const normalizedEmail = email.toLowerCase().trim();
     let chatId = this.emailToChatMap.get(normalizedEmail);
     if (!chatId) {
