@@ -2277,9 +2277,49 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
+    const assetsPath = path.join(distPath, 'assets');
     app.use(express.static(distPath));
+
+    // Compatibility shim for stale in-app WebView caches.
+    // A client may keep an old index.html that points at a previous hashed bundle
+    // (e.g. /assets/index-D5hXPogr.js). After a new deploy that file no longer
+    // exists, so the page used to stay blank. Here we serve the CURRENT bundle
+    // under the old hashed name instead.
+    const serveStaleAsset = (req: any, res: any) => {
+      try {
+        const file = path.basename(String(req.path || ''));
+        const ext = path.extname(file);
+        if (!ext) return res.status(404).end();
+
+        const withoutExt = file.slice(0, -ext.length);
+        const base = withoutExt.replace(/-[A-Za-z0-9_.]+$/, '');
+        if (!base) return res.status(404).end();
+
+        const candidates = fs
+          .readdirSync(assetsPath)
+          .filter((f) => f.startsWith(`${base}-`) && f.endsWith(ext))
+          .sort();
+
+        if (candidates.length === 0) return res.status(404).end();
+
+        const chosen = candidates[candidates.length - 1];
+        res.setHeader('Cache-Control', 'no-store');
+        res.setHeader(
+          'Content-Type',
+          ext === '.css' ? 'text/css; charset=utf-8' : 'application/javascript; charset=utf-8'
+        );
+        return res.sendFile(path.join(assetsPath, chosen));
+      } catch {
+        return res.status(404).end();
+      }
+    };
+    app.get(/^\/assets\/[A-Za-z0-9_.-]+\.(js|css)$/, serveStaleAsset);
+
     app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+      // Never let an in-app WebView keep serving an old index.html.
+      res.sendFile(path.join(distPath, 'index.html'), {
+        headers: { 'Cache-Control': 'no-store, max-age=0, must-revalidate' }
+      });
     });
   }
 
