@@ -2426,10 +2426,14 @@ async function startServer() {
     try {
       const config = eitaaBotService.getConfig();
       const users = eitaaBotService.getUsers();
+      const maskedToken = config.token ? `${config.token.slice(0, 6)}...${config.token.slice(-4)}` : '';
       res.json({
         success: true,
         config: {
-          token: config.token ? `${config.token.slice(0, 6)}...${config.token.slice(-4)}` : '',
+          // توکن واقعی هرگز به کلاینت فرستاده نمی‌شود؛ فقط نسخهٔ ماسک‌شده برای نمایش
+          token: maskedToken,
+          maskedToken,
+          hasToken: eitaaBotService.hasToken(),
           isEnabled: config.isEnabled,
           welcomeMessage: config.welcomeMessage,
           configured: Boolean(config.token && config.token.trim().length > 5),
@@ -2447,14 +2451,25 @@ async function startServer() {
     try {
       const { token, isEnabled, welcomeMessage } = req.body || {};
       const updated = eitaaBotService.updateConfig({
-        ...(token !== undefined ? { token: String(token).trim() } : {}),
+        // توکن خالی یا ماسک‌شده نباید توکن فعلی را پاک کند (updateConfig هم همین را تضمین می‌کند)
+        ...(token !== undefined && String(token).trim() ? { token: String(token).trim() } : {}),
         ...(isEnabled !== undefined ? { isEnabled: Boolean(isEnabled) } : {}),
         ...(welcomeMessage !== undefined ? { welcomeMessage: String(welcomeMessage) } : {})
       });
+      // توکن واقعی را برنگردان؛ فقط وضعیت و نسخهٔ ماسک‌شده
+      const maskedToken = updated.token ? `${updated.token.slice(0, 6)}...${updated.token.slice(-4)}` : '';
       res.json({
         success: true,
         message: 'تنظیمات ربات ایتا با موفقیت ذخیره شد.',
-        config: updated
+        config: {
+          token: maskedToken,
+          maskedToken,
+          hasToken: eitaaBotService.hasToken(),
+          isEnabled: updated.isEnabled,
+          welcomeMessage: updated.welcomeMessage,
+          configured: Boolean(updated.token && updated.token.trim().length > 5),
+          updatedAt: updated.updatedAt
+        }
       });
     } catch (err) {
       console.error('Error saving Eitaa config:', err);
