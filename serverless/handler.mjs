@@ -6208,7 +6208,7 @@ Sitemap: ${baseUrl}/sitemap.xml
       } catch (quotaErr) {
         console.error("[InboxCreate] Failed to compute quota:", quotaErr);
       }
-      res.json({ ...inbox, quota });
+      res.json({ ...inbox, owner: accountKey || null, quota });
     } catch (err) {
       if (err.message && err.message.startsWith("DUPLICATE_EMAIL")) {
         return res.status(409).json({ error: "DUPLICATE_EMAIL", message: err.message });
