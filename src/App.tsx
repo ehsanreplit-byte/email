@@ -13,7 +13,7 @@ import { AdminDashboardView } from './components/AdminDashboardView';
 import { BluPalView } from './components/BluPalView';
 import { BackupView } from './components/BackupView';
 import { EitaaView } from './components/EitaaView';
-import { EitaaLoginPage, getEitaaIdentity } from './components/EitaaLoginPage';
+import { EitaaLoginPage } from './components/EitaaLoginPage';
 import { WebAppInboxView } from './components/WebAppInboxView';
 import { playNewEmailSound, playCopySound } from './utils/audio';
 import { extractValidPhoneNumber } from './utils/phone';
@@ -182,8 +182,6 @@ export default function App() {
     const raw = localStorage.getItem('admin_auth_user') || sessionStorage.getItem('admin_auth_user') || null;
     if (!raw) return null;
     if (raw === 'admin') return 'admin';
-    // کلید حساب‌های ثبت‌نام‌شده با شناسه ایتا (eitaa:<id>) نباید به شماره تلفن تبدیل شود
-    if (/^eitaa[:_]/i.test(raw)) return raw;
     const clean = extractValidPhoneNumber(raw);
     if (clean) {
       if (raw !== clean) {
@@ -623,9 +621,7 @@ export default function App() {
     remainingEmails?: number, 
     syncedTelegramCount?: number
   ) => {
-    const cleanUser = user === 'admin'
-      ? 'admin'
-      : (/^eitaa[:_]/i.test(user) ? user : (extractValidPhoneNumber(user) || user));
+    const cleanUser = user === 'admin' ? 'admin' : (extractValidPhoneNumber(user) || user);
     setIsAuthenticated(true);
     setCurrentUser(cleanUser);
     localStorage.setItem('admin_auth_user', cleanUser);
@@ -690,55 +686,6 @@ export default function App() {
     }
   };
 
-  // ورود خودکار ایتا: هنگام باز شدن برنامک داخل ایتا، ابتدا شناسه کاربر به سرور ارسال می‌شود؛
-  // اگر حساب موجود باشد مستقیم وارد پنل کاربری می‌شود و در غیر این صورت صفحه /eitaa نمایش داده می‌شود.
-  const eitaaAutoLoginAttempted = useRef(false);
-  useEffect(() => {
-    if (eitaaAutoLoginAttempted.current) return;
-    eitaaAutoLoginAttempted.current = true;
-
-    if (isEitaaPage || isWebAppPage || isAuthenticated) return;
-
-    const { eitaaId } = getEitaaIdentity();
-    if (!eitaaId) return;
-
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await api.eitaaSession(eitaaId);
-        if (cancelled) return;
-        if (res.success && res.found && res.user) {
-          await handleLoginSuccess(res.user, res.inboxes, res.remainingEmails);
-        } else if (res.success && !res.found) {
-          setIsEitaaPage(true);
-          window.history.pushState({}, '', '/eitaa');
-        }
-      } catch (err) {
-        console.warn('[Eitaa] Auto session check failed:', err);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // کاربری که از قبل وارد شده است، در صفحه /eitaa نمی‌ماند و به صفحه اصلی ریدایرکت می‌شود
-  // (با پارامترهای ?preview=1 / ?new=1 / ?force=1 می‌توان صفحه ثبت‌نام را عمداً دید)
-  useEffect(() => {
-    if (!isEitaaPage) return;
-    let forcePreview = false;
-    try {
-      const params = new URLSearchParams(window.location.search);
-      forcePreview = params.has('preview') || params.has('new') || params.has('register') || params.get('force') === '1';
-    } catch {}
-    if (forcePreview || !isAuthenticated) return;
-
-    setIsEitaaPage(false);
-    window.history.replaceState({}, '', '/');
-  }, [isEitaaPage, isAuthenticated]);
-
   const handleMessageClick = async (msg: EmailMessage) => {
     if (!isAuthenticated) {
       showToast('⚠️ جهت دیدن و خواندن متن کامل پیام، ثبت‌نام کنید یا وارد شوید!', 'info');
@@ -791,11 +738,10 @@ export default function App() {
     return (
       <EitaaLoginPage
         onLoginSuccess={(phone, serverInboxes, remainingEmails, syncedTelegramCount) => {
-          const cleanPhone = /^eitaa[:_]/i.test(phone) ? phone : (extractValidPhoneNumber(phone) || phone);
+          const cleanPhone = extractValidPhoneNumber(phone) || phone;
           handleLoginSuccess(cleanPhone, serverInboxes, remainingEmails, syncedTelegramCount);
           setIsEitaaPage(false);
-          // ریدایرکت به صفحه اصلی سایت (بدون باقی ماندن /eitaa در تاریخچه)
-          window.history.replaceState({}, '', '/');
+          window.history.pushState({}, '', '/');
         }}
         onBackToLanding={() => {
           setIsEitaaPage(false);
