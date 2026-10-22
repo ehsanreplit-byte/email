@@ -236,6 +236,23 @@ export class EitaaBotService {
     return this.getUserByPhone(raw);
   }
 
+  /** کلید واقعی حساب در نقشهٔ کاربران (شماره موبایل اگر ثبت شده باشد، وگرنه eitaa:<id>) */
+  public getAccountKey(identifier: any): string | undefined {
+    if (identifier === undefined || identifier === null) return undefined;
+    const raw = String(identifier).trim();
+    if (!raw) return undefined;
+    if (this.users.has(raw)) return raw;
+
+    const target = this.findUser(raw);
+    if (!target) return undefined;
+
+    for (const [key, value] of this.users.entries()) {
+      if (value === target) return key;
+    }
+
+    return target.eitaaId ? `eitaa:${this.normalizeEitaaId(target.eitaaId)}` : raw;
+  }
+
   public getUserByPhone(phone: string): EitaaRegisteredUser | undefined {
     if (!phone) return undefined;
     const raw = String(phone);
