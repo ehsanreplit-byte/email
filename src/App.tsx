@@ -600,14 +600,28 @@ export default function App() {
           api.linkEmailToUser(newInbox.email, authed).catch(() => {});
         }
 
-        setUserQuota((prev) => {
-          const limit = prev?.limit ?? MAX_FREE_EMAILS;
-          const used = (prev?.totalUsed ?? inboxes.length) + 1;
-          const rem = Math.max(0, limit - used);
-          return { limit, totalUsed: used, remaining: rem };
-        });
+        // سهمیه از پاسخ سرور (منبع حقیقت: دیتابیس) گرفته می‌شود، نه افزایش حدسی
+        const quotaFromServer = (newInbox as any)?.quota;
+        if (quotaFromServer) {
+          setUserQuota({
+            limit: quotaFromServer.limit,
+            totalUsed: quotaFromServer.totalUsed,
+            remaining: quotaFromServer.remaining
+          });
+        } else {
+          setUserQuota((prev) => {
+            const limit = prev?.limit ?? MAX_FREE_EMAILS;
+            const used = (prev?.totalUsed ?? inboxes.length) + 1;
+            return { limit, totalUsed: used, remaining: Math.max(0, limit - used) };
+          });
+        }
 
-        const remaining = Math.max(0, currentRemaining - 1);
+        // تأیید نهایی از دیتابیس: لیست ایمیل‌ها با سرور همگام می‌شود
+        fetchInboxMessages(false, true);
+
+        const remaining = quotaFromServer
+          ? quotaFromServer.remaining
+          : Math.max(0, currentRemaining - 1);
         if (remaining > 0) {
           showToast(`ایمیل جدید فعال شد (${remaining} ایمیل دیگر باقی‌مانده)`, 'success');
         } else {
@@ -616,11 +630,14 @@ export default function App() {
       }
     } catch (err: any) {
       console.error(err);
-      if (err?.message?.includes('QUOTA_EXCEEDED') || err?.error === 'QUOTA_EXCEEDED') {
+      const code = err?.code || err?.error;
+      if (code === 'QUOTA_EXCEEDED' || err?.message?.includes('QUOTA_EXCEEDED')) {
         showToast('⚠️ سهمیه ایمیل‌های شما تکمیل شده است. لطفاً اشتراک تهیه نمایید.', 'error');
         setIsSubscriptionModalOpen(true);
+      } else if (code === 'NETWORK_ERROR') {
+        showToast('خطا در ارتباط با سرور؛ ایمیل جدید ساخته نشد.', 'error');
       } else {
-        showToast('خطا در ایجاد ایمیل جدید', 'error');
+        showToast(err?.message || 'خطا در ایجاد ایمیل جدید', 'error');
       }
     } finally {
       setIsRefreshing(false);
