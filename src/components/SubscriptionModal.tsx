@@ -24,7 +24,13 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
   const [expandedPlanId, setExpandedPlanId] = useState<string | null>(null);
 
   // مرحلهٔ دریافت شماره موبایل برای کاربرانی که با شناسهٔ ایتا ثبت‌نام کرده‌اند
-  const [step, setStep] = useState<'plans' | 'phone'>('plans');
+  const [step, setStep] = useState<'plans' | 'phone' | 'credentials'>('plans');
+  const [hasCredentials, setHasCredentials] = useState<boolean>(false);
+  const [credUsername, setCredUsername] = useState<string>('');
+  const [credPassword, setCredPassword] = useState<string>('');
+  const [credConfirm, setCredConfirm] = useState<string>('');
+  const [credError, setCredError] = useState<string | null>(null);
+  const [isSavingCred, setIsSavingCred] = useState<boolean>(false);
   const [phoneInput, setPhoneInput] = useState<string>('');
   const [resolvedPhone, setResolvedPhone] = useState<string>('');
   const [isSavingPhone, setIsSavingPhone] = useState<boolean>(false);
@@ -47,16 +53,21 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
 
         const eitaaId = currentUser.replace(/^eitaa[:_]/i, '');
         api.eitaaSession(eitaaId).then((res) => {
-          if (res.success && res.found && res.phone) {
-            setResolvedPhone(res.phone);
-            try { localStorage.setItem(`eitaa_phone_${currentUser}`, res.phone); } catch {}
-            setStep('plans');
-          } else if (cached) {
-            setResolvedPhone(cached);
-            setStep('plans');
+          const phone = (res.success && res.found && res.phone) ? res.phone : cached;
+          const creds = Boolean(res.success && res.hasCredentials);
+
+          setHasCredentials(creds);
+          if (res.success && res.username) setCredUsername(res.username);
+
+          if (phone) {
+            setResolvedPhone(phone);
+            try { localStorage.setItem(`eitaa_phone_${currentUser}`, phone); } catch {}
+            setStep(creds ? 'plans' : 'credentials');
+          } else {
+            setStep('phone');
           }
         }).catch(() => {
-          if (cached) { setResolvedPhone(cached); setStep('plans'); }
+          if (cached) { setResolvedPhone(cached); setStep('credentials'); }
         });
       } else {
         setStep('plans');
@@ -88,7 +99,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
         const phone = res.phone || normalized;
         setResolvedPhone(phone);
         try { localStorage.setItem(`eitaa_phone_${currentUser}`, phone); } catch {}
-        setStep('plans');
+        setStep(hasCredentials ? 'plans' : 'credentials');
         showToast('شماره موبایل با موفقیت ثبت شد.', 'success');
       } else {
         setPhoneError(res.error || 'خطا در ثبت شماره موبایل.');
@@ -117,6 +128,43 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
       showToast('خطا در دریافت لیست اشتراک‌ها از پایگاه داده.', 'error');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSaveCredentials = async () => {
+    if (!currentUser) return;
+    setCredError(null);
+
+    const username = credUsername.trim();
+    const pass = credPassword;
+
+    if (!/^[a-zA-Z0-9_.]{3,24}$/.test(username)) {
+      setCredError('نام کاربری باید ۳ تا ۲۴ کاراکتر و شامل حروف انگلیسی، عدد، نقطه یا زیرخط باشد.');
+      return;
+    }
+    if (pass.length < 6) {
+      setCredError('رمز عبور باید حداقل ۶ کاراکتر باشد.');
+      return;
+    }
+    if (pass !== credConfirm) {
+      setCredError('تکرار رمز عبور مطابقت ندارد.');
+      return;
+    }
+
+    setIsSavingCred(true);
+    try {
+      const res = await api.setUserCredentials(currentUser, username, pass);
+      if (res.success) {
+        setHasCredentials(true);
+        setStep('plans');
+        showToast('نام کاربری و رمز عبور ثبت شد؛ از این پس می‌توانید از سایت وارد شوید.', 'success');
+      } else {
+        setCredError(res.error || 'خطا در ثبت نام کاربری.');
+      }
+    } catch {
+      setCredError('خطا در ارتباط با سرور.');
+    } finally {
+      setIsSavingCred(false);
     }
   };
 
@@ -181,7 +229,82 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
 
         {/* Modal Body */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
-          {step === 'phone' ? (
+          {step === 'credentials' ? (
+            /* مرحلهٔ دوم: انتخاب نام کاربری و رمز عبور برای ورود از سایت */
+            <div className="max-w-md mx-auto py-6 sm:py-10 space-y-5 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center mx-auto shadow-sm">
+                <Sparkles className="w-7 h-7" />
+              </div>
+
+              <div className="space-y-1.5">
+                <h4 className="font-extrabold text-slate-900 text-sm sm:text-base">نام کاربری و رمز عبور بسازید</h4>
+                <p className="text-slate-500 text-xs leading-relaxed">
+                  با این اطلاعات می‌توانید علاوه بر ایتا، از طریق سایت هم وارد حساب خود شوید.
+                </p>
+              </div>
+
+              <div className="space-y-2.5 text-right">
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-slate-700 block">نام کاربری</label>
+                  <input
+                    type="text"
+                    dir="ltr"
+                    autoComplete="username"
+                    value={credUsername}
+                    onChange={(e) => { setCredUsername(e.target.value); setCredError(null); }}
+                    placeholder="username"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none text-sm font-mono text-center min-h-[48px]"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-slate-700 block">رمز عبور</label>
+                  <input
+                    type="password"
+                    dir="ltr"
+                    autoComplete="new-password"
+                    value={credPassword}
+                    onChange={(e) => { setCredPassword(e.target.value); setCredError(null); }}
+                    placeholder="••••••"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none text-sm font-mono text-center min-h-[48px]"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-slate-700 block">تکرار رمز عبور</label>
+                  <input
+                    type="password"
+                    dir="ltr"
+                    autoComplete="new-password"
+                    value={credConfirm}
+                    onChange={(e) => { setCredConfirm(e.target.value); setCredError(null); }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveCredentials(); }}
+                    placeholder="••••••"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none text-sm font-mono text-center min-h-[48px]"
+                  />
+                </div>
+
+                {credError && (
+                  <p className="text-[11px] font-bold text-rose-600 text-center">{credError}</p>
+                )}
+              </div>
+
+              <button
+                onClick={handleSaveCredentials}
+                disabled={isSavingCred}
+                className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-extrabold text-sm shadow-md shadow-emerald-600/20 transition-all disabled:opacity-60 cursor-pointer min-h-[48px] flex items-center justify-center gap-2"
+              >
+                {isSavingCred ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>در حال ذخیره...</span>
+                  </>
+                ) : (
+                  <span>ذخیره و نمایش اشتراک‌ها</span>
+                )}
+              </button>
+            </div>
+          ) : step === 'phone' ? (
             /* مرحلهٔ اول: دریافت شماره موبایل (برای کاربران ثبت‌نام‌شده با شناسهٔ ایتا) */
             <div className="max-w-md mx-auto py-6 sm:py-10 space-y-5 text-center">
               <div className="w-14 h-14 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center mx-auto shadow-sm">
