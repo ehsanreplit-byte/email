@@ -569,8 +569,16 @@ export default function App() {
       }
 
       const newInbox = await api.createInbox(undefined, undefined, undefined, authed);
-      // For guest users, we strictly keep only 1 active inbox
-      const updated = !authed ? [newInbox] : [newInbox, ...inboxes.filter((i) => i.email !== newInbox.email)];
+      // با ساخت ایمیل جدید، ایمیل‌های قبلی همین حساب فوراً منقضی می‌شوند (هم سمت سرور، هم در UI)
+      const nowIso = new Date().toISOString();
+      const updated = !authed
+        ? [newInbox]
+        : [
+            newInbox,
+            ...inboxes
+              .filter((i) => i.email !== newInbox.email)
+              .map((i) => (i.isPermanent ? i : { ...i, expiresAt: nowIso })),
+          ];
 
       setInboxes(updated);
       setCurrentInbox(newInbox);
@@ -1261,12 +1269,16 @@ export default function App() {
                       <div
                         key={msg.id}
                         onClick={() => handleMessageClick(msg)}
-                        className="p-3 sm:p-4 hover:bg-slate-50 active:bg-slate-100/70 transition-colors cursor-pointer flex flex-col gap-2 group"
+                        className={`p-3 sm:p-4 transition-colors cursor-pointer flex flex-col gap-2 group ${
+                          msg.isRead
+                            ? 'bg-slate-100/70 hover:bg-slate-200/60'
+                            : 'bg-emerald-50 hover:bg-emerald-100/80'
+                        }`}
                       >
                         {/* Top: Sender Name, Email & Time */}
                         <div className="flex items-center justify-between gap-2 min-w-0">
                           <div className="flex items-center gap-2 min-w-0 flex-1">
-                            <span className="w-2 h-2 rounded-full bg-indigo-600 shrink-0" />
+                            <span className={`w-2 h-2 rounded-full shrink-0 ${msg.isRead ? 'bg-slate-400' : 'bg-emerald-500'}`} />
                             <span className="text-xs font-bold text-slate-900 truncate">
                               {msg.from.name || msg.from.address}
                             </span>
