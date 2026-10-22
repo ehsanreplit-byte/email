@@ -5994,6 +5994,104 @@ var BackupService = class {
 };
 var backupService = new BackupService();
 
+// server/credentialsStore.ts
+import bcrypt2 from "bcryptjs";
+var CREDENTIALS_FILE = "user_credentials.json";
+var CredentialsStore = class {
+  constructor() {
+    /** username (lowercase) -> record */
+    this.byUsername = /* @__PURE__ */ new Map();
+    this.loadFromStorage();
+  }
+  loadFromStorage() {
+    try {
+      this.byUsername.clear();
+      if (!storage.existsSync(CREDENTIALS_FILE)) return;
+      const raw = storage.readFileSync(CREDENTIALS_FILE);
+      const list = JSON.parse(raw);
+      if (!Array.isArray(list)) return;
+      for (const rec of list) {
+        if (rec?.username && rec?.account && rec?.passwordHash) {
+          this.byUsername.set(rec.username.toLowerCase(), rec);
+        }
+      }
+    } catch (err) {
+      console.error("[CredentialsStore] load failed:", err);
+    }
+  }
+  persist() {
+    try {
+      storage.writeFileSync(CREDENTIALS_FILE, JSON.stringify(Array.from(this.byUsername.values()), null, 2));
+    } catch (err) {
+      console.error("[CredentialsStore] save failed:", err);
+    }
+  }
+  validateUsername(username) {
+    const value = String(username || "").trim();
+    if (!/^[a-zA-Z0-9_.]{3,24}$/.test(value)) {
+      return "\u0646\u0627\u0645 \u06A9\u0627\u0631\u0628\u0631\u06CC \u0628\u0627\u06CC\u062F \u06F3 \u062A\u0627 \u06F2\u06F4 \u06A9\u0627\u0631\u0627\u06A9\u062A\u0631 \u0648 \u0634\u0627\u0645\u0644 \u062D\u0631\u0648\u0641 \u0627\u0646\u06AF\u0644\u06CC\u0633\u06CC\u060C \u0639\u062F\u062F\u060C \u0646\u0642\u0637\u0647 \u06CC\u0627 \u0632\u06CC\u0631\u062E\u0637 \u0628\u0627\u0634\u062F.";
+    }
+    return null;
+  }
+  getByAccount(account) {
+    const key = String(account || "").trim();
+    for (const rec of this.byUsername.values()) {
+      if (rec.account === key) return rec;
+    }
+    return void 0;
+  }
+  hasCredentials(account) {
+    return Boolean(this.getByAccount(account));
+  }
+  getByUsername(username) {
+    return this.byUsername.get(String(username || "").trim().toLowerCase());
+  }
+  setCredentials(account, username, password) {
+    const acc = String(account || "").trim();
+    const user = String(username || "").trim();
+    const pass = String(password || "");
+    if (!acc) return { success: false, error: "\u062D\u0633\u0627\u0628 \u06A9\u0627\u0631\u0628\u0631\u06CC \u0645\u0634\u062E\u0635 \u0646\u06CC\u0633\u062A." };
+    const usernameError = this.validateUsername(user);
+    if (usernameError) return { success: false, error: usernameError };
+    if (pass.length < 6) return { success: false, error: "\u0631\u0645\u0632 \u0639\u0628\u0648\u0631 \u0628\u0627\u06CC\u062F \u062D\u062F\u0627\u0642\u0644 \u06F6 \u06A9\u0627\u0631\u0627\u06A9\u062A\u0631 \u0628\u0627\u0634\u062F." };
+    const lower = user.toLowerCase();
+    const existingForUsername = this.byUsername.get(lower);
+    if (existingForUsername && existingForUsername.account !== acc) {
+      return { success: false, error: "\u0627\u06CC\u0646 \u0646\u0627\u0645 \u06A9\u0627\u0631\u0628\u0631\u06CC \u0642\u0628\u0644\u0627\u064B \u0627\u0646\u062A\u062E\u0627\u0628 \u0634\u062F\u0647 \u0627\u0633\u062A. \u0646\u0627\u0645 \u062F\u06CC\u06AF\u0631\u06CC \u0627\u0646\u062A\u062E\u0627\u0628 \u06A9\u0646\u06CC\u062F." };
+    }
+    const previous = this.getByAccount(acc);
+    if (previous && previous.username.toLowerCase() !== lower) {
+      this.byUsername.delete(previous.username.toLowerCase());
+    }
+    const now = (/* @__PURE__ */ new Date()).toISOString();
+    const record = {
+      account: acc,
+      username: user,
+      passwordHash: bcrypt2.hashSync(pass, 10),
+      createdAt: previous?.createdAt || now,
+      updatedAt: now
+    };
+    this.byUsername.set(lower, record);
+    this.persist();
+    return { success: true, record };
+  }
+  verify(username, password) {
+    const record = this.getByUsername(username);
+    if (!record) {
+      return { success: false, error: "\u0646\u0627\u0645 \u06A9\u0627\u0631\u0628\u0631\u06CC \u06CC\u0627 \u0631\u0645\u0632 \u0639\u0628\u0648\u0631 \u0646\u0627\u062F\u0631\u0633\u062A \u0627\u0633\u062A." };
+    }
+    try {
+      if (!bcrypt2.compareSync(String(password || ""), record.passwordHash)) {
+        return { success: false, error: "\u0646\u0627\u0645 \u06A9\u0627\u0631\u0628\u0631\u06CC \u06CC\u0627 \u0631\u0645\u0632 \u0639\u0628\u0648\u0631 \u0646\u0627\u062F\u0631\u0633\u062A \u0627\u0633\u062A." };
+      }
+    } catch {
+      return { success: false, error: "\u062E\u0637\u0627 \u062F\u0631 \u0628\u0631\u0631\u0633\u06CC \u0631\u0645\u0632 \u0639\u0628\u0648\u0631." };
+    }
+    return { success: true, account: record.account };
+  }
+};
+var credentialsStore = new CredentialsStore();
+
 // server/webhookGuard.ts
 import crypto6 from "crypto";
 function safeEqual(a, b) {
@@ -6100,7 +6198,7 @@ async function startServer() {
       totalUsed: usage.totalUsed
     };
   };
-  const DB_LIST_KEYS = ["inboxes_store.json", "email_registry.json", "eitaa_users.json", "telegram_users.json"];
+  const DB_LIST_KEYS = ["inboxes_store.json", "email_registry.json", "eitaa_users.json", "telegram_users.json", "user_credentials.json"];
   let lastDbRefreshAt = 0;
   const syncStoresFromDb = async (minIntervalMs = 1200) => {
     if (!storage.mongoEnabled) return;
@@ -6113,6 +6211,7 @@ async function startServer() {
       emailStore.loadFromStorage();
       eitaaBotService.loadUsers();
       telegramBotService.loadUsers();
+      credentialsStore.loadFromStorage();
     } catch (err) {
       console.error("[DbSync] Failed to refresh stores from MongoDB:", err);
     }
@@ -7637,12 +7736,58 @@ Sitemap: ${baseUrl}/sitemap.xml
         eitaaId: normalizedId,
         name: user.firstName || "\u06A9\u0627\u0631\u0628\u0631 \u0627\u06CC\u062A\u0627",
         phone: user.phone || null,
+        hasCredentials: credentialsStore.hasCredentials(accountKey),
+        username: credentialsStore.getByAccount(accountKey)?.username || null,
         isAdmin: false,
         ...payload
       });
     } catch (err) {
       console.error("Eitaa session check error:", err);
       res.status(500).json({ success: false, found: false, error: "\u062E\u0637\u0627\u06CC \u0633\u0631\u0648\u0631 \u062F\u0631 \u0628\u0631\u0631\u0633\u06CC \u0634\u0646\u0627\u0633\u0647 \u0627\u06CC\u062A\u0627." });
+    }
+  });
+  app.post("/api/user/credentials", loginLimiter, async (req, res) => {
+    try {
+      res.setHeader("Cache-Control", "no-store");
+      const { account, username, password } = req.body || {};
+      const accKey = account ? String(account).trim() : "";
+      if (!/^eitaa[:_]/i.test(accKey) && !/^09\d{9}$/.test(accKey)) {
+        return res.status(400).json({ success: false, error: "\u062D\u0633\u0627\u0628 \u06A9\u0627\u0631\u0628\u0631\u06CC \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A." });
+      }
+      await syncStoresFromDb(0);
+      const result = credentialsStore.setCredentials(accKey, username, password);
+      if (!result.success) {
+        return res.status(400).json({ success: false, error: result.error });
+      }
+      await commitToDb();
+      return res.json({ success: true, username: result.record?.username, account: accKey });
+    } catch (err) {
+      console.error("Set credentials error:", err);
+      res.status(500).json({ success: false, error: "\u062E\u0637\u0627\u06CC \u0633\u0631\u0648\u0631 \u062F\u0631 \u062B\u0628\u062A \u0646\u0627\u0645 \u06A9\u0627\u0631\u0628\u0631\u06CC." });
+    }
+  });
+  app.post("/api/auth/login", loginLimiter, async (req, res) => {
+    try {
+      res.setHeader("Cache-Control", "no-store");
+      const { username, password } = req.body || {};
+      if (!String(username || "").trim() || !String(password || "")) {
+        return res.status(400).json({ success: false, error: "\u0646\u0627\u0645 \u06A9\u0627\u0631\u0628\u0631\u06CC \u0648 \u0631\u0645\u0632 \u0639\u0628\u0648\u0631 \u0627\u0644\u0632\u0627\u0645\u06CC \u0627\u0633\u062A." });
+      }
+      await syncStoresFromDb(0);
+      const result = credentialsStore.verify(String(username), String(password));
+      if (!result.success || !result.account) {
+        return res.status(401).json({ success: false, error: result.error || "\u0646\u0627\u0645 \u06A9\u0627\u0631\u0628\u0631\u06CC \u06CC\u0627 \u0631\u0645\u0632 \u0639\u0628\u0648\u0631 \u0646\u0627\u062F\u0631\u0633\u062A \u0627\u0633\u062A." });
+      }
+      analyticsStore.recordLogin({
+        user: result.account,
+        source: "web",
+        ip: req.headers["x-forwarded-for"] || req.socket.remoteAddress || "client",
+        userAgent: req.headers["user-agent"]
+      });
+      return res.json({ success: true, user: result.account });
+    } catch (err) {
+      console.error("Username login error:", err);
+      res.status(500).json({ success: false, error: "\u062E\u0637\u0627\u06CC \u0633\u0631\u0648\u0631 \u062F\u0631 \u0648\u0631\u0648\u062F \u0628\u0627 \u0646\u0627\u0645 \u06A9\u0627\u0631\u0628\u0631\u06CC." });
     }
   });
   app.post("/api/eitaa/set-phone", async (req, res) => {
