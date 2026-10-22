@@ -760,7 +760,7 @@ export const api = {
     }
   },
 
-  async eitaaSession(eitaaId: string): Promise<{ success: boolean; found: boolean; user?: string | null; eitaaId?: string; name?: string; error?: string; inboxes?: TempInbox[]; remainingEmails?: number; limit?: number; totalUsed?: number }> {
+  async eitaaSession(eitaaId: string): Promise<{ success: boolean; found: boolean; user?: string | null; eitaaId?: string; name?: string; phone?: string | null; error?: string; inboxes?: TempInbox[]; remainingEmails?: number; limit?: number; totalUsed?: number }> {
     try {
       const res = await fetch('/api/eitaa/session', {
         method: 'POST',
@@ -775,6 +775,7 @@ export const api = {
           user: data.user ?? null,
           eitaaId: data.eitaaId,
           name: data.name,
+          phone: data.phone ?? null,
           inboxes: data.inboxes || [],
           remainingEmails: data.remainingEmails,
           limit: data.limit,
@@ -784,6 +785,22 @@ export const api = {
       return { success: false, found: false, error: data.error || 'خطا در بررسی شناسه کاربری ایتا.' };
     } catch {
       return { success: false, found: false, error: 'خطا در ارتباط با سرور.' };
+    }
+  },
+
+  /** ثبت شماره موبایل برای حساب ایتا (پیش‌نیاز خرید اشتراک) */
+  async eitaaSetPhone(account: string, phone: string): Promise<{ success: boolean; phone?: string; error?: string }> {
+    try {
+      const res = await fetch('/api/eitaa/set-phone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account, phone }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) return { success: true, phone: data.phone };
+      return { success: false, error: data.error || 'خطا در ثبت شماره موبایل.' };
+    } catch {
+      return { success: false, error: 'خطا در ارتباط با سرور.' };
     }
   },
 
