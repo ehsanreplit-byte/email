@@ -7636,12 +7636,39 @@ Sitemap: ${baseUrl}/sitemap.xml
         user: accountKey,
         eitaaId: normalizedId,
         name: user.firstName || "\u06A9\u0627\u0631\u0628\u0631 \u0627\u06CC\u062A\u0627",
+        phone: user.phone || null,
         isAdmin: false,
         ...payload
       });
     } catch (err) {
       console.error("Eitaa session check error:", err);
       res.status(500).json({ success: false, found: false, error: "\u062E\u0637\u0627\u06CC \u0633\u0631\u0648\u0631 \u062F\u0631 \u0628\u0631\u0631\u0633\u06CC \u0634\u0646\u0627\u0633\u0647 \u0627\u06CC\u062A\u0627." });
+    }
+  });
+  app.post("/api/eitaa/set-phone", async (req, res) => {
+    try {
+      res.setHeader("Cache-Control", "no-store");
+      const { account, phone } = req.body || {};
+      const key = account ? String(account).trim() : "";
+      if (!/^eitaa[:_]/i.test(key)) {
+        return res.status(400).json({ success: false, error: "\u062D\u0633\u0627\u0628 \u0627\u06CC\u062A\u0627 \u0634\u0646\u0627\u0633\u0627\u06CC\u06CC \u0646\u0634\u062F." });
+      }
+      const cleanPhone = extractValidPhoneNumber(phone) || formatIranianMobile(phone);
+      if (!/^09\d{9}$/.test(cleanPhone)) {
+        return res.status(400).json({ success: false, error: "\u0634\u0645\u0627\u0631\u0647 \u0645\u0648\u0628\u0627\u06CC\u0644 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A (\u0645\u062B\u0627\u0644: 09121234567)." });
+      }
+      await syncStoresFromDb(0);
+      const user = eitaaBotService.findUser(key);
+      if (!user) {
+        return res.status(404).json({ success: false, error: "\u06A9\u0627\u0631\u0628\u0631 \u0627\u06CC\u062A\u0627 \u06CC\u0627\u0641\u062A \u0646\u0634\u062F." });
+      }
+      user.phone = cleanPhone;
+      eitaaBotService.saveUsers();
+      await commitToDb();
+      return res.json({ success: true, phone: cleanPhone, account: key });
+    } catch (err) {
+      console.error("Eitaa set-phone error:", err);
+      res.status(500).json({ success: false, error: "\u062E\u0637\u0627\u06CC \u0633\u0631\u0648\u0631 \u062F\u0631 \u062B\u0628\u062A \u0634\u0645\u0627\u0631\u0647 \u0645\u0648\u0628\u0627\u06CC\u0644." });
     }
   });
   app.post("/api/eitaa/register", loginLimiter, async (req, res) => {
