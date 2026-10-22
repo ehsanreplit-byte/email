@@ -6078,11 +6078,11 @@ var CredentialsStore = class {
   verify(username, password) {
     const record = this.getByUsername(username);
     if (!record) {
-      return { success: false, error: "\u0646\u0627\u0645 \u06A9\u0627\u0631\u0628\u0631\u06CC \u06CC\u0627 \u0631\u0645\u0632 \u0639\u0628\u0648\u0631 \u0646\u0627\u062F\u0631\u0633\u062A \u0627\u0633\u062A." };
+      return { success: false, error: "\u0634\u0645\u0627\u0631\u0647 \u0645\u0648\u0628\u0627\u06CC\u0644 \u06CC\u0627 \u0631\u0645\u0632 \u0639\u0628\u0648\u0631 \u0646\u0627\u062F\u0631\u0633\u062A \u0627\u0633\u062A." };
     }
     try {
       if (!bcrypt2.compareSync(String(password || ""), record.passwordHash)) {
-        return { success: false, error: "\u0646\u0627\u0645 \u06A9\u0627\u0631\u0628\u0631\u06CC \u06CC\u0627 \u0631\u0645\u0632 \u0639\u0628\u0648\u0631 \u0646\u0627\u062F\u0631\u0633\u062A \u0627\u0633\u062A." };
+        return { success: false, error: "\u0634\u0645\u0627\u0631\u0647 \u0645\u0648\u0628\u0627\u06CC\u0644 \u06CC\u0627 \u0631\u0645\u0632 \u0639\u0628\u0648\u0631 \u0646\u0627\u062F\u0631\u0633\u062A \u0627\u0633\u062A." };
       }
     } catch {
       return { success: false, error: "\u062E\u0637\u0627 \u062F\u0631 \u0628\u0631\u0631\u0633\u06CC \u0631\u0645\u0632 \u0639\u0628\u0648\u0631." };
@@ -7791,7 +7791,7 @@ Sitemap: ${baseUrl}/sitemap.xml
       await syncStoresFromDb(0);
       const result = credentialsStore.verify(loginPhone, String(password));
       if (!result.success || !result.account) {
-        return res.status(401).json({ success: false, error: result.error || "\u0646\u0627\u0645 \u06A9\u0627\u0631\u0628\u0631\u06CC \u06CC\u0627 \u0631\u0645\u0632 \u0639\u0628\u0648\u0631 \u0646\u0627\u062F\u0631\u0633\u062A \u0627\u0633\u062A." });
+        return res.status(401).json({ success: false, error: result.error || "\u0634\u0645\u0627\u0631\u0647 \u0645\u0648\u0628\u0627\u06CC\u0644 \u06CC\u0627 \u0631\u0645\u0632 \u0639\u0628\u0648\u0631 \u0646\u0627\u062F\u0631\u0633\u062A \u0627\u0633\u062A." });
       }
       analyticsStore.recordLogin({
         user: result.account,
