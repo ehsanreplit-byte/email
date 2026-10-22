@@ -15,6 +15,8 @@ export interface EitaaConfig {
 export interface EitaaRegisteredUser {
   id?: string | number;
   chatId?: string | number;
+  /** شناسه یکتای کاربر در ایتا (از initData برنامک) — مبنای ثبت‌نام جدید */
+  eitaaId?: string;
   phone: string;
   firstName?: string;
   username?: string;
@@ -56,6 +58,8 @@ export class EitaaBotService {
 
   private users: Map<string, EitaaRegisteredUser> = new Map();
   private emailToPhoneMap: Map<string, string> = new Map();
+  /** ایندکس شناسه ایتا → کلید حساب کاربر در users (پشتیبانی از ثبت‌نام بدون شماره تلفن) */
+  private eitaaIdIndex: Map<string, string> = new Map();
 
   constructor() {
     this.loadConfig();
@@ -118,17 +122,34 @@ export class EitaaBotService {
         const list: EitaaRegisteredUser[] = JSON.parse(data);
         this.users.clear();
         this.emailToPhoneMap.clear();
+        this.eitaaIdIndex.clear();
 
         for (const u of list) {
-          if (u && u.phone && u.phone.trim().length >= 10 && u.isRegistered !== false) {
-            const cleanPhone = extractValidPhoneNumber(u.phone) || formatIranianMobile(u.phone) || u.phone.trim();
-            u.phone = cleanPhone;
-            this.users.set(cleanPhone, u);
+          const eitaaId = u?.eitaaId ? this.normalizeEitaaId(u.eitaaId) : '';
+          const hasPhone = Boolean(u?.phone && String(u.phone).trim().length >= 10);
+
+          if (u && (hasPhone || eitaaId) && u.isRegistered !== false) {
+            let accountKey = '';
+            if (hasPhone) {
+              const cleanPhone = extractValidPhoneNumber(u.phone) || formatIranianMobile(u.phone) || String(u.phone).trim();
+              u.phone = cleanPhone;
+              accountKey = cleanPhone;
+            } else {
+              u.phone = '';
+              accountKey = `eitaa:${eitaaId}`;
+            }
+
+            if (eitaaId) {
+              u.eitaaId = eitaaId;
+              this.eitaaIdIndex.set(eitaaId, accountKey);
+            }
+
+            this.users.set(accountKey, u);
 
             if (Array.isArray(u.emails)) {
               for (const em of u.emails) {
                 if (em && typeof em === 'string') {
-                  this.emailToPhoneMap.set(em.toLowerCase().trim(), cleanPhone);
+                  this.emailToPhoneMap.set(em.toLowerCase().trim(), accountKey);
                 }
               }
             }
@@ -136,7 +157,7 @@ export class EitaaBotService {
             if (Array.isArray(u.history)) {
               for (const h of u.history) {
                 if (h?.email) {
-                  this.emailToPhoneMap.set(h.email.toLowerCase().trim(), cleanPhone);
+                  this.emailToPhoneMap.set(h.email.toLowerCase().trim(), accountKey);
                 }
               }
             }
@@ -175,13 +196,56 @@ export class EitaaBotService {
 
   public getUsers(): EitaaRegisteredUser[] {
     return Array.from(this.users.values()).filter(
-      u => u && u.phone && u.phone.trim().length >= 10 && u.isRegistered !== false
+      u => u && u.isRegistered !== false && ((u.phone && u.phone.trim().length >= 10) || Boolean(u.eitaaId))
     );
+  }
+
+  /** شناسه ایتا را به فرمت یکسان (فقط ارقام) تبدیل می‌کند */
+  public normalizeEitaaId(rawId: any): string {
+    if (rawId === undefined || rawId === null) return '';
+    return String(rawId).trim().replace(/^eitaa[:_]/i, '').replace(/[^\d]/g, '');
+  }
+
+  /** یافتن کاربر بر اساس شناسه ایتا */
+  public getUserByEitaaId(rawId: any): EitaaRegisteredUser | undefined {
+    const id = this.normalizeEitaaId(rawId);
+    if (!id) return undefined;
+
+    const indexedKey = this.eitaaIdIndex.get(id);
+    if (indexedKey) {
+      const indexedUser = this.users.get(indexedKey);
+      if (indexedUser) return indexedUser;
+    }
+
+    for (const u of this.users.values()) {
+      if (u && u.eitaaId && this.normalizeEitaaId(u.eitaaId) === id) return u;
+    }
+    return undefined;
+  }
+
+  /**
+   * شناسه حساب را از هر ورودی (کلید حساب، شناسه ایتا یا شماره تلفن) پیدا می‌کند
+   */
+  public findUser(identifier: any): EitaaRegisteredUser | undefined {
+    if (identifier === undefined || identifier === null) return undefined;
+    const raw = String(identifier).trim();
+    if (!raw) return undefined;
+    if (this.users.has(raw)) return this.users.get(raw);
+
+    const byEitaaId = this.getUserByEitaaId(raw);
+    if (byEitaaId) return byEitaaId;
+
+    return this.getUserByPhone(raw);
   }
 
   public getUserByPhone(phone: string): EitaaRegisteredUser | undefined {
     if (!phone) return undefined;
     const raw = String(phone);
+
+    // مسیر سریع: اگر ورودی شناسه ایتا باشد (حساب‌های ثبت‌نام‌شده بدون شماره تلفن)
+    const byEitaaId = this.getUserByEitaaId(raw);
+    if (byEitaaId) return byEitaaId;
+
     const cleanPhone = extractValidPhoneNumber(raw) || formatIranianMobile(raw) || raw.replace(/[^\d]/g, '');
     if (!cleanPhone) return undefined;
 
@@ -204,20 +268,44 @@ export class EitaaBotService {
    */
   public linkEmailToUser(phone: string, email: string): void {
     if (!phone || !email) return;
-    const raw = String(phone);
-    const cleanPhone = extractValidPhoneNumber(raw) || formatIranianMobile(raw) || raw.replace(/[^\d]/g, '');
+    const raw = String(phone).trim();
+    const isEitaaAccountKey = /^eitaa[:_]/i.test(raw);
+    const eitaaId = isEitaaAccountKey ? this.normalizeEitaaId(raw) : '';
+    const cleanPhone = isEitaaAccountKey
+      ? ''
+      : (extractValidPhoneNumber(raw) || formatIranianMobile(raw) || raw.replace(/[^\d]/g, ''));
     const cleanEmail = email.toLowerCase().trim();
 
-    let user = this.getUserByPhone(cleanPhone);
+    let user = this.findUser(raw) || (cleanPhone ? this.getUserByPhone(cleanPhone) : undefined);
+    let accountKey = cleanPhone;
+
+    if (user) {
+      // کلید حساب موجود را پیدا کن (ممکن است کلید بر اساس شناسه ایتا باشد)
+      for (const [key, value] of this.users.entries()) {
+        if (value === user) {
+          accountKey = key;
+          break;
+        }
+      }
+    }
+
     if (!user) {
+      if (!cleanPhone && !eitaaId) return;
+
       const newUser: EitaaRegisteredUser = {
         phone: cleanPhone,
+        eitaaId: eitaaId || undefined,
+        id: eitaaId || undefined,
+        chatId: eitaaId || undefined,
+        isRegistered: true,
         registeredAt: new Date().toISOString(),
         welcomeMessageSent: false,
         emails: [],
         history: []
       };
-      this.users.set(cleanPhone, newUser);
+      accountKey = cleanPhone || `eitaa:${eitaaId}`;
+      this.users.set(accountKey, newUser);
+      if (eitaaId) this.eitaaIdIndex.set(eitaaId, accountKey);
       user = newUser;
     }
 
@@ -234,9 +322,9 @@ export class EitaaBotService {
       });
     }
 
-    this.emailToPhoneMap.set(cleanEmail, cleanPhone);
+    this.emailToPhoneMap.set(cleanEmail, accountKey);
     this.saveUsers();
-    console.log(`[EitaaBot] Successfully linked email ${cleanEmail} to registered user ${cleanPhone}`);
+    console.log(`[EitaaBot] Successfully linked email ${cleanEmail} to registered user ${accountKey}`);
   }
 
   /**
@@ -744,6 +832,108 @@ export class EitaaBotService {
       messageSent,
       error: sendError
     };
+  }
+
+  /**
+   * ثبت‌نام / ورود کاربر بر اساس شناسه ایتا (بدون نیاز به شماره تلفن)
+   * کلید حساب کاربر به صورت `eitaa:<شناسه>` ذخیره می‌شود.
+   */
+  public async handleUserLoginByEitaaId(
+    rawEitaaId: any,
+    userData?: any,
+    reqAppUrl?: string,
+    initData?: string
+  ): Promise<{
+    success: boolean;
+    user?: EitaaRegisteredUser;
+    accountKey?: string;
+    isNew?: boolean;
+    messageSent: boolean;
+    error?: string;
+  }> {
+    const eitaaId = this.normalizeEitaaId(rawEitaaId);
+    if (!eitaaId) {
+      return { success: false, messageSent: false, error: 'شناسه کاربری ایتا شناسایی نشد.' };
+    }
+
+    const details = this.extractUserDetails(eitaaId, userData, initData);
+    const existing = this.getUserByEitaaId(eitaaId);
+    const isNew = !existing;
+
+    // کلید موجود را حفظ می‌کنیم تا ایمیل‌های قبلی از دست نرود
+    let accountKey = `eitaa:${eitaaId}`;
+    if (existing) {
+      for (const [key, value] of this.users.entries()) {
+        if (value === existing) {
+          accountKey = key;
+          break;
+        }
+      }
+    }
+
+    const firstName =
+      details.firstName && details.firstName !== 'کاربر ایتا'
+        ? details.firstName
+        : (existing?.firstName || 'کاربر ایتا');
+    const username = details.username || existing?.username || '';
+    const appUrl = reqAppUrl || this.config.appUrl || 'https://ja-be-ja.ir';
+
+    const userRecord: EitaaRegisteredUser = {
+      id: eitaaId,
+      chatId: eitaaId,
+      eitaaId,
+      phone: existing?.phone || '',
+      firstName,
+      username,
+      isRegistered: true,
+      registeredAt: existing?.registeredAt || new Date().toISOString(),
+      welcomeMessageSent: existing?.welcomeMessageSent || false,
+      lastMessageStatus: existing?.lastMessageStatus,
+      lastMessageError: existing?.lastMessageError,
+      emails: [...(existing?.emails || [])],
+      history: [...(existing?.history || [])]
+    };
+
+    this.users.set(accountKey, userRecord);
+    this.eitaaIdIndex.set(eitaaId, accountKey);
+
+    // اتصال مجدد ایمیل‌های این حساب به کلید جدید
+    for (const em of userRecord.emails || []) {
+      this.emailToPhoneMap.set(String(em).toLowerCase().trim(), accountKey);
+    }
+    for (const h of userRecord.history || []) {
+      if (h?.email) this.emailToPhoneMap.set(h.email.toLowerCase().trim(), accountKey);
+    }
+
+    let messageSent = false;
+    let sendError: string | undefined;
+
+    // پیام خوش‌آمدگویی فقط برای کاربر جدید (یا اگر قبلاً ارسال نشده)
+    if (this.config.isEnabled && this.config.token.trim() && !userRecord.welcomeMessageSent) {
+      const template = this.config.welcomeMessage || DEFAULT_WELCOME_MESSAGE;
+      const personalizedMessage = template
+        .replace(/{name}/g, firstName)
+        .replace(/{phone}/g, userRecord.phone || 'حساب ایتا')
+        .replace(/{limit}/g, '۱۰')
+        .replace(/{url}/g, appUrl);
+
+      const result = await this.sendMessageToUser(userRecord, personalizedMessage);
+      if (result.success) {
+        messageSent = true;
+        userRecord.welcomeMessageSent = true;
+        userRecord.lastMessageStatus = 'success';
+        userRecord.lastMessageError = undefined;
+      } else {
+        userRecord.lastMessageStatus = 'failed';
+        userRecord.lastMessageError = result.error;
+        sendError = result.error;
+      }
+    }
+
+    this.saveUsers();
+    console.log(`[EitaaBot] Eitaa-ID login ${eitaaId} -> key ${accountKey} (new: ${isNew})`);
+
+    return { success: true, user: userRecord, accountKey, isNew, messageSent, error: sendError };
   }
 
   /**
