@@ -123,7 +123,7 @@ export class EitaaBotService {
 
     // Listen for incoming emails to automatically forward to user in Eitaa
     emailStore.onNewMessage((email, message) => {
-      this.handleIncomingEmailNotification(email, message);
+      void this.notifyNewEmail(email, message);
     });
   }
 
@@ -265,14 +265,35 @@ export class EitaaBotService {
   }
 
   public updateConfig(newConfig: Partial<EitaaConfig>): EitaaConfig {
+    const incomingToken = newConfig.token !== undefined ? this.cleanToken(String(newConfig.token)) : undefined;
+
+    // هرگز توکن موجود را با مقدار خالی یا ماسک‌شده (مثل «123456...abcd») پاک نکن؛
+    // پنل مدیریت توکن را ماسک‌شده نمایش می‌دهد و ذخیرهٔ بی‌توجه فرم باعث از کار افتادن ارسال می‌شد.
+    const shouldReplaceToken =
+      incomingToken !== undefined &&
+      incomingToken.length > 0 &&
+      !this.isMaskedToken(incomingToken);
+
     this.config = {
       ...this.config,
       ...newConfig,
-      token: newConfig.token !== undefined ? this.cleanToken(newConfig.token) : this.config.token,
+      token: shouldReplaceToken ? (incomingToken as string) : this.config.token,
       updatedAt: new Date().toISOString()
     };
     this.saveConfig();
     return this.getConfig();
+  }
+
+  /** آیا این مقدار، نسخهٔ ماسک‌شدهٔ توکن است (نه توکن واقعی)؟ */
+  public isMaskedToken(value: string): boolean {
+    const token = String(value || '').trim();
+    if (!token) return false;
+    return /\.\.\.|…/.test(token) || /^\*+$/.test(token);
+  }
+
+  /** آیا توکن ربات تنظیم شده است؟ (برای پیام‌های خطای دقیق‌تر) */
+  public hasToken(): boolean {
+    return Boolean(this.cleanToken(this.config.token).trim());
   }
 
   public getUsers(): EitaaRegisteredUser[] {
@@ -578,6 +599,8 @@ export class EitaaBotService {
     const cleanTarget = String(target).trim();
     let lastError = '';
     let lastErrorCode: number | undefined;
+    const sendStartedAt = Date.now();
+    const SEND_BUDGET_MS = 20000;
 
     // Determine comprehensive list of endpoints to try based on Eitaa Yar and Eitaa Bot standards
     const endpointsToTry: string[] = [
@@ -596,6 +619,10 @@ export class EitaaBotService {
       : endpointsToTry;
 
     for (const url of orderedEndpoints) {
+      if (Date.now() - sendStartedAt > SEND_BUDGET_MS) {
+        lastError = lastError || 'زمان ارسال پیام به ایتا به پایان رسید.';
+        break;
+      }
       try {
         // Strategy A: URLSearchParams (Form URL-Encoded)
         const params = new URLSearchParams();
@@ -610,7 +637,8 @@ export class EitaaBotService {
             'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
           },
-          body: params.toString()
+          body: params.toString(),
+          signal: AbortSignal.timeout(8000)
         });
 
         const json = await resForm.json().catch(() => null);
@@ -656,7 +684,8 @@ export class EitaaBotService {
             'Content-Type': 'application/json; charset=UTF-8',
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
           },
-          body: JSON.stringify(jsonBody)
+          body: JSON.stringify(jsonBody),
+          signal: AbortSignal.timeout(8000)
         });
 
         const jsonResData = await resJson.json().catch(() => null);
@@ -1068,9 +1097,31 @@ export class EitaaBotService {
   /** شناسهٔ پیام‌هایی که اعلانشان ارسال شده (جلوگیری از ارسال تکراری) */
   private recentNotificationIds = new Set<string>();
 
-  /** فراخوانی عمومی برای وبهوک تا ارسال را await کند */
-  public async notifyNewEmail(email: string, message: EmailMessage): Promise<void> {
-    return this.handleIncomingEmailNotification(email, message);
+  /** اعلان‌های در حال اجرا: لیسنر و وبهوک هر دو همین Promise را await می‌کنند */
+  private pendingNotifications = new Map<string, Promise<void>>();
+
+  /**
+   * فراخوانی عمومی برای وبهوک تا ارسال را await کند.
+   * اگر لیسنر داخلی همین پیام را در حال ارسال باشد، همان Promise برگردانده می‌شود
+   * تا (۱) پیام تکراری ارسال نشود و (۲) نمونهٔ سرورلس قبل از پایان ارسال فریز نشود.
+   */
+  public notifyNewEmail(email: string, message: EmailMessage): Promise<void> {
+    const normalized = (email || '').toLowerCase().trim();
+    const key = `${normalized}::${message?.id || ''}`;
+
+    const running = this.pendingNotifications.get(key);
+    if (running) return running;
+
+    const task = this.handleIncomingEmailNotification(email, message)
+      .catch((err) => {
+        console.error('[EitaaBot] Notification dispatch failed:', err);
+      })
+      .finally(() => {
+        this.pendingNotifications.delete(key);
+      });
+
+    this.pendingNotifications.set(key, task);
+    return task;
   }
 
 
