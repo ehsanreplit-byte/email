@@ -396,6 +396,24 @@ async function startServer() {
       }
       
       if (phone) {
+        // پشتیبانی از کلید حساب ایتا (eitaa:<id>) تا پیام‌ها بدون نیاز به لیست محلی پیدا شوند
+        const rawPhoneKey = String(phone).trim();
+        if (/^eitaa[:_]/i.test(rawPhoneKey)) {
+          const eitaaAccount = eitaaBotService.findUser(rawPhoneKey);
+          if (eitaaAccount) {
+            if (Array.isArray(eitaaAccount.emails)) {
+              targetEmails.push(...eitaaAccount.emails.map((e: string) => String(e).toLowerCase()));
+            }
+            if (Array.isArray(eitaaAccount.history)) {
+              targetEmails.push(
+                ...eitaaAccount.history
+                  .map((h: any) => String(h?.email || '').toLowerCase())
+                  .filter(Boolean)
+              );
+            }
+          }
+        }
+
         const cleanPhone = extractValidPhoneNumber(phone);
         if (cleanPhone) {
           const eitaaUser = eitaaBotService.getUserByPhone(cleanPhone);
