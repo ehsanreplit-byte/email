@@ -97,52 +97,71 @@
       ]
     }
     </script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Vazirmatn:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    <!-- Fast and reliable Vazirmatn CDN for Iran users (bypassing Google Fonts filter) -->
-    <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
-    <!-- Eitaa Web App SDK with Version Initialization -->
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <!-- Vazirmatn font from jsDelivr, loaded non-blocking so a slow CDN never blocks the first paint -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" media="print" onload="this.media='all'" />
+    <!--
+      WebApp SDKs are loaded ASYNCHRONOUSLY and only when relevant.
+      Previously these were render-blocking <script> tags in <head>; when the
+      host (telegram.org) is unreachable from Iran, the browser waited on them
+      and the page stayed blank for tens of seconds. Never block first paint on
+      a third-party script again.
+    -->
     <script>
-      (function() {
-        try {
-          var key = '__eitaa__initParams';
-          var raw = window.sessionStorage ? window.sessionStorage.getItem(key) : null;
-          var params = raw ? JSON.parse(raw) : {};
-          if (!params.tgWebAppVersion || params.tgWebAppVersion === '0.0') {
-            params.tgWebAppVersion = '1.4';
-          }
-          if (!params.tgWebAppPlatform) {
-            params.tgWebAppPlatform = 'weba';
-          }
-          if (window.sessionStorage) {
-            window.sessionStorage.setItem(key, JSON.stringify(params));
-          }
-        } catch (e) {}
-      })();
-    </script>
-    <script src="https://developer.eitaa.com/eitaa-web-app.js"></script>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script>
-      (function() {
-        try {
-          if (window.Eitaa && window.Eitaa.WebApp) {
-            if (!window.Eitaa.WebApp.version || window.Eitaa.WebApp.version === '0.0') {
-              try {
-                Object.defineProperty(window.Eitaa.WebApp, 'version', {
-                  get: function() { return '1.4'; },
-                  configurable: true,
-                  enumerable: true
-                });
-              } catch (e) {}
-            }
-            window.Eitaa.WebApp.isVersionAtLeast = function(ver) { return true; };
-          }
-        } catch (e) {}
+      (function () {
+        var ua = navigator.userAgent || '';
+        var hash = window.location.hash || '';
+        var search = window.location.search || '';
+
+        function inject(src, onload) {
+          try {
+            var s = document.createElement('script');
+            s.src = src;
+            s.async = true;
+            s.defer = true;
+            if (onload) { s.onload = onload; }
+            s.onerror = function () { /* ignore: page must work without the SDK */ };
+            document.head.appendChild(s);
+          } catch (e) {}
+        }
+
+        // Eitaa SDK: needed to read initData inside the Eitaa client / preview.
+        inject('https://developer.eitaa.com/eitaa-web-app.js');
+
+        // Telegram SDK: only injected when we are actually inside Telegram,
+        // because telegram.org is filtered for Iranian users.
+        var insideTelegram =
+          /Telegram/i.test(ua) ||
+          hash.indexOf('tgWebAppData') !== -1 ||
+          search.indexOf('tgWebAppData') !== -1;
+        if (insideTelegram) {
+          inject('https://telegram.org/js/telegram-web-app.js');
+        }
       })();
     </script>
   </head>
   <body class="bg-slate-50 text-slate-900 font-sans antialiased selection:bg-indigo-500 selection:text-white min-h-screen">
+    <!-- Boot placeholder: guarantees something is always visible even if the JS bundle
+         is slow, blocked or fails. Removed by src/main.tsx as soon as React mounts. -->
+    <div id="boot-fallback" style="position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#020617;color:#fff;font-family:Vazirmatn,Tahoma,sans-serif;text-align:center;padding:24px;">
+      <div style="width:44px;height:44px;border-radius:50%;border:3px solid rgba(255,255,255,.2);border-top-color:#f97316;animation:bootspin 1s linear infinite"></div>
+      <div style="font-weight:800;font-size:15px">در حال بارگذاری جا به جا…</div>
+      <div id="boot-fallback-hint" style="font-size:12px;color:#cbd5e1;max-width:320px;line-height:1.8"></div>
+      <style>@keyframes bootspin{to{transform:rotate(360deg)}}</style>
+      <noscript>
+        <div style="margin-top:10px;font-size:12px;color:#fca5a5">برای استفاده از سایت، جاوااسکریپت مرورگر را فعال کنید.</div>
+      </noscript>
+    </div>
+    <script>
+      // If nothing rendered after 8 seconds, tell the user what is happening
+      // instead of leaving them on a blank screen.
+      setTimeout(function () {
+        var hint = document.getElementById('boot-fallback-hint');
+        if (hint && document.getElementById('boot-fallback')) {
+          hint.innerHTML = 'اگر این پیام باقی ماند، اتصال به سرور برقرار نشده است.<br/><a href="/eitaa?preview=1" style="color:#fb923c">تلاش مجدد</a>';
+        }
+      }, 8000);
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
