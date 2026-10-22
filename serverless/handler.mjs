@@ -2386,6 +2386,8 @@ var EitaaBotService = class {
     };
     this.users = /* @__PURE__ */ new Map();
     this.emailToPhoneMap = /* @__PURE__ */ new Map();
+    /** ایندکس شناسه ایتا → کلید حساب کاربر در users */
+    this.eitaaIdIndex = /* @__PURE__ */ new Map();
     this.loadConfig();
     this.loadUsers();
     emailStore.onNewMessage((email, message) => {
@@ -2437,22 +2439,36 @@ var EitaaBotService = class {
         const list = JSON.parse(data);
         this.users.clear();
         this.emailToPhoneMap.clear();
+        this.eitaaIdIndex.clear();
         for (const u of list) {
-          if (u && u.phone && u.phone.trim().length >= 10 && u.isRegistered !== false) {
-            const cleanPhone = extractValidPhoneNumber(u.phone) || formatIranianMobile(u.phone) || u.phone.trim();
-            u.phone = cleanPhone;
-            this.users.set(cleanPhone, u);
+          const eitaaId = u?.eitaaId ? this.normalizeEitaaId(u.eitaaId) : "";
+          const hasPhone = Boolean(u?.phone && String(u.phone).trim().length >= 10);
+          if (u && (hasPhone || eitaaId) && u.isRegistered !== false) {
+            let accountKey = "";
+            if (hasPhone) {
+              const cleanPhone = extractValidPhoneNumber(u.phone) || formatIranianMobile(u.phone) || String(u.phone).trim();
+              u.phone = cleanPhone;
+              accountKey = cleanPhone;
+            } else {
+              u.phone = "";
+              accountKey = `eitaa:${eitaaId}`;
+            }
+            if (eitaaId) {
+              u.eitaaId = eitaaId;
+              this.eitaaIdIndex.set(eitaaId, accountKey);
+            }
+            this.users.set(accountKey, u);
             if (Array.isArray(u.emails)) {
               for (const em of u.emails) {
                 if (em && typeof em === "string") {
-                  this.emailToPhoneMap.set(em.toLowerCase().trim(), cleanPhone);
+                  this.emailToPhoneMap.set(em.toLowerCase().trim(), accountKey);
                 }
               }
             }
             if (Array.isArray(u.history)) {
               for (const h of u.history) {
                 if (h?.email) {
-                  this.emailToPhoneMap.set(h.email.toLowerCase().trim(), cleanPhone);
+                  this.emailToPhoneMap.set(h.email.toLowerCase().trim(), accountKey);
                 }
               }
             }
@@ -2487,12 +2503,43 @@ var EitaaBotService = class {
   }
   getUsers() {
     return Array.from(this.users.values()).filter(
-      (u) => u && u.phone && u.phone.trim().length >= 10 && u.isRegistered !== false
+      (u) => u && u.isRegistered !== false && (u.phone && u.phone.trim().length >= 10 || Boolean(u.eitaaId))
     );
+  }
+  /** شناسه ایتا را به فرمت یکسان (فقط ارقام) تبدیل می‌کند */
+  normalizeEitaaId(rawId) {
+    if (rawId === void 0 || rawId === null) return "";
+    return String(rawId).trim().replace(/^eitaa[:_]/i, "").replace(/[^\d]/g, "");
+  }
+  /** یافتن کاربر بر اساس شناسه ایتا */
+  getUserByEitaaId(rawId) {
+    const id = this.normalizeEitaaId(rawId);
+    if (!id) return void 0;
+    const indexedKey = this.eitaaIdIndex.get(id);
+    if (indexedKey) {
+      const indexedUser = this.users.get(indexedKey);
+      if (indexedUser) return indexedUser;
+    }
+    for (const u of this.users.values()) {
+      if (u && u.eitaaId && this.normalizeEitaaId(u.eitaaId) === id) return u;
+    }
+    return void 0;
+  }
+  /** شناسه حساب را از هر ورودی (کلید حساب، شناسه ایتا یا شماره تلفن) پیدا می‌کند */
+  findUser(identifier) {
+    if (identifier === void 0 || identifier === null) return void 0;
+    const raw = String(identifier).trim();
+    if (!raw) return void 0;
+    if (this.users.has(raw)) return this.users.get(raw);
+    const byEitaaId = this.getUserByEitaaId(raw);
+    if (byEitaaId) return byEitaaId;
+    return this.getUserByPhone(raw);
   }
   getUserByPhone(phone) {
     if (!phone) return void 0;
     const raw = String(phone);
+    const byEitaaId = this.getUserByEitaaId(raw);
+    if (byEitaaId) return byEitaaId;
     const cleanPhone = extractValidPhoneNumber(raw) || formatIranianMobile(raw) || raw.replace(/[^\d]/g, "");
     if (!cleanPhone) return void 0;
     if (this.users.has(cleanPhone)) return this.users.get(cleanPhone);
@@ -2512,19 +2559,37 @@ var EitaaBotService = class {
    */
   linkEmailToUser(phone, email) {
     if (!phone || !email) return;
-    const raw = String(phone);
-    const cleanPhone = extractValidPhoneNumber(raw) || formatIranianMobile(raw) || raw.replace(/[^\d]/g, "");
+    const raw = String(phone).trim();
+    const isEitaaAccountKey = /^eitaa[:_]/i.test(raw);
+    const eitaaId = isEitaaAccountKey ? this.normalizeEitaaId(raw) : "";
+    const cleanPhone = isEitaaAccountKey ? "" : extractValidPhoneNumber(raw) || formatIranianMobile(raw) || raw.replace(/[^\d]/g, "");
     const cleanEmail = email.toLowerCase().trim();
-    let user = this.getUserByPhone(cleanPhone);
+    let user = this.findUser(raw) || (cleanPhone ? this.getUserByPhone(cleanPhone) : void 0);
+    let accountKey = cleanPhone;
+    if (user) {
+      for (const [key, value] of this.users.entries()) {
+        if (value === user) {
+          accountKey = key;
+          break;
+        }
+      }
+    }
     if (!user) {
+      if (!cleanPhone && !eitaaId) return;
       const newUser = {
         phone: cleanPhone,
+        eitaaId: eitaaId || void 0,
+        id: eitaaId || void 0,
+        chatId: eitaaId || void 0,
+        isRegistered: true,
         registeredAt: (/* @__PURE__ */ new Date()).toISOString(),
         welcomeMessageSent: false,
         emails: [],
         history: []
       };
-      this.users.set(cleanPhone, newUser);
+      accountKey = cleanPhone || `eitaa:${eitaaId}`;
+      this.users.set(accountKey, newUser);
+      if (eitaaId) this.eitaaIdIndex.set(eitaaId, accountKey);
       user = newUser;
     }
     if (!user.emails) user.emails = [];
@@ -2538,9 +2603,9 @@ var EitaaBotService = class {
         createdAt: (/* @__PURE__ */ new Date()).toISOString()
       });
     }
-    this.emailToPhoneMap.set(cleanEmail, cleanPhone);
+    this.emailToPhoneMap.set(cleanEmail, accountKey);
     this.saveUsers();
-    console.log(`[EitaaBot] Successfully linked email ${cleanEmail} to registered user ${cleanPhone}`);
+    console.log(`[EitaaBot] Successfully linked email ${cleanEmail} to registered user ${accountKey}`);
   }
   /**
    * Gets all emails associated with an Eitaa user
@@ -2905,6 +2970,74 @@ var EitaaBotService = class {
       messageSent,
       error: sendError
     };
+  }
+  /**
+   * ثبت‌نام / ورود کاربر بر اساس شناسه ایتا (بدون نیاز به شماره تلفن)
+   * کلید حساب کاربر به صورت `eitaa:<شناسه>` ذخیره می‌شود.
+   */
+  async handleUserLoginByEitaaId(rawEitaaId, userData, reqAppUrl, initData) {
+    const eitaaId = this.normalizeEitaaId(rawEitaaId);
+    if (!eitaaId) {
+      return { success: false, messageSent: false, error: "\u0634\u0646\u0627\u0633\u0647 \u06A9\u0627\u0631\u0628\u0631\u06CC \u0627\u06CC\u062A\u0627 \u0634\u0646\u0627\u0633\u0627\u06CC\u06CC \u0646\u0634\u062F." };
+    }
+    const details = this.extractUserDetails(eitaaId, userData, initData);
+    const existing = this.getUserByEitaaId(eitaaId);
+    const isNew = !existing;
+    let accountKey = `eitaa:${eitaaId}`;
+    if (existing) {
+      for (const [key, value] of this.users.entries()) {
+        if (value === existing) {
+          accountKey = key;
+          break;
+        }
+      }
+    }
+    const firstName = details.firstName && details.firstName !== "\u06A9\u0627\u0631\u0628\u0631 \u0627\u06CC\u062A\u0627" ? details.firstName : existing?.firstName || "\u06A9\u0627\u0631\u0628\u0631 \u0627\u06CC\u062A\u0627";
+    const username = details.username || existing?.username || "";
+    const appUrl = reqAppUrl || this.config.appUrl || "https://ja-be-ja.ir";
+    const userRecord = {
+      id: eitaaId,
+      chatId: eitaaId,
+      eitaaId,
+      phone: existing?.phone || "",
+      firstName,
+      username,
+      isRegistered: true,
+      registeredAt: existing?.registeredAt || (/* @__PURE__ */ new Date()).toISOString(),
+      welcomeMessageSent: existing?.welcomeMessageSent || false,
+      lastMessageStatus: existing?.lastMessageStatus,
+      lastMessageError: existing?.lastMessageError,
+      emails: [...existing?.emails || []],
+      history: [...existing?.history || []]
+    };
+    this.users.set(accountKey, userRecord);
+    this.eitaaIdIndex.set(eitaaId, accountKey);
+    for (const em of userRecord.emails || []) {
+      this.emailToPhoneMap.set(String(em).toLowerCase().trim(), accountKey);
+    }
+    for (const h of userRecord.history || []) {
+      if (h?.email) this.emailToPhoneMap.set(h.email.toLowerCase().trim(), accountKey);
+    }
+    let messageSent = false;
+    let sendError;
+    if (this.config.isEnabled && this.config.token.trim() && !userRecord.welcomeMessageSent) {
+      const template = this.config.welcomeMessage || DEFAULT_WELCOME_MESSAGE;
+      const personalizedMessage = template.replace(/{name}/g, firstName).replace(/{phone}/g, userRecord.phone || "\u062D\u0633\u0627\u0628 \u0627\u06CC\u062A\u0627").replace(/{limit}/g, "\u06F1\u06F0").replace(/{url}/g, appUrl);
+      const result = await this.sendMessageToUser(userRecord, personalizedMessage);
+      if (result.success) {
+        messageSent = true;
+        userRecord.welcomeMessageSent = true;
+        userRecord.lastMessageStatus = "success";
+        userRecord.lastMessageError = void 0;
+      } else {
+        userRecord.lastMessageStatus = "failed";
+        userRecord.lastMessageError = result.error;
+        sendError = result.error;
+      }
+    }
+    this.saveUsers();
+    console.log(`[EitaaBot] Eitaa-ID login ${eitaaId} -> key ${accountKey} (new: ${isNew})`);
+    return { success: true, user: userRecord, accountKey, isNew, messageSent, error: sendError };
   }
   /**
    * Handles incoming email notifications and forwards them directly to the user's Eitaa account
@@ -5812,6 +5945,22 @@ async function startServer() {
   telegramBotService.loadConfig();
   eitaaBotService.loadUsers();
   eitaaBotService.loadConfig();
+  const buildEitaaSessionPayload = (accountKey) => {
+    const usage = getUserUnifiedUsageStats(
+      accountKey,
+      0,
+      (p) => telegramBotService.getUserByPhone(p),
+      (p) => eitaaBotService.getUserByPhone(p)
+    );
+    const serverInboxes = usage.allEmails.map((email) => emailStore.getInbox(email) || emailStore.restoreInbox(email)).filter(Boolean);
+    return {
+      inboxes: serverInboxes,
+      remainingEmails: usage.remaining,
+      limit: usage.limit,
+      totalUsed: usage.totalUsed
+    };
+  };
+  const isEitaaAccountKey = (value) => typeof value === "string" && /^eitaa[:_]/i.test(value.trim());
   if (process.env.VERCEL || process.env.SERVERLESS === "true") {
     if (telegramBotService.isConfigured()) {
       const publicUrl = telegramBotService.resolvePublicUrl();
@@ -5971,10 +6120,13 @@ Sitemap: ${baseUrl}/sitemap.xml
     try {
       const { username, domain, ttl, user, phone } = req.body || {};
       const rawUser = user || phone || req.headers["x-user-phone"];
-      const cleanPhone = extractValidPhoneNumber(rawUser) || formatIranianMobile(rawUser);
-      if (cleanPhone) {
+      const rawUserStr = rawUser ? String(rawUser).trim() : "";
+      const eitaaAccountKey = isEitaaAccountKey(rawUserStr) ? rawUserStr : "";
+      const cleanPhone = eitaaAccountKey ? "" : extractValidPhoneNumber(rawUser) || formatIranianMobile(rawUser);
+      const accountKey = eitaaAccountKey || cleanPhone;
+      if (accountKey) {
         const usage = getUserUnifiedUsageStats(
-          cleanPhone,
+          accountKey,
           0,
           (p) => telegramBotService.getUserByPhone(p),
           (p) => eitaaBotService.getUserByPhone(p)
@@ -5982,16 +6134,16 @@ Sitemap: ${baseUrl}/sitemap.xml
         if (usage.isQuotaExceeded) {
           return res.status(403).json({
             error: "QUOTA_EXCEEDED",
-            message: `\u0633\u0642\u0641 \u0645\u062C\u0627\u0632 ${usage.limit} \u0627\u06CC\u0645\u06CC\u0644 \u0645\u0648\u0642\u062A \u0628\u0631\u0627\u06CC \u0634\u0645\u0627\u0631\u0647 ${cleanPhone} \u062F\u0631 \u0645\u062C\u0645\u0648\u0639 \u0645\u062D\u06CC\u0637\u200C\u0647\u0627\u06CC \u0648\u0628\u060C \u0627\u06CC\u062A\u0627 \u0648 \u062A\u0644\u06AF\u0631\u0627\u0645 \u0628\u0647 \u067E\u0627\u06CC\u0627\u0646 \u0631\u0633\u06CC\u062F\u0647 \u0627\u0633\u062A (${usage.totalUsed}/${usage.limit}). \u0628\u0631\u0627\u06CC \u0633\u0627\u062E\u062A \u0627\u06CC\u0645\u06CC\u0644\u200C\u0647\u0627\u06CC \u062C\u062F\u06CC\u062F \u0644\u0637\u0641\u0627\u064B \u0627\u0634\u062A\u0631\u0627\u06A9 \u0648\u06CC\u0698\u0647 \u062A\u0647\u06CC\u0647 \u06A9\u0646\u06CC\u062F.`
+            message: `\u0633\u0642\u0641 \u0645\u062C\u0627\u0632 ${usage.limit} \u0627\u06CC\u0645\u06CC\u0644 \u0645\u0648\u0642\u062A \u0628\u0631\u0627\u06CC \u0627\u06CC\u0646 \u062D\u0633\u0627\u0628 \u062F\u0631 \u0645\u062C\u0645\u0648\u0639 \u0645\u062D\u06CC\u0637\u200C\u0647\u0627\u06CC \u0648\u0628\u060C \u0627\u06CC\u062A\u0627 \u0648 \u062A\u0644\u06AF\u0631\u0627\u0645 \u0628\u0647 \u067E\u0627\u06CC\u0627\u0646 \u0631\u0633\u06CC\u062F\u0647 \u0627\u0633\u062A (${usage.totalUsed}/${usage.limit}). \u0628\u0631\u0627\u06CC \u0633\u0627\u062E\u062A \u0627\u06CC\u0645\u06CC\u0644\u200C\u0647\u0627\u06CC \u062C\u062F\u06CC\u062F \u0644\u0637\u0641\u0627\u064B \u0627\u0634\u062A\u0631\u0627\u06A9 \u0648\u06CC\u0698\u0647 \u062A\u0647\u06CC\u0647 \u06A9\u0646\u06CC\u062F.`
           });
         }
       }
       const ttlSeconds = typeof ttl === "number" ? ttl : 300;
       const inbox = emailStore.createInbox(username, domain, ttlSeconds);
-      if (cleanPhone) {
+      if (accountKey) {
         try {
-          eitaaBotService.linkEmailToUser(cleanPhone, inbox.email);
-          telegramBotService.linkEmailToUser(cleanPhone, inbox.email);
+          eitaaBotService.linkEmailToUser(accountKey, inbox.email);
+          telegramBotService.linkEmailToUser(accountKey, inbox.email);
         } catch (e) {
           console.error("[BotService] Error linking email to user:", e);
         }
@@ -7233,6 +7385,62 @@ Sitemap: ${baseUrl}/sitemap.xml
       res.status(500).json({ success: false, error: "Internal server error during login" });
     }
   });
+  app.post("/api/eitaa/register", loginLimiter, async (req, res) => {
+    try {
+      const { eitaaId, userData, initData } = req.body || {};
+      if (process.env.EITAA_STRICT_VERIFY === "true") {
+        const botToken = eitaaBotService.getConfig().token;
+        if (!initData || !botToken || !eitaaBotService.verifyInitData(String(initData), botToken)) {
+          return res.status(401).json({ success: false, error: "\u0627\u0645\u0636\u0627\u06CC \u0648\u0631\u0648\u062F \u0627\u06CC\u062A\u0627 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A." });
+        }
+      }
+      const normalizedId = eitaaBotService.normalizeEitaaId(eitaaId);
+      if (!normalizedId) {
+        return res.status(400).json({
+          success: false,
+          error: "\u0634\u0646\u0627\u0633\u0647 \u06A9\u0627\u0631\u0628\u0631\u06CC \u0627\u06CC\u062A\u0627 \u0634\u0646\u0627\u0633\u0627\u06CC\u06CC \u0646\u0634\u062F. \u0644\u0637\u0641\u0627\u064B \u0627\u06CC\u0646 \u0635\u0641\u062D\u0647 \u0631\u0627 \u0627\u0632 \u062F\u0627\u062E\u0644 \u067E\u06CC\u0627\u0645\u200C\u0631\u0633\u0627\u0646 \u0627\u06CC\u062A\u0627 \u0628\u0627\u0632 \u06A9\u0646\u06CC\u062F."
+        });
+      }
+      if (systemStore.isMaintenance()) {
+        return res.status(503).json({
+          success: false,
+          isMaintenance: true,
+          error: systemStore.getConfig().maintenanceMessage || "\u0633\u06CC\u0633\u062A\u0645 \u062F\u0631 \u062D\u0627\u0644 \u0628\u0631\u0648\u0632 \u0631\u0633\u0627\u0646\u06CC \u0627\u0633\u062A. \u0644\u0637\u0641\u0627\u064B \u0634\u06A9\u06CC\u0628\u0627 \u0628\u0627\u0634\u06CC\u062F."
+        });
+      }
+      const reqUrl = `${req.protocol}://${req.get("host")}`;
+      let loginResult;
+      try {
+        loginResult = await eitaaBotService.handleUserLoginByEitaaId(normalizedId, userData, reqUrl, initData);
+      } catch (botErr) {
+        console.error("[EitaaBot] Error during Eitaa-ID registration:", botErr);
+      }
+      if (!loginResult || !loginResult.success) {
+        return res.status(400).json({ success: false, error: loginResult?.error || "\u062E\u0637\u0627 \u062F\u0631 \u062B\u0628\u062A\u200C\u0646\u0627\u0645 \u0628\u0627 \u0634\u0646\u0627\u0633\u0647 \u0627\u06CC\u062A\u0627." });
+      }
+      const accountKey = loginResult.accountKey || `eitaa:${normalizedId}`;
+      const payload = buildEitaaSessionPayload(accountKey);
+      analyticsStore.recordLogin({
+        user: accountKey,
+        source: "eitaa",
+        ip: req.headers["x-forwarded-for"] || req.socket.remoteAddress || "client",
+        userAgent: req.headers["user-agent"]
+      });
+      return res.json({
+        success: true,
+        user: accountKey,
+        eitaaId: normalizedId,
+        isNew: Boolean(loginResult.isNew),
+        isAdmin: false,
+        messageSent: Boolean(loginResult.messageSent),
+        ...payload,
+        message: loginResult.isNew ? "\u062B\u0628\u062A\u200C\u0646\u0627\u0645 \u0628\u0627 \u0634\u0646\u0627\u0633\u0647 \u06A9\u0627\u0631\u0628\u0631\u06CC \u0627\u06CC\u062A\u0627 \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u0627\u0646\u062C\u0627\u0645 \u0634\u062F." : "\u0648\u0631\u0648\u062F \u0628\u0627 \u0634\u0646\u0627\u0633\u0647 \u06A9\u0627\u0631\u0628\u0631\u06CC \u0627\u06CC\u062A\u0627 \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u0627\u0646\u062C\u0627\u0645 \u0634\u062F."
+      });
+    } catch (err) {
+      console.error("Eitaa ID registration error:", err);
+      res.status(500).json({ success: false, error: "\u062E\u0637\u0627\u06CC \u0633\u0631\u0648\u0631 \u062F\u0631 \u062B\u0628\u062A\u200C\u0646\u0627\u0645 \u0628\u0627 \u0634\u0646\u0627\u0633\u0647 \u0627\u06CC\u062A\u0627." });
+    }
+  });
   app.post("/api/eitaa/login", loginLimiter, async (req, res) => {
     try {
       const { phone, userData, initData, inboxes } = req.body || {};
@@ -7331,6 +7539,31 @@ Sitemap: ${baseUrl}/sitemap.xml
     try {
       const { phone, user } = req.body || {};
       const rawUser = phone || user || req.headers["x-user-phone"];
+      if (isEitaaAccountKey(rawUser)) {
+        const accountKey = String(rawUser).trim();
+        const eitaaUser = eitaaBotService.findUser(accountKey);
+        if (!eitaaUser) {
+          return res.json({
+            success: true,
+            user: accountKey,
+            inboxes: [],
+            remainingEmails: 10,
+            limit: 10,
+            totalUsed: 0,
+            planTitle: "\u0627\u0634\u062A\u0631\u0627\u06A9 \u067E\u0627\u06CC\u0647 \u0631\u0627\u06CC\u06AF\u0627\u0646 (\u0645\u0627\u0647\u0627\u0646\u0647)"
+          });
+        }
+        const payload = buildEitaaSessionPayload(accountKey);
+        return res.json({
+          success: true,
+          user: accountKey,
+          inboxes: payload.inboxes,
+          remainingEmails: payload.remainingEmails,
+          limit: payload.limit,
+          totalUsed: payload.totalUsed,
+          planTitle: "\u0627\u0634\u062A\u0631\u0627\u06A9 \u067E\u0627\u06CC\u0647 \u0631\u0627\u06CC\u06AF\u0627\u0646 (\u0645\u0627\u0647\u0627\u0646\u0647)"
+        });
+      }
       let cleanPhone = extractValidPhoneNumber(rawUser) || formatIranianMobile(rawUser);
       let resolvedChatId = 0;
       let tgUserEmails = [];
@@ -7435,12 +7668,13 @@ Sitemap: ${baseUrl}/sitemap.xml
   app.post("/api/eitaa/link-email", (req, res) => {
     try {
       const { phone, email } = req.body || {};
-      const cleanPhone = extractValidPhoneNumber(phone);
+      const rawIdentifier = phone ? String(phone).trim() : "";
+      const cleanPhone = isEitaaAccountKey(rawIdentifier) ? rawIdentifier : extractValidPhoneNumber(rawIdentifier);
       if (!cleanPhone || !email) {
-        return res.status(400).json({ success: false, error: "\u0634\u0645\u0627\u0631\u0647 \u0648 \u0622\u062F\u0631\u0633 \u0627\u06CC\u0645\u06CC\u0644 \u0645\u0639\u062A\u0628\u0631 \u0627\u0644\u0632\u0627\u0645\u06CC \u0627\u0633\u062A." });
+        return res.status(400).json({ success: false, error: "\u0634\u0646\u0627\u0633\u0647 \u06A9\u0627\u0631\u0628\u0631 \u0648 \u0622\u062F\u0631\u0633 \u0627\u06CC\u0645\u06CC\u0644 \u0645\u0639\u062A\u0628\u0631 \u0627\u0644\u0632\u0627\u0645\u06CC \u0627\u0633\u062A." });
       }
       eitaaBotService.linkEmailToUser(cleanPhone, email);
-      res.json({ success: true, message: "\u0627\u06CC\u0645\u06CC\u0644 \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u0628\u0647 \u0634\u0645\u0627\u0631\u0647 \u06A9\u0627\u0631\u0628\u0631 \u062F\u0631 \u0627\u06CC\u062A\u0627 \u0645\u062A\u0635\u0644 \u0634\u062F." });
+      res.json({ success: true, message: "\u0627\u06CC\u0645\u06CC\u0644 \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u0628\u0647 \u06A9\u0627\u0631\u0628\u0631 \u062F\u0631 \u0627\u06CC\u062A\u0627 \u0645\u062A\u0635\u0644 \u0634\u062F." });
     } catch (err) {
       console.error("Error linking email to Eitaa user:", err);
       res.status(500).json({ success: false, error: err.message || "\u062E\u0637\u0627 \u062F\u0631 \u0627\u062A\u0635\u0627\u0644 \u0627\u06CC\u0645\u06CC\u0644" });
