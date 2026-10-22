@@ -75,7 +75,17 @@ export class CredentialsStore {
     return this.byUsername.get(String(username || '').trim().toLowerCase());
   }
 
-  public setCredentials(account: string, username: string, password: string): { success: boolean; error?: string; record?: CredentialRecord } {
+  /**
+   * ثبت/به‌روزرسانی اعتبارنامه.
+   * `migrateFrom` کلیدهای قدیمی همان هویت است که فراخوان (پس از احراز) اجازهٔ مهاجرت آن‌ها را داده است،
+   * مثل رکوردهایی که با شماره موبایل به‌عنوان account ذخیره شده بودند.
+   */
+  public setCredentials(
+    account: string,
+    username: string,
+    password: string,
+    options: { migrateFrom?: string[] } = {}
+  ): { success: boolean; error?: string; record?: CredentialRecord } {
     const acc = String(account || '').trim();
     const user = String(username || '').trim();
     const pass = String(password || '');
@@ -86,17 +96,27 @@ export class CredentialsStore {
     if (usernameError) return { success: false, error: usernameError };
     if (pass.length < 6) return { success: false, error: 'رمز عبور باید حداقل ۶ کاراکتر باشد.' };
 
+    const allowedAccounts = new Set<string>(
+      [acc, user, ...(options.migrateFrom || []).map((v) => String(v || '').trim())].filter(Boolean)
+    );
     const lower = user.toLowerCase();
-    const existingForUsername = this.byUsername.get(lower);
-    if (existingForUsername && existingForUsername.account !== acc) {
-      return { success: false, error: 'این نام کاربری قبلاً انتخاب شده است. نام دیگری انتخاب کنید.' };
+    const usernameOwner = this.byUsername.get(lower);
+
+    // هویت‌های مجاز: خود حساب، کلید شماره موبایل همین کاربر و کلیدهای قدیمیِ تأییدشده
+    if (usernameOwner && !allowedAccounts.has(usernameOwner.account)) {
+      return { success: false, error: 'این شماره موبایل قبلاً برای حساب دیگری ثبت شده است. با همان حساب وارد شوید یا با پشتیبانی تماس بگیرید.' };
     }
 
-    // اگر این حساب قبلاً نام کاربری داشته و نام را عوض کرده، رکورد قبلی حذف شود
-    const previous = this.getByAccount(acc);
-    if (previous && previous.username.toLowerCase() !== lower) {
-      this.byUsername.delete(previous.username.toLowerCase());
+    // حذف رکوردهای تکراری/قدیمی همین هویت
+    const previous = this.getByAccount(acc) || this.getByAccount(user) || usernameOwner;
+    const toRemove = new Set<string>();
+    for (const rec of this.byUsername.values()) {
+      if (allowedAccounts.has(rec.account) || rec.username.toLowerCase() === lower) {
+        toRemove.add(rec.username.toLowerCase());
+      }
     }
+    toRemove.add(lower);
+    for (const key of toRemove) this.byUsername.delete(key);
 
     const now = new Date().toISOString();
     const record: CredentialRecord = {
