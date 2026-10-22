@@ -662,6 +662,33 @@ export const api = {
     }
   },
 
+  async eitaaRegisterByEitaaId(eitaaId: string, userData?: any, initData?: string): Promise<{ success: boolean; user?: string; isNew?: boolean; error?: string; message?: string; messageSent?: boolean; inboxes?: TempInbox[]; remainingEmails?: number; limit?: number; totalUsed?: number }> {
+    try {
+      const res = await fetch('/api/eitaa/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eitaaId, userData, initData }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        return {
+          success: true,
+          user: data.user,
+          isNew: data.isNew,
+          message: data.message,
+          messageSent: data.messageSent,
+          inboxes: data.inboxes || [],
+          remainingEmails: data.remainingEmails,
+          limit: data.limit,
+          totalUsed: data.totalUsed,
+        };
+      }
+      return { success: false, error: data.error || 'خطا در ثبت‌نام با شناسه کاربری ایتا.' };
+    } catch {
+      return { success: false, error: 'خطا در ارتباط با سرور.' };
+    }
+  },
+
   async eitaaLogin(phone: string, userData?: any, initData?: string): Promise<{ success: boolean; user?: string; isAdmin?: boolean; error?: string; message?: string; messageSent?: boolean; inboxes?: TempInbox[]; remainingEmails?: number; limit?: number; totalUsed?: number; telegramEmailsLinkedCount?: number }> {
     try {
       const res = await fetch('/api/eitaa/login', {
