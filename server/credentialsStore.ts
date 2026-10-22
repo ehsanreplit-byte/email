@@ -115,11 +115,11 @@ export class CredentialsStore {
   public verify(username: string, password: string): { success: boolean; account?: string; error?: string } {
     const record = this.getByUsername(username);
     if (!record) {
-      return { success: false, error: 'نام کاربری یا رمز عبور نادرست است.' };
+      return { success: false, error: 'شماره موبایل یا رمز عبور نادرست است.' };
     }
     try {
       if (!bcrypt.compareSync(String(password || ''), record.passwordHash)) {
-        return { success: false, error: 'نام کاربری یا رمز عبور نادرست است.' };
+        return { success: false, error: 'شماره موبایل یا رمز عبور نادرست است.' };
       }
     } catch {
       return { success: false, error: 'خطا در بررسی رمز عبور.' };
