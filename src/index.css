@@ -129,3 +129,18 @@
     max-height: 90vh;
   }
 }
+
+/* مودال‌های پنل مدیریت: ارتفاع دقیق ناحیهٔ دید روی موبایل (فالبک vh برای وب‌ویوهای قدیمی) */
+.admin-sheet {
+  max-height: 92vh;
+}
+@supports (height: 100dvh) {
+  .admin-sheet {
+    max-height: 92dvh;
+  }
+}
+@media (min-width: 640px) {
+  .admin-sheet {
+    max-height: 90vh;
+  }
+}
