@@ -334,6 +334,23 @@ var Storage = class {
       }
     }
   }
+  /**
+   * مدارک مشخصی را دوباره از MongoDB در حافظه می‌خواند.
+   * لازم است چون هر نمونهٔ سرورلس حافظهٔ خودش را دارد و می‌تواند کهنه شود.
+   */
+  async refreshFromDb(keys) {
+    if (!this.db || keys.length === 0) return;
+    try {
+      const docs = await this.jsonCollection().find({ _id: { $in: keys } }).toArray();
+      for (const doc of docs) {
+        if (doc && doc._id !== void 0 && typeof doc.data === "string") {
+          this.cache.set(String(doc._id), doc.data);
+        }
+      }
+    } catch (err) {
+      console.error("[Storage] refreshFromDb failed:", err);
+    }
+  }
   /** Kept for API compatibility with the previous fs-based stores. */
   mkdirSync() {
   }
@@ -5992,6 +6009,23 @@ async function startServer() {
       totalUsed: usage.totalUsed
     };
   };
+  const DB_LIST_KEYS = ["inboxes_store.json", "email_registry.json", "eitaa_users.json", "telegram_users.json"];
+  let lastDbRefreshAt = 0;
+  const syncStoresFromDb = async (minIntervalMs = 1200) => {
+    if (!storage.mongoEnabled) return;
+    const now = Date.now();
+    if (now - lastDbRefreshAt < minIntervalMs) return;
+    lastDbRefreshAt = now;
+    try {
+      await storage.flush();
+      await storage.refreshFromDb(DB_LIST_KEYS);
+      emailStore.loadFromStorage();
+      eitaaBotService.loadUsers();
+      telegramBotService.loadUsers();
+    } catch (err) {
+      console.error("[DbSync] Failed to refresh stores from MongoDB:", err);
+    }
+  };
   const isEitaaAccountKey = (value) => typeof value === "string" && /^eitaa[:_]/i.test(value.trim());
   if (process.env.VERCEL || process.env.SERVERLESS === "true") {
     if (telegramBotService.isConfigured()) {
@@ -6249,8 +6283,9 @@ Sitemap: ${baseUrl}/sitemap.xml
     const success = emailStore.deleteInbox(req.params.email);
     res.json({ success });
   });
-  app.post("/api/inbox/user-messages", (req, res) => {
+  app.post("/api/inbox/user-messages", async (req, res) => {
     try {
+      await syncStoresFromDb();
       const { emails, phone } = req.body || {};
       let targetEmails = [];
       if (Array.isArray(emails)) {
@@ -6434,8 +6469,9 @@ Sitemap: ${baseUrl}/sitemap.xml
       console.error("[TwoWaySync] Error performing two-way email sync:", err);
     }
   }
-  app.get("/api/admin/all-users", requireAdmin, (req, res) => {
+  app.get("/api/admin/all-users", requireAdmin, async (req, res) => {
     try {
+      await syncStoresFromDb();
       const telegramUsers = telegramBotService.getRegisteredUsers() || [];
       const eitaaUsers = eitaaBotService.getUsers() || [];
       const activeInboxes = emailStore.getAllActiveInboxes() || [];
@@ -7461,6 +7497,7 @@ Sitemap: ${baseUrl}/sitemap.xml
   });
   app.post("/api/eitaa/session", async (req, res) => {
     try {
+      await syncStoresFromDb();
       const { eitaaId } = req.body || {};
       const normalizedId = eitaaBotService.normalizeEitaaId(eitaaId);
       if (!normalizedId) {
@@ -7636,8 +7673,9 @@ Sitemap: ${baseUrl}/sitemap.xml
       res.status(500).json({ success: false, error: "\u062E\u0637\u0627\u06CC \u0633\u0631\u0648\u0631 \u062F\u0631 \u0627\u062D\u0631\u0627\u0632 \u0647\u0648\u06CC\u062A \u0627\u06CC\u062A\u0627." });
     }
   });
-  app.post("/api/user/sync-inboxes", (req, res) => {
+  app.post("/api/user/sync-inboxes", async (req, res) => {
     try {
+      await syncStoresFromDb();
       const { phone, user } = req.body || {};
       const rawUser = phone || user || req.headers["x-user-phone"];
       if (isEitaaAccountKey(rawUser)) {
@@ -7819,8 +7857,9 @@ Sitemap: ${baseUrl}/sitemap.xml
       res.status(500).json({ success: false, error: "\u062E\u0637\u0627 \u062F\u0631 \u0630\u062E\u06CC\u0631\u0647 \u062A\u0646\u0638\u06CC\u0645\u0627\u062A \u0627\u06CC\u062A\u0627" });
     }
   });
-  app.get("/api/eitaa/users", requireAdmin, (req, res) => {
+  app.get("/api/eitaa/users", requireAdmin, async (req, res) => {
     try {
+      await syncStoresFromDb();
       const users = eitaaBotService.getUsers();
       res.json({ success: true, users });
     } catch (err) {
