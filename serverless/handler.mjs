@@ -7726,7 +7726,12 @@ Sitemap: ${baseUrl}/sitemap.xml
         const withoutExt = file.slice(0, -ext.length);
         const base = withoutExt.replace(/-[A-Za-z0-9_.]+$/, "");
         if (!base) return res.status(404).end();
-        const candidates = fs2.readdirSync(assetsPath).filter((f) => f.startsWith(`${base}-`) && f.endsWith(ext)).sort();
+        const wantsLegacy = withoutExt.includes("-legacy");
+        const candidates = fs2.readdirSync(assetsPath).filter((f) => {
+          if (!f.startsWith(`${base}-`) || !f.endsWith(ext)) return false;
+          const isLegacyFile = f.includes("-legacy-");
+          return wantsLegacy ? isLegacyFile : !isLegacyFile;
+        }).sort();
         if (candidates.length === 0) return res.status(404).end();
         const chosen = candidates[candidates.length - 1];
         res.setHeader("Cache-Control", "no-store");
