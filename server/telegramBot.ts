@@ -1947,7 +1947,24 @@ class TelegramBotService {
     });
   }
 
+  private lastUsersRefreshAt = 0;
+
+  /** تازه‌کردن حافظهٔ این نمونه از MongoDB (هر نمونه کش مستقل دارد) */
+  private async refreshUsersFromDb(minIntervalMs = 500): Promise<void> {
+    if (!storage.mongoEnabled) return;
+    const now = Date.now();
+    if (now - this.lastUsersRefreshAt < minIntervalMs) return;
+    this.lastUsersRefreshAt = now;
+    try {
+      await storage.refreshFromDb([USERS_FILE_PATH]);
+      this.loadUsers();
+    } catch (err) {
+      console.error('[TelegramBot] refreshUsersFromDb failed:', err);
+    }
+  }
+
   private async handleIncomingEmailNotification(email: string, message: EmailMessage): Promise<void> {
+    await this.refreshUsersFromDb();
     const normalizedEmail = email.toLowerCase().trim();
     let chatId = this.emailToChatMap.get(normalizedEmail);
 
