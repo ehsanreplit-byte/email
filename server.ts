@@ -1737,6 +1737,42 @@ async function startServer() {
   // Eitaa Web App Authentication & Bot API
 
   /**
+   * بررسی وجود کاربر با شناسه ایتا (قبل از نمایش صفحه ثبت‌نام)
+   * اگر موجود باشد، اطلاعات نشست برمی‌گردد تا مستقیم وارد صفحه اصلی شود.
+   */
+  app.post('/api/eitaa/session', async (req, res) => {
+    try {
+      const { eitaaId } = req.body || {};
+      const normalizedId = eitaaBotService.normalizeEitaaId(eitaaId);
+
+      if (!normalizedId) {
+        return res.status(400).json({ success: false, found: false, error: 'شناسه کاربری ایتا ارسال نشده است.' });
+      }
+
+      const user = eitaaBotService.getUserByEitaaId(normalizedId);
+      if (!user) {
+        return res.json({ success: true, found: false, user: null });
+      }
+
+      const accountKey = `eitaa:${normalizedId}`;
+      const payload = buildEitaaSessionPayload(accountKey);
+
+      return res.json({
+        success: true,
+        found: true,
+        user: accountKey,
+        eitaaId: normalizedId,
+        name: user.firstName || 'کاربر ایتا',
+        isAdmin: false,
+        ...payload
+      });
+    } catch (err) {
+      console.error('Eitaa session check error:', err);
+      res.status(500).json({ success: false, found: false, error: 'خطای سرور در بررسی شناسه ایتا.' });
+    }
+  });
+
+  /**
    * ثبت‌نام / ورود با شناسه کاربری ایتا (به‌جای شماره موبایل)
    * اگر شناسه قبلاً ثبت شده باشد، همان حساب وارد می‌شود.
    */
