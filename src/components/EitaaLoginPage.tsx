@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../services/api';
 import { TempInbox } from '../types';
 import { RefreshCw, Check, AlertTriangle, UserCheck } from 'lucide-react';
@@ -239,52 +239,65 @@ export const EitaaLoginPage: React.FC<EitaaLoginPageProps> = ({ onLoginSuccess }
     }
   }, [completeLogin, isMaintenance, maintenanceMessage]);
 
-  // Prepare Eitaa WebApp viewport, then check the existing session automatically
+  // مرجع به فاز جاری برای استفاده در پولینگ شناسه
+  const phaseRef = useRef(phase);
+  useEffect(() => {
+    phaseRef.current = phase;
+  }, [phase]);
+
+  // Prepare the Eitaa WebApp viewport, then check the existing session.
+  // The SDK script is loaded asynchronously from index.html, so we wait for the
+  // identity to appear instead of deciding too early (this is what made the page
+  // feel "stuck" when the SDK was slow).
   useEffect(() => {
     patchEitaaWebAppVersion();
-    let checkInterval: any = null;
-    let attempts = 0;
     let cancelled = false;
+    let decisionMade = false;
+    let pollTimer: any = null;
 
-    const runCheck = () => {
+    const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+    const expandIfPossible = () => {
+      const tg = window.Eitaa?.WebApp;
+      if (!tg) return;
+      try {
+        tg.ready();
+        tg.expand();
+      } catch {}
+    };
+
+    const decide = async () => {
+      const startedAt = Date.now();
+      // Wait up to 6s for the async SDK to expose the Eitaa identity
+      while (!cancelled && Date.now() - startedAt < 6000) {
+        expandIfPossible();
+        if (getEitaaIdentity().eitaaId) break;
+        await sleep(200);
+      }
       if (cancelled) return;
+      decisionMade = true;
       checkExistingSession();
     };
 
-    const initEitaa = () => {
-      patchEitaaWebAppVersion();
-      const tg = window.Eitaa?.WebApp;
-      if (tg) {
-        try {
-          tg.ready();
-          tg.expand();
-        } catch {}
-      }
-      // Small delay so that initData is fully populated by the client
-      setTimeout(runCheck, 60);
-    };
+    decide();
 
-    if (window.Eitaa?.WebApp) {
-      initEitaa();
-    } else {
-      checkInterval = setInterval(() => {
-        attempts++;
-        if (window.Eitaa?.WebApp) {
-          clearInterval(checkInterval);
-          initEitaa();
-        } else if (attempts > 8) {
-          clearInterval(checkInterval);
-          runCheck();
-        }
-      }, 150);
-    }
+    // Keep watching for a late-arriving identity (slow SDK / client injection)
+    pollTimer = setInterval(() => {
+      if (cancelled) return;
+      expandIfPossible();
+      if (!decisionMade) return;
+      if (getEitaaIdentity().eitaaId && phaseRef.current === 'register') {
+        checkExistingSession();
+      }
+    }, 1000);
 
     return () => {
       cancelled = true;
-      if (checkInterval) clearInterval(checkInterval);
+      if (pollTimer) clearInterval(pollTimer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [checkExistingSession]);
+
 
   const isLoading = phase === 'checking' || phase === 'submitting';
   const isSuccess = phase === 'success';
