@@ -3106,6 +3106,36 @@ var EitaaBotService = class {
       console.error("[EitaaBot] refreshUsersFromDb failed:", err);
     }
   }
+  /** پیدا کردن کاربر بر اساس آدرس ایمیل (نقشه، سپس جستجو در ایمیل‌ها/تاریخچه) */
+  findUserByEmail(email) {
+    const normalized = (email || "").toLowerCase().trim();
+    if (!normalized) return null;
+    const mappedKey = this.emailToPhoneMap.get(normalized);
+    if (mappedKey) {
+      const mappedUser = this.users.get(mappedKey);
+      if (mappedUser) return { key: mappedKey, user: mappedUser };
+    }
+    for (const [key, user] of this.users.entries()) {
+      const inEmails = (user.emails || []).some((e) => e.toLowerCase().trim() === normalized);
+      const inHistory = (user.history || []).some((h) => (h.email || "").toLowerCase().trim() === normalized);
+      if (inEmails || inHistory) {
+        this.emailToPhoneMap.set(normalized, key);
+        return { key, user };
+      }
+    }
+    return null;
+  }
+  /** وضعیت پیکربندی برای عیب‌یابی */
+  getDiagnostics() {
+    return {
+      isEnabled: this.config.isEnabled,
+      tokenConfigured: Boolean(this.config.token && this.config.token.trim().length > 5),
+      tokenLength: this.config.token ? this.config.token.trim().length : 0,
+      usersCount: this.users.size,
+      mappedEmails: this.emailToPhoneMap.size,
+      userIds: Array.from(this.users.keys()).slice(0, 10)
+    };
+  }
   /**
    * Handles incoming email notifications and forwards them directly to the user's Eitaa account
    */
@@ -7909,6 +7939,57 @@ Sitemap: ${baseUrl}/sitemap.xml
     } catch (err) {
       console.error("Error saving Eitaa config:", err);
       res.status(500).json({ success: false, error: "\u062E\u0637\u0627 \u062F\u0631 \u0630\u062E\u06CC\u0631\u0647 \u062A\u0646\u0638\u06CC\u0645\u0627\u062A \u0627\u06CC\u062A\u0627" });
+    }
+  });
+  app.get("/api/eitaa/diagnostics", requireAdmin, (req, res) => {
+    try {
+      res.setHeader("Cache-Control", "no-store");
+      res.json({ success: true, ...eitaaBotService.getDiagnostics(), storage: storage.mongoEnabled ? "mongodb" : "local" });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err?.message });
+    }
+  });
+  app.post("/api/eitaa/notify-test", requireAdmin, async (req, res) => {
+    try {
+      res.setHeader("Cache-Control", "no-store");
+      const { email } = req.body || {};
+      const found = eitaaBotService.findUserByEmail(String(email || ""));
+      if (!found) {
+        return res.status(404).json({
+          success: false,
+          resolved: false,
+          error: "\u0647\u06CC\u0686 \u06A9\u0627\u0631\u0628\u0631\u06CC \u0628\u0631\u0627\u06CC \u0627\u06CC\u0646 \u0627\u06CC\u0645\u06CC\u0644 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F.",
+          ...eitaaBotService.getDiagnostics()
+        });
+      }
+      await eitaaBotService.handleIncomingEmailNotification(String(email), {
+        id: `diag_${Date.now()}`,
+        inboxEmail: String(email),
+        from: { name: "\u062A\u0633\u062A \u0639\u06CC\u0628\u200C\u06CC\u0627\u0628\u06CC", address: "diag@ja-be-ja.ir" },
+        to: String(email),
+        subject: "\u067E\u06CC\u0627\u0645 \u062A\u0633\u062A \u0627\u0639\u0644\u0627\u0646",
+        preview: "\u062A\u0633\u062A",
+        bodyText: "\u0627\u06CC\u0646 \u06CC\u06A9 \u067E\u06CC\u0627\u0645 \u062A\u0633\u062A \u0628\u0631\u0627\u06CC \u0628\u0631\u0631\u0633\u06CC \u0645\u0633\u06CC\u0631 \u0627\u0637\u0644\u0627\u0639\u200C\u0631\u0633\u0627\u0646\u06CC \u0627\u0633\u062A.",
+        bodyHtml: "<p>\u062A\u0633\u062A</p>",
+        receivedAt: (/* @__PURE__ */ new Date()).toISOString(),
+        isRead: false,
+        isStarred: false,
+        attachments: [],
+        headers: {},
+        security: { spf: "pass", dkim: "pass", dmarc: "pass", spamScore: 0, encrypted: false }
+      });
+      const after = eitaaBotService.findUserByEmail(String(email));
+      res.json({
+        success: true,
+        resolved: true,
+        userKey: after?.key || found.key,
+        chatId: after?.user?.chatId ?? found.user?.chatId,
+        lastMessageStatus: after?.user?.lastMessageStatus,
+        lastMessageError: after?.user?.lastMessageError,
+        ...eitaaBotService.getDiagnostics()
+      });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err?.message });
     }
   });
   app.get("/api/eitaa/users", requireAdmin, async (req, res) => {
