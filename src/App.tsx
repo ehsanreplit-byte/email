@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { EmailMessage, TempInbox, ActiveTab } from './types';
 import { api } from './services/api';
 import { AuthModal } from './components/AuthModal';
@@ -51,6 +51,19 @@ function mergeMessagesById(prev: EmailMessage[], incoming: EmailMessage[]): Emai
 
 export default function App() {
   const [inboxes, setInboxes] = useState<TempInbox[]>([]);
+
+  // نمایش لیست ایمیل‌ها همیشه از جدید به قدیم (بالا جدید، پایین قدیم)
+  const sortedInboxes = useMemo(
+    () =>
+      [...inboxes].sort((a, b) => {
+        const ta = new Date(a.createdAt).getTime();
+        const tb = new Date(b.createdAt).getTime();
+        const safeA = isNaN(ta) ? 0 : ta;
+        const safeB = isNaN(tb) ? 0 : tb;
+        return safeB - safeA;
+      }),
+    [inboxes]
+  );
   const [currentInbox, setCurrentInbox] = useState<TempInbox | null>(null);
   const [messages, setMessages] = useState<EmailMessage[]>([]);
   const [selectedMessage, setSelectedMessage] = useState<EmailMessage | null>(null);
@@ -1189,7 +1202,7 @@ export default function App() {
                 </div>
 
                 <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-0.5 pl-0.5">
-                  {inboxes.map((inb) => {
+                  {sortedInboxes.map((inb) => {
                     const isActive = currentInbox?.email === inb.email;
                     const createdTime = new Date(inb.createdAt).getTime();
                     const expiresTime = new Date(inb.expiresAt).getTime();
