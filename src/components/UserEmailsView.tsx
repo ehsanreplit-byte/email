@@ -665,8 +665,16 @@ export const UserEmailsView: React.FC<UserEmailsViewProps> = ({ lang }) => {
                                             email: u.source === 'web' ? u.inboxes[0]?.email : undefined
                                           });
                                           if (res.success) {
-                                            showToast(isFa ? 'کاربر به همراه تمامی داده‌ها حذف گردید.' : 'User and all data deleted successfully.', 'success');
+                                            const removedCount = typeof res.deletedEmails === 'number' ? res.deletedEmails : 0;
+                                            showToast(
+                                              isFa
+                                                ? `کاربر حذف شد${removedCount > 0 ? ` (${removedCount} ایمیل هم پاک شد)` : ''}.`
+                                                : 'User and all data deleted successfully.',
+                                              'success'
+                                            );
                                             setConfirmDeleteUserId(null);
+                                            // حذف فوری از جدول تا حتی اگر بازخوانی سرور به تأخیر بیفتد کاربر محو شود
+                                            setUsers((prev) => prev.filter((x) => x.id !== u.id));
                                             fetchUsers();
                                           } else {
                                             showToast(res.error || (isFa ? 'خطا در حذف کاربر' : 'Failed to delete user'), 'error');
