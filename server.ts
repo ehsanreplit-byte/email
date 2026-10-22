@@ -325,7 +325,21 @@ async function startServer() {
         }
       }
 
-      res.json(inbox);
+      // سهمیهٔ به‌روزشده بعد از ساخت (منبع حقیقت: دیتابیس)
+      let quota: { limit: number; totalUsed: number; remaining: number } | undefined;
+      try {
+        const afterUsage = getUserUnifiedUsageStats(
+          accountKey || '',
+          0,
+          (p) => telegramBotService.getUserByPhone(p),
+          (p) => eitaaBotService.getUserByPhone(p)
+        );
+        quota = { limit: afterUsage.limit, totalUsed: afterUsage.totalUsed, remaining: afterUsage.remaining };
+      } catch (quotaErr) {
+        console.error('[InboxCreate] Failed to compute quota:', quotaErr);
+      }
+
+      res.json({ ...inbox, quota });
     } catch (err: any) {
       if (err.message && err.message.startsWith('DUPLICATE_EMAIL')) {
         return res.status(409).json({ error: 'DUPLICATE_EMAIL', message: err.message });
