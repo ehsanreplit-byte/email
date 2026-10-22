@@ -956,6 +956,27 @@ export class EitaaBotService {
     return { success: true, user: userRecord, accountKey, isNew, messageSent, error: sendError };
   }
 
+  private lastUsersRefreshAt = 0;
+
+  /**
+   * حافظهٔ این نمونه را با MongoDB تازه می‌کند.
+   * لازم است چون هر نمونهٔ سرورلس کش مستقل دارد و ممکن است ایمیل‌های تازه
+   * (که نمونهٔ دیگری به کاربر متصل کرده) را نداشته باشد.
+   */
+  private async refreshUsersFromDb(minIntervalMs = 500): Promise<void> {
+    if (!storage.mongoEnabled) return;
+    const now = Date.now();
+    if (now - this.lastUsersRefreshAt < minIntervalMs) return;
+    this.lastUsersRefreshAt = now;
+
+    try {
+      await storage.refreshFromDb([USERS_FILE_PATH]);
+      this.loadUsers();
+    } catch (err) {
+      console.error('[EitaaBot] refreshUsersFromDb failed:', err);
+    }
+  }
+
   /**
    * Handles incoming email notifications and forwards them directly to the user's Eitaa account
    */
@@ -963,6 +984,9 @@ export class EitaaBotService {
     if (!this.config.isEnabled || !this.config.token.trim()) {
       return;
     }
+
+    // قبل از جستجوی کاربر، داده‌ها را از دیتابیس تازه کن (چند نمونهٔ سرورلس)
+    await this.refreshUsersFromDb();
 
     const normalizedEmail = (email || '').toLowerCase().trim();
     if (!normalizedEmail) return;
