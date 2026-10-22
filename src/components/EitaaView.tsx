@@ -28,6 +28,7 @@ interface EitaaViewProps {
 
 export const EitaaView: React.FC<EitaaViewProps> = ({ isFa = true, showToast }) => {
   const [token, setToken] = useState<string>('');
+  const [maskedToken, setMaskedToken] = useState<string>('');
   const [showToken, setShowToken] = useState<boolean>(false);
   const [isEnabled, setIsEnabled] = useState<boolean>(true);
   const [welcomeMessage, setWelcomeMessage] = useState<string>('');
@@ -52,10 +53,12 @@ export const EitaaView: React.FC<EitaaViewProps> = ({ isFa = true, showToast }) 
     try {
       const res = await api.getEitaaConfig();
       if (res.success && res.config) {
-        setToken(res.config.rawToken || '');
+        // توکن به‌صورت ماسک‌شده برمی‌گردد؛ فیلد ورودی خالی می‌ماند تا ذخیرهٔ ناخواسته آن را پاک نکند
+        setToken('');
+        setMaskedToken(res.config.maskedToken || res.config.token || '');
         setIsEnabled(res.config.isEnabled !== false);
         setWelcomeMessage(res.config.welcomeMessage || '');
-        setIsConfigured(Boolean(res.config.configured));
+        setIsConfigured(Boolean(res.config.configured ?? res.config.hasToken));
         setUserCount(res.config.userCount || 0);
       }
     } catch {
@@ -79,13 +82,18 @@ export const EitaaView: React.FC<EitaaViewProps> = ({ isFa = true, showToast }) 
   const handleSaveConfig = async () => {
     setIsSaving(true);
     try {
-      const res = await api.saveEitaaConfig({
-        token,
+      const payload: { token?: string; isEnabled: boolean; welcomeMessage: string } = {
         isEnabled,
         welcomeMessage
-      });
+      };
+      // فقط وقتی ادمین توکن جدیدی تایپ کرده باشد ارسال می‌شود
+      if (token.trim()) payload.token = token.trim();
+
+      const res = await api.saveEitaaConfig(payload);
       if (res.success) {
-        setIsConfigured(Boolean(token.trim().length > 5));
+        setToken('');
+        await fetchConfig();
+        setIsConfigured(Boolean(res.config?.configured ?? res.config?.hasToken ?? true));
         showToast(isFa ? 'تنظیمات ربات ایتا با موفقیت ذخیره شد.' : 'Eitaa settings saved successfully.', 'success');
       } else {
         showToast(res.error || (isFa ? 'خطا در ذخیره تنظیمات' : 'Error saving config'), 'error');
@@ -269,7 +277,7 @@ export const EitaaView: React.FC<EitaaViewProps> = ({ isFa = true, showToast }) 
               type={showToken ? 'text' : 'password'}
               value={token}
               onChange={(e) => setToken(e.target.value)}
-              placeholder="bot123456:abcdefghijklmnopqrstuvwxyz..."
+              placeholder={maskedToken ? `${isFa ? 'توکن فعلی' : 'Current token'}: ${maskedToken}` : 'bot123456:abcdefghijklmnopqrstuvwxyz...'}
               className="w-full px-4 py-3 pl-12 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm font-mono text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
               dir="ltr"
             />
@@ -282,6 +290,15 @@ export const EitaaView: React.FC<EitaaViewProps> = ({ isFa = true, showToast }) 
               {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
           </div>
+          <p className="text-[10px] text-slate-400 leading-relaxed">
+            {maskedToken
+              ? (isFa
+                ? 'توکن فعلی ذخیره شده است. برای حفظ آن، این فیلد را خالی بگذارید؛ فقط در صورت تعویض توکن مقدار جدید را وارد کنید.'
+                : 'A token is already saved. Leave this field empty to keep it; fill it only to replace the token.')
+              : (isFa
+                ? 'هنوز توکنی ذخیره نشده است. توکن را از eitaayar.ir دریافت و اینجا وارد کنید.'
+                : 'No token saved yet. Get one from eitaayar.ir and paste it here.')}
+          </p>
         </div>
 
         {/* Auto Send Toggle */}
