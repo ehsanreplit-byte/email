@@ -838,6 +838,19 @@ var EmailStore = class {
     item.inbox.totalCount = item.messages.length;
     return item.inbox;
   }
+  /**
+   * یک صندوق را فوراً منقضی می‌کند (بدون حذف پیام‌های قبلی).
+   * با ساخت ایمیل جدید، ایمیل‌های قبلی همین حساب منقضی می‌شوند.
+   */
+  expireInbox(email) {
+    const normalized = email.trim().toLowerCase();
+    const item = this.inboxes.get(normalized);
+    if (!item) return false;
+    if (item.inbox.isPermanent) return false;
+    item.inbox.expiresAt = (/* @__PURE__ */ new Date()).toISOString();
+    this.saveInboxesToStorage();
+    return true;
+  }
   extendInbox(email, extraSeconds = 300) {
     const normalized = email.trim().toLowerCase();
     const item = this.inboxes.get(normalized);
@@ -6155,6 +6168,22 @@ Sitemap: ${baseUrl}/sitemap.xml
             error: "QUOTA_EXCEEDED",
             message: `\u0633\u0642\u0641 \u0645\u062C\u0627\u0632 ${usage.limit} \u0627\u06CC\u0645\u06CC\u0644 \u0645\u0648\u0642\u062A \u0628\u0631\u0627\u06CC \u0627\u06CC\u0646 \u062D\u0633\u0627\u0628 \u062F\u0631 \u0645\u062C\u0645\u0648\u0639 \u0645\u062D\u06CC\u0637\u200C\u0647\u0627\u06CC \u0648\u0628\u060C \u0627\u06CC\u062A\u0627 \u0648 \u062A\u0644\u06AF\u0631\u0627\u0645 \u0628\u0647 \u067E\u0627\u06CC\u0627\u0646 \u0631\u0633\u06CC\u062F\u0647 \u0627\u0633\u062A (${usage.totalUsed}/${usage.limit}). \u0628\u0631\u0627\u06CC \u0633\u0627\u062E\u062A \u0627\u06CC\u0645\u06CC\u0644\u200C\u0647\u0627\u06CC \u062C\u062F\u06CC\u062F \u0644\u0637\u0641\u0627\u064B \u0627\u0634\u062A\u0631\u0627\u06A9 \u0648\u06CC\u0698\u0647 \u062A\u0647\u06CC\u0647 \u06A9\u0646\u06CC\u062F.`
           });
+        }
+      }
+      if (accountKey) {
+        try {
+          const previousUsage = getUserUnifiedUsageStats(
+            accountKey,
+            0,
+            (p) => telegramBotService.getUserByPhone(p),
+            (p) => eitaaBotService.getUserByPhone(p)
+          );
+          for (const previousEmail of previousUsage.allEmails) {
+            if (!previousEmail) continue;
+            emailStore.expireInbox(previousEmail);
+          }
+        } catch (expireErr) {
+          console.error("[InboxCreate] Failed to expire previous inboxes:", expireErr);
         }
       }
       const ttlSeconds = typeof ttl === "number" ? ttl : 300;
