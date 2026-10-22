@@ -1874,7 +1874,13 @@ async function startServer() {
         return res.json({ success: true, found: false, user: null });
       }
 
-      const accountKey = `eitaa:${normalizedId}`;
+      const accountKey = eitaaBotService.getAccountKey(normalizedId) || `eitaa:${normalizedId}`;
+      const phone = user.phone || null;
+      // اعتبارنامه ممکن است روی کلید واقعی حساب، کلید ایتا یا (در رکوردهای قدیمی) روی شماره موبایل ذخیره شده باشد
+      const credential =
+        credentialsStore.getByAccount(accountKey) ||
+        credentialsStore.getByAccount(`eitaa:${normalizedId}`) ||
+        (phone ? credentialsStore.getByAccount(phone) : undefined);
       const payload = buildEitaaSessionPayload(accountKey);
 
       return res.json({
@@ -1883,9 +1889,9 @@ async function startServer() {
         user: accountKey,
         eitaaId: normalizedId,
         name: user.firstName || 'کاربر ایتا',
-        phone: user.phone || null,
-        hasCredentials: credentialsStore.hasCredentials(accountKey),
-        username: credentialsStore.getByAccount(accountKey)?.username || null,
+        phone,
+        hasCredentials: Boolean(credential),
+        username: credential?.username || null,
         isAdmin: false,
         ...payload
       });
@@ -1923,7 +1929,27 @@ async function startServer() {
       }
 
       await syncStoresFromDb(0);
-      const result = credentialsStore.setCredentials(accKey, loginPhone, password);
+
+      const profile = eitaaBotService.findUser(accKey);
+      const eitaaId = eitaaBotService.normalizeEitaaId(profile?.eitaaId || accKey);
+      const eitaaAccountKey = eitaaId ? `eitaa:${eitaaId}` : '';
+
+      // رکوردهای همین هویت با کلید قدیمی (شماره موبایل یا شناسهٔ ایتا) قابل مهاجرت هستند
+      const migrateFrom: string[] = [];
+      for (const rec of [credentialsStore.getByUsername(loginPhone), credentialsStore.getByAccount(loginPhone)]) {
+        if (!rec || rec.account === accKey || migrateFrom.includes(rec.account)) continue;
+        const belongsToThisIdentity =
+          rec.account === loginPhone || (eitaaAccountKey !== '' && rec.account === eitaaAccountKey);
+        if (!belongsToThisIdentity) {
+          return res.status(409).json({
+            success: false,
+            error: 'این شماره موبایل قبلاً برای حساب دیگری ثبت شده است. با همان حساب وارد شوید یا با پشتیبانی تماس بگیرید.'
+          });
+        }
+        migrateFrom.push(rec.account);
+      }
+
+      const result = credentialsStore.setCredentials(accKey, loginPhone, password, { migrateFrom });
       if (!result.success) {
         return res.status(400).json({ success: false, error: result.error });
       }
@@ -2007,7 +2033,15 @@ async function startServer() {
         return res.status(404).json({ success: false, error: 'کاربر ایتا یافت نشد.' });
       }
 
-      // اگر همین شماره قبلاً به حساب دیگری وصل شده، جلوگیری نمی‌کنیم ولی ثبت می‌شود
+      // هر شماره فقط به یک حساب ایتا قابل اتصال است
+      const owner = eitaaBotService.getUserByPhone(cleanPhone);
+      if (owner && owner !== user) {
+        return res.status(409).json({
+          success: false,
+          error: 'این شماره موبایل قبلاً به حساب دیگری متصل شده است.'
+        });
+      }
+
       user.phone = cleanPhone;
       eitaaBotService.saveUsers();
       await commitToDb();
