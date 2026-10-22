@@ -182,6 +182,8 @@ export default function App() {
     const raw = localStorage.getItem('admin_auth_user') || sessionStorage.getItem('admin_auth_user') || null;
     if (!raw) return null;
     if (raw === 'admin') return 'admin';
+    // کلید حساب‌های ثبت‌نام‌شده با شناسه ایتا (eitaa:<id>) نباید به شماره تلفن تبدیل شود
+    if (/^eitaa[:_]/i.test(raw)) return raw;
     const clean = extractValidPhoneNumber(raw);
     if (clean) {
       if (raw !== clean) {
@@ -621,7 +623,9 @@ export default function App() {
     remainingEmails?: number, 
     syncedTelegramCount?: number
   ) => {
-    const cleanUser = user === 'admin' ? 'admin' : (extractValidPhoneNumber(user) || user);
+    const cleanUser = user === 'admin'
+      ? 'admin'
+      : (/^eitaa[:_]/i.test(user) ? user : (extractValidPhoneNumber(user) || user));
     setIsAuthenticated(true);
     setCurrentUser(cleanUser);
     localStorage.setItem('admin_auth_user', cleanUser);
@@ -738,7 +742,7 @@ export default function App() {
     return (
       <EitaaLoginPage
         onLoginSuccess={(phone, serverInboxes, remainingEmails, syncedTelegramCount) => {
-          const cleanPhone = extractValidPhoneNumber(phone) || phone;
+          const cleanPhone = /^eitaa[:_]/i.test(phone) ? phone : (extractValidPhoneNumber(phone) || phone);
           handleLoginSuccess(cleanPhone, serverInboxes, remainingEmails, syncedTelegramCount);
           setIsEitaaPage(false);
           window.history.pushState({}, '', '/');
