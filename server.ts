@@ -51,32 +51,6 @@ async function startServer() {
   eitaaBotService.loadUsers();
   eitaaBotService.loadConfig();
 
-  // ساخت پاسخ نشست کاربر برای پنل کاربری (بر اساس کلید حساب: شماره تلفن یا eitaa:<id>)
-  const buildEitaaSessionPayload = (accountKey: string) => {
-    const usage = getUserUnifiedUsageStats(
-      accountKey,
-      0,
-      (p) => telegramBotService.getUserByPhone(p),
-      (p) => eitaaBotService.getUserByPhone(p)
-    );
-
-    const serverInboxes = usage.allEmails
-      .map((email) => emailStore.getInbox(email) || emailStore.restoreInbox(email))
-      .filter(Boolean);
-
-    return {
-      inboxes: serverInboxes,
-      remainingEmails: usage.remaining,
-      limit: usage.limit,
-      totalUsed: usage.totalUsed
-    };
-  };
-
-  /** تشخیص می‌دهد که ورودی، کلید حساب مبتنی بر شناسه ایتا است یا شماره تلفن */
-  const isEitaaAccountKey = (value: any): boolean =>
-    typeof value === 'string' && /^eitaa[:_]/i.test(value.trim());
-
-
   // On serverless platforms (Vercel) long polling is impossible, so register a
   // real Telegram webhook pointing at this deployment.
   if (process.env.VERCEL || process.env.SERVERLESS === 'true') {
@@ -269,18 +243,11 @@ async function startServer() {
     try {
       const { username, domain, ttl, user, phone } = req.body || {};
       const rawUser = user || phone || req.headers['x-user-phone'];
+      const cleanPhone = extractValidPhoneNumber(rawUser) || formatIranianMobile(rawUser);
 
-      // پشتیبانی از کلید حساب مبتنی بر شناسه ایتا (eitaa:<id>) علاوه بر شماره تلفن
-      const rawUserStr = rawUser ? String(rawUser).trim() : '';
-      const eitaaAccountKey = isEitaaAccountKey(rawUserStr) ? rawUserStr : '';
-      const cleanPhone = eitaaAccountKey
-        ? ''
-        : (extractValidPhoneNumber(rawUser) || formatIranianMobile(rawUser));
-      const accountKey = eitaaAccountKey || cleanPhone;
-
-      if (accountKey) {
+      if (cleanPhone) {
         const usage = getUserUnifiedUsageStats(
-          accountKey,
+          cleanPhone,
           0,
           (p) => telegramBotService.getUserByPhone(p),
           (p) => eitaaBotService.getUserByPhone(p)
@@ -289,7 +256,7 @@ async function startServer() {
         if (usage.isQuotaExceeded) {
           return res.status(403).json({
             error: 'QUOTA_EXCEEDED',
-            message: `سقف مجاز ${usage.limit} ایمیل موقت برای این حساب در مجموع محیط‌های وب، ایتا و تلگرام به پایان رسیده است (${usage.totalUsed}/${usage.limit}). برای ساخت ایمیل‌های جدید لطفاً اشتراک ویژه تهیه کنید.`
+            message: `سقف مجاز ${usage.limit} ایمیل موقت برای شماره ${cleanPhone} در مجموع محیط‌های وب، ایتا و تلگرام به پایان رسیده است (${usage.totalUsed}/${usage.limit}). برای ساخت ایمیل‌های جدید لطفاً اشتراک ویژه تهیه کنید.`
           });
         }
       }
@@ -297,11 +264,11 @@ async function startServer() {
       const ttlSeconds = typeof ttl === 'number' ? ttl : 300;
       const inbox = emailStore.createInbox(username, domain, ttlSeconds);
 
-      // Associate inbox with logged in user across Eitaa and Telegram if identifier provided
-      if (accountKey) {
+      // Associate inbox with logged in user across Eitaa and Telegram if phone provided
+      if (cleanPhone) {
         try {
-          eitaaBotService.linkEmailToUser(accountKey, inbox.email);
-          telegramBotService.linkEmailToUser(accountKey, inbox.email);
+          eitaaBotService.linkEmailToUser(cleanPhone, inbox.email);
+          telegramBotService.linkEmailToUser(cleanPhone, inbox.email);
         } catch (e) {
           console.error('[BotService] Error linking email to user:', e);
         }
@@ -1736,113 +1703,6 @@ async function startServer() {
   });
 
   // Eitaa Web App Authentication & Bot API
-  /**
-   * بررسی وجود کاربر با شناسه ایتا (قبل از نمایش صفحه ثبت‌نام)
-   * اگر کاربر موجود باشد اطلاعات نشست برگشت داده می‌شود تا مستقیم وارد پنل شود.
-   */
-  app.post('/api/eitaa/session', async (req, res) => {
-    try {
-      const { eitaaId } = req.body || {};
-      const normalizedId = eitaaBotService.normalizeEitaaId(eitaaId);
-
-      if (!normalizedId) {
-        return res.status(400).json({ success: false, found: false, error: 'شناسه کاربری ایتا ارسال نشده است.' });
-      }
-
-      const user = eitaaBotService.getUserByEitaaId(normalizedId);
-      if (!user) {
-        return res.json({ success: true, found: false, user: null });
-      }
-
-      const accountKey = `eitaa:${normalizedId}`;
-      const payload = buildEitaaSessionPayload(accountKey);
-
-      return res.json({
-        success: true,
-        found: true,
-        user: accountKey,
-        eitaaId: normalizedId,
-        name: user.firstName || 'کاربر ایتا',
-        isAdmin: false,
-        ...payload
-      });
-    } catch (err) {
-      console.error('Eitaa session check error:', err);
-      res.status(500).json({ success: false, found: false, error: 'خطای سرور در بررسی شناسه ایتا.' });
-    }
-  });
-
-  /**
-   * ثبت‌نام / ورود با شناسه ایتا (بدون ارسال شماره تلفن)
-   */
-  app.post('/api/eitaa/register', loginLimiter, async (req, res) => {
-    try {
-      const { eitaaId, userData, initData } = req.body || {};
-
-      if (process.env.EITAA_STRICT_VERIFY === 'true') {
-        const botToken = eitaaBotService.getConfig().token;
-        if (!initData || !botToken || !eitaaBotService.verifyInitData(String(initData), botToken)) {
-          return res.status(401).json({ success: false, error: 'امضای ورود ایتا معتبر نیست.' });
-        }
-      }
-
-      const normalizedId = eitaaBotService.normalizeEitaaId(eitaaId);
-      if (!normalizedId) {
-        return res.status(400).json({
-          success: false,
-          error: 'شناسه کاربری ایتا شناسایی نشد. لطفاً این صفحه را از داخل ایتا باز کنید.'
-        });
-      }
-
-      if (systemStore.isMaintenance()) {
-        return res.status(503).json({
-          success: false,
-          isMaintenance: true,
-          error: systemStore.getConfig().maintenanceMessage || 'سیستم در حال بروز رسانی است. لطفاً شکیبا باشید.'
-        });
-      }
-
-      const reqUrl = `${req.protocol}://${req.get('host')}`;
-      let loginResult;
-      try {
-        loginResult = await eitaaBotService.handleUserLoginByEitaaId(normalizedId, userData, reqUrl, initData);
-      } catch (botErr) {
-        console.error('[EitaaBot] Error during Eitaa-ID registration:', botErr);
-      }
-
-      if (!loginResult || !loginResult.success) {
-        return res.status(400).json({ success: false, error: loginResult?.error || 'خطا در ثبت‌نام با شناسه ایتا.' });
-      }
-
-      const accountKey = loginResult.accountKey || `eitaa:${normalizedId}`;
-      const payload = buildEitaaSessionPayload(accountKey);
-
-      analyticsStore.recordLogin({
-        user: accountKey,
-        source: 'eitaa',
-        ip: (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || 'client',
-        userAgent: req.headers['user-agent']
-      });
-
-      return res.json({
-        success: true,
-        found: true,
-        user: accountKey,
-        eitaaId: normalizedId,
-        isNew: Boolean(loginResult.isNew),
-        isAdmin: false,
-        messageSent: Boolean(loginResult.messageSent),
-        ...payload,
-        message: loginResult.isNew
-          ? 'ثبت‌نام با شناسه ایتا با موفقیت انجام شد.'
-          : 'ورود با شناسه ایتا با موفقیت انجام شد.'
-      });
-    } catch (err) {
-      console.error('Eitaa ID registration error:', err);
-      res.status(500).json({ success: false, error: 'خطای سرور در ثبت‌نام با شناسه ایتا.' });
-    }
-  });
-
   app.post('/api/eitaa/login', loginLimiter, async (req, res) => {
     try {
       const { phone, userData, initData, inboxes } = req.body || {};
@@ -1969,36 +1829,7 @@ async function startServer() {
     try {
       const { phone, user } = req.body || {};
       const rawUser = phone || user || req.headers['x-user-phone'];
-
-      // مسیر اختصاصی حساب‌های ثبت‌نام‌شده با شناسه ایتا (بدون شماره تلفن)
-      if (isEitaaAccountKey(rawUser)) {
-        const accountKey = String(rawUser).trim();
-        const eitaaUser = eitaaBotService.findUser(accountKey);
-
-        if (!eitaaUser) {
-          return res.json({
-            success: true,
-            user: accountKey,
-            inboxes: [],
-            remainingEmails: 10,
-            limit: 10,
-            totalUsed: 0,
-            planTitle: 'اشتراک پایه رایگان (ماهانه)'
-          });
-        }
-
-        const payload = buildEitaaSessionPayload(accountKey);
-        return res.json({
-          success: true,
-          user: accountKey,
-          inboxes: payload.inboxes,
-          remainingEmails: payload.remainingEmails,
-          limit: payload.limit,
-          totalUsed: payload.totalUsed,
-          planTitle: 'اشتراک پایه رایگان (ماهانه)'
-        });
-      }
-
+      
       let cleanPhone = extractValidPhoneNumber(rawUser) || formatIranianMobile(rawUser);
       let resolvedChatId = 0;
       let tgUserEmails: string[] = [];
@@ -2121,15 +1952,12 @@ async function startServer() {
   app.post('/api/eitaa/link-email', (req, res) => {
     try {
       const { phone, email } = req.body || {};
-      const rawIdentifier = phone ? String(phone).trim() : '';
-      const cleanPhone = isEitaaAccountKey(rawIdentifier)
-        ? rawIdentifier
-        : extractValidPhoneNumber(rawIdentifier);
+      const cleanPhone = extractValidPhoneNumber(phone);
       if (!cleanPhone || !email) {
-        return res.status(400).json({ success: false, error: 'شناسه کاربر و آدرس ایمیل معتبر الزامی است.' });
+        return res.status(400).json({ success: false, error: 'شماره و آدرس ایمیل معتبر الزامی است.' });
       }
       eitaaBotService.linkEmailToUser(cleanPhone, email);
-      res.json({ success: true, message: 'ایمیل با موفقیت به کاربر در ایتا متصل شد.' });
+      res.json({ success: true, message: 'ایمیل با موفقیت به شماره کاربر در ایتا متصل شد.' });
     } catch (err: any) {
       console.error('Error linking email to Eitaa user:', err);
       res.status(500).json({ success: false, error: err.message || 'خطا در اتصال ایمیل' });
