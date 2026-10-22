@@ -401,7 +401,7 @@ export const EitaaView: React.FC<EitaaViewProps> = ({ isFa = true, showToast }) 
               type="text"
               value={testTarget}
               onChange={(e) => setTestTarget(e.target.value)}
-              placeholder="مثال: 09134336627 یا 12345678"
+              placeholder="ایتا آیدی عددی کاربر، مثال: 123456789"
               className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
               dir="ltr"
             />
