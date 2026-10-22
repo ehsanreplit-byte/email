@@ -238,10 +238,6 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
           {step === 'credentials' ? (
             /* مرحلهٔ دوم: انتخاب نام کاربری و رمز عبور برای ورود از سایت */
             <div className="max-w-md mx-auto py-6 sm:py-10 space-y-5 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center mx-auto shadow-sm">
-                <Sparkles className="w-7 h-7" />
-              </div>
-
               <div className="space-y-1.5">
                 <h4 className="font-extrabold text-slate-900 text-sm sm:text-base">شماره موبایل و رمز عبور</h4>
                 <p className="text-slate-500 text-xs leading-relaxed">
@@ -251,7 +247,6 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
 
               <div className="space-y-2.5 text-right">
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-slate-700 block">شماره موبایل</label>
                   <input
                     type="tel"
                     inputMode="numeric"
@@ -265,7 +260,6 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-slate-700 block">رمز عبور</label>
                   <input
                     type="password"
                     dir="ltr"
@@ -278,7 +272,6 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-slate-700 block">تکرار رمز عبور</label>
                   <input
                     type="password"
                     dir="ltr"
