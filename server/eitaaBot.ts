@@ -34,18 +34,72 @@ const USERS_FILE_PATH = 'eitaa_users.json';
 
 const DEFAULT_WELCOME_MESSAGE = `👋 **سلام {name} عزیز، به سرویس ایمیل موقت خوش آمدید!**
 
-🎉 حساب کاربری شما با شماره \`{phone}\` در سامانه با موفقیت فعال شد.
-
 ✨ **امکانات در اختیار شما:**
 🔹 **۱۰ ایمیل موقت کاملاً رایگان**
 🔹 دریافت آنی تمامی کدها و پیام‌های تاییدیه
 🔹 قابلیت ساخت و سوئیچ بین چند آدرس همزمان
 🔹 حفظ و نگهداری پیام‌ها تا ۳۰ روز آینده
 
-🔗 جهت ساخت اولین ایمیل موقت و دسترسی به صندوق پیام‌ها روی لینک زیر کلیک کنید:
-{url}
-
 با تشکر از حضور شما 🙏`;
+
+/**
+ * خطوط حذف‌شده از پیام خوش‌آمدگویی ایتا.
+ * قالب‌هایی که قبلاً در دیتابیس ذخیره شده‌اند هم هنگام بارگذاری پاک‌سازی می‌شوند
+ * تا کاربران پیام قدیمی را دریافت نکنند.
+ */
+const DEPRECATED_WELCOME_SNIPPETS = [
+  'حساب کاربری شما با شماره',
+  'جهت ساخت اولین ایمیل موقت و دسترسی به صندوق پیام'
+];
+
+const wouldStripWelcomeLine = (line: string): boolean =>
+  DEPRECATED_WELCOME_SNIPPETS.some((snippet) => line.includes(snippet));
+
+/**
+ * حذف دو خط منسوخ (فعال‌سازی حساب و لینک ساخت ایمیل) از قالب ذخیره‌شده،
+ * همراه با خط `{url}` که بلافاصله بعد از خط لینک آمده است.
+ */
+const cleanupStoredWelcomeMessage = (message: string): { message: string; changed: boolean } => {
+  if (!message) return { message, changed: false };
+
+  const lines = message.split(/\r?\n/);
+  const kept: string[] = [];
+  let changed = false;
+  let skipUrlLine = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    if (wouldStripWelcomeLine(trimmed)) {
+      changed = true;
+      skipUrlLine = true;
+      continue;
+    }
+
+    if (skipUrlLine) {
+      if (trimmed === '') continue;
+      if (trimmed === '{url}') {
+        changed = true;
+        skipUrlLine = false;
+        continue;
+      }
+      skipUrlLine = false;
+    }
+
+    kept.push(line);
+  }
+
+  if (!changed) return { message, changed: false };
+
+  // فشرده‌سازی خطوط خالی پشت سر هم به یک خط
+  const collapsed: string[] = [];
+  for (const line of kept) {
+    if (line.trim() === '' && collapsed.length > 0 && collapsed[collapsed.length - 1].trim() === '') continue;
+    collapsed.push(line);
+  }
+
+  return { message: collapsed.join('\n').trim(), changed: true };
+};
 
 export class EitaaBotService {
   private config: EitaaConfig = {
@@ -60,6 +114,8 @@ export class EitaaBotService {
   private emailToPhoneMap: Map<string, string> = new Map();
   /** ایندکس شناسه ایتا → کلید حساب کاربر در users */
   private eitaaIdIndex: Map<string, string> = new Map();
+  /** آیا قالب خوش‌آمدگویی در حافظه پاک‌سازی شده و هنوز روی دیتابیس ذخیره نشده است */
+  private pendingWelcomeConfigPersist = false;
 
   constructor() {
     this.loadConfig();
@@ -76,11 +132,25 @@ export class EitaaBotService {
       if (storage.existsSync(CONFIG_FILE_PATH)) {
         const data = storage.readFileSync(CONFIG_FILE_PATH);
         const parsed = JSON.parse(data);
+
+        // پاک‌سازی قالب ذخیره‌شده از خطوط منسوخ پیام خوش‌آمدگویی
+        const storedMessage = typeof parsed.welcomeMessage === 'string' ? parsed.welcomeMessage : '';
+        const { message: cleanedMessage, changed } = cleanupStoredWelcomeMessage(storedMessage);
+
         this.config = {
           ...this.config,
           ...parsed,
+          welcomeMessage: cleanedMessage || DEFAULT_WELCOME_MESSAGE,
           token: parsed.token || process.env.EITAA_BOT_TOKEN || ''
         };
+
+        if (changed) {
+          // اگر storage هنوز آماده نشده باشد، نوشتن روی دیتابیس انجام نمی‌شود؛
+          // با persistPendingConfig پس از init شدن storage ذخیره می‌شود.
+          this.pendingWelcomeConfigPersist = true;
+          this.saveConfig();
+          console.log('[EitaaBot] Deprecated welcome-message lines removed from the stored template.');
+        }
       }
     } catch (err) {
       console.error('[EitaaBot] Failed to load config:', err);
@@ -94,6 +164,17 @@ export class EitaaBotService {
     } catch (err) {
       console.error('[EitaaBot] Failed to save config:', err);
     }
+  }
+
+  /**
+   * پس از آماده شدن storage فراخوانی می‌شود تا نتیجهٔ پاک‌سازی قالب
+   * خوش‌آمدگویی روی دیتابیس (یا فایل محلی) هم نوشته شود.
+   */
+  public persistPendingConfig(): void {
+    if (!this.pendingWelcomeConfigPersist) return;
+    this.pendingWelcomeConfigPersist = false;
+    this.saveConfig();
+    console.log('[EitaaBot] Cleaned welcome-message template persisted.');
   }
 
   /** تأیید امضای initData بر اساس الگوریتم WebAppData */
