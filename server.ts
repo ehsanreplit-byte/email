@@ -306,8 +306,9 @@ async function startServer() {
   });
 
   // 4. Inboxes
-  app.post('/api/inbox/create', (req, res) => {
+  app.post('/api/inbox/create', async (req, res) => {
     try {
+      await syncStoresFromDb(0);
       const { username, domain, ttl, user, phone } = req.body || {};
       const rawUser = user || phone || req.headers['x-user-phone'];
 
@@ -1876,6 +1877,7 @@ async function startServer() {
    */
   app.post('/api/eitaa/register', loginLimiter, async (req, res) => {
     try {
+      await syncStoresFromDb(0);
       const { eitaaId, userData, initData } = req.body || {};
 
       if (process.env.EITAA_STRICT_VERIFY === 'true') {
@@ -1943,6 +1945,7 @@ async function startServer() {
 
   app.post('/api/eitaa/login', loginLimiter, async (req, res) => {
     try {
+      await syncStoresFromDb(0);
       const { phone, userData, initData, inboxes } = req.body || {};
 
       // بررسی امضا فقط اگر صریحاً فعال شده باشد
@@ -2219,6 +2222,7 @@ async function startServer() {
   // Link an email directly to an Eitaa user
   app.post('/api/eitaa/link-email', async (req, res) => {
     try {
+      await syncStoresFromDb(0);
       const { phone, email } = req.body || {};
       const rawIdentifier = phone ? String(phone).trim() : '';
       const cleanPhone = isEitaaAccountKey(rawIdentifier)
@@ -2292,6 +2296,7 @@ async function startServer() {
 
   app.post('/api/eitaa/delete-emails', requireAdmin, async (req, res) => {
     try {
+      await syncStoresFromDb(0);
       const { phone } = req.body || {};
       const rawIdentifier = phone ? String(phone).trim() : '';
       const cleanPhone = /^eitaa[:_]/i.test(rawIdentifier)
@@ -2327,6 +2332,7 @@ async function startServer() {
 
   app.post('/api/admin/delete-user-emails', requireAdmin, async (req, res) => {
     try {
+      await syncStoresFromDb(0);
       const { source, userId, phone, chatId, email } = req.body || {};
       res.setHeader('Cache-Control', 'no-store');
       const rawUserId = userId ? String(userId).trim() : '';
@@ -2410,6 +2416,7 @@ async function startServer() {
 
   app.post('/api/admin/delete-user', requireAdmin, async (req, res) => {
     try {
+      await syncStoresFromDb(0);
       const { source, userId, phone, chatId, email } = req.body || {};
       if (!source) {
         return res.status(400).json({ success: false, error: 'منبع کاربر الزامی است.' });
