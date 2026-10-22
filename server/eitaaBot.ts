@@ -492,7 +492,12 @@ export class EitaaBotService {
       'https://eitaayar.ir/api/sendMessage'
     ];
 
-    for (const url of endpointsToTry) {
+    // آدرس موفقی که قبلاً کار کرده را اول امتحان کن (کاهش تأخیر ارسال)
+    const orderedEndpoints = this.preferredSendUrl
+      ? [this.preferredSendUrl, ...endpointsToTry.filter((u) => u !== this.preferredSendUrl)]
+      : endpointsToTry;
+
+    for (const url of orderedEndpoints) {
       try {
         // Strategy A: URLSearchParams (Form URL-Encoded)
         const params = new URLSearchParams();
@@ -513,6 +518,7 @@ export class EitaaBotService {
         const json = await resForm.json().catch(() => null);
         if (json) {
           if (json.ok === true || json.status === true || json.result === 'success') {
+            this.preferredSendUrl = url;
             console.log(`[EitaaBot] Successfully delivered message to ${cleanTarget} via ${url}`);
             return { success: true, data: json };
           }
@@ -558,6 +564,7 @@ export class EitaaBotService {
         const jsonResData = await resJson.json().catch(() => null);
         if (jsonResData) {
           if (jsonResData.ok === true || jsonResData.status === true || jsonResData.result === 'success') {
+            this.preferredSendUrl = url;
             console.log(`[EitaaBot] Successfully delivered message to ${cleanTarget} via ${url} (json)`);
             return { success: true, data: jsonResData };
           }
@@ -957,6 +964,17 @@ export class EitaaBotService {
   }
 
   private lastUsersRefreshAt = 0;
+  /** آدرس API ای که آخرین بار موفق بود (برای ارسال سریع‌تر) */
+  private preferredSendUrl: string | null = null;
+
+  /** شناسهٔ پیام‌هایی که اعلانشان ارسال شده (جلوگیری از ارسال تکراری) */
+  private recentNotificationIds = new Set<string>();
+
+  /** فراخوانی عمومی برای وبهوک تا ارسال را await کند */
+  public async notifyNewEmail(email: string, message: EmailMessage): Promise<void> {
+    return this.handleIncomingEmailNotification(email, message);
+  }
+
 
   /**
    * حافظهٔ این نمونه را با MongoDB تازه می‌کند.
@@ -1015,39 +1033,39 @@ export class EitaaBotService {
    * Handles incoming email notifications and forwards them directly to the user's Eitaa account
    */
   public async handleIncomingEmailNotification(email: string, message: EmailMessage): Promise<void> {
+    const startedAt = Date.now();
+
     if (!this.config.isEnabled || !this.config.token.trim()) {
       return;
     }
 
-    // قبل از جستجوی کاربر، داده‌ها را از دیتابیس تازه کن (چند نمونهٔ سرورلس)
-    await this.refreshUsersFromDb();
-
     const normalizedEmail = (email || '').toLowerCase().trim();
     if (!normalizedEmail) return;
 
-    // 1. Find the owner phone from emailToPhoneMap
-    let userPhone = this.emailToPhoneMap.get(normalizedEmail);
-
-    // 2. Search among registered Eitaa users
-    if (!userPhone) {
-      for (const [phone, user] of this.users.entries()) {
-        if (
-          (user.emails && user.emails.some(e => e.toLowerCase().trim() === normalizedEmail)) ||
-          (user.history && user.history.some(h => h.email?.toLowerCase().trim() === normalizedEmail))
-        ) {
-          userPhone = phone;
-          this.emailToPhoneMap.set(normalizedEmail, phone);
-          break;
-        }
+    // جلوگیری از ارسال تکراری (لیسنر + فراخوانی صریح از وبهوک)
+    const dedupeKey = `${normalizedEmail}::${message?.id || ''}`;
+    if (message?.id) {
+      if (this.recentNotificationIds.has(dedupeKey)) return;
+      this.recentNotificationIds.add(dedupeKey);
+      if (this.recentNotificationIds.size > 300) {
+        this.recentNotificationIds = new Set(Array.from(this.recentNotificationIds).slice(-150));
       }
     }
 
+    // مسیر سریع: از حافظهٔ همین نمونه جستجو کن؛ فقط اگر پیدا نشد از دیتابیس تازه کن
+    let found = this.findUserByEmail(normalizedEmail);
+    if (!found) {
+      await this.refreshUsersFromDb(0);
+      found = this.findUserByEmail(normalizedEmail);
+    }
+
     // Strictly for Eitaa users: If the email does NOT belong to an Eitaa user (e.g. created on Web or Telegram), skip cleanly
-    if (!userPhone) {
+    if (!found) {
       return;
     }
 
-    const user = this.users.get(userPhone);
+    const userPhone = found.key;
+    const user = found.user;
 
     const senderName = message.from?.name || message.from?.address || 'نامشخص';
     const senderAddr = message.from?.address || '';
@@ -1111,7 +1129,7 @@ export class EitaaBotService {
     }
 
     if (res.success) {
-      console.log(`[EitaaBot] Successfully forwarded incoming email for ${normalizedEmail} to Eitaa user ${userPhone} (delivered to ${(res as any).deliveredTo || 'target'})`);
+      console.log(`[EitaaBot] Forwarded incoming email for ${normalizedEmail} to ${userPhone} in ${Date.now() - startedAt}ms (target: ${(res as any).deliveredTo || 'default'})`);
     } else {
       console.warn(`[EitaaBot] Failed to forward email to Eitaa user ${userPhone}: ${res.error}`);
     }
