@@ -2341,8 +2341,10 @@ async function startServer() {
           .filter(Boolean) as string[];
 
         for (const candidate of Array.from(new Set(candidates))) {
+          // وجود کاربر را قبل از حذف بررسی می‌کنیم؛ چون deleteUser فقط ایمیل‌ها را برمی‌گرداند
+          const existed = Boolean(eitaaBotService.findUser(candidate));
           const removed = eitaaBotService.deleteUser(candidate);
-          if (removed.length > 0) {
+          if (existed || removed.length > 0) {
             removedUsers++;
             removed.forEach((em) => clearedEmails.add(em));
           }
@@ -2361,8 +2363,9 @@ async function startServer() {
         if (tgByPhone?.chatId) tgTargets.add(tgByPhone.chatId);
 
         for (const targetChatId of tgTargets) {
+          const existed = Boolean(telegramBotService.getUserByChatId(targetChatId));
           const removed = telegramBotService.deleteUser(targetChatId);
-          if (removed.length > 0) removedUsers++;
+          if (existed || removed.length > 0) removedUsers++;
           removed.forEach((em) => clearedEmails.add(em));
           ticketStore.deleteTicketsByChatId(targetChatId);
           subscriptionStore.deleteSubscriptionsByUserInfo(targetChatId, cleanPhone || undefined);
