@@ -7798,9 +7798,10 @@ Sitemap: ${baseUrl}/sitemap.xml
       res.status(500).json({ success: false, error: err?.message || "\u062E\u0637\u0627 \u062F\u0631 \u062D\u0630\u0641 \u0627\u06CC\u0645\u06CC\u0644\u200C\u0647\u0627" });
     }
   });
-  app.post("/api/admin/delete-user-emails", requireAdmin, (req, res) => {
+  app.post("/api/admin/delete-user-emails", requireAdmin, async (req, res) => {
     try {
       const { source, userId, phone, chatId, email } = req.body || {};
+      res.setHeader("Cache-Control", "no-store");
       const rawUserId = userId ? String(userId).trim() : "";
       const rawUser = phone || rawUserId.replace(/^eitaa[:_]/i, "").replace("web_", "").replace("tg_", "");
       const cleanPhone = extractValidPhoneNumber(rawUser) || formatIranianMobile(rawUser);
@@ -7852,8 +7853,14 @@ Sitemap: ${baseUrl}/sitemap.xml
           console.error(`Failed to completely delete email ${em} from store:`, e);
         }
       }
+      try {
+        await storage.flush();
+      } catch (e) {
+        console.error("[DeleteUserEmails] storage.flush failed:", e);
+      }
       res.json({
         success: true,
+        deletedEmails: clearedEmails.length,
         message: email ? "\u0627\u06CC\u0645\u06CC\u0644 \u0627\u0646\u062A\u062E\u0627\u0628 \u0634\u062F\u0647 \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u062D\u0630\u0641 \u06AF\u0631\u062F\u06CC\u062F." : "\u062A\u0645\u0627\u0645\u06CC \u0627\u06CC\u0645\u06CC\u0644\u200C\u0647\u0627\u06CC \u0633\u0627\u062E\u062A\u0647 \u0634\u062F\u0647 \u0628\u0631\u0627\u06CC \u0627\u06CC\u0646 \u06A9\u0627\u0631\u0628\u0631 \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u0628\u0647 \u0637\u0648\u0631 \u06A9\u0627\u0645\u0644 \u0627\u0632 \u0633\u06CC\u0633\u062A\u0645 \u0648 \u062F\u06CC\u062A\u0627\u0628\u06CC\u0633 \u062D\u0630\u0641 \u0634\u062F\u0646\u062F.",
         clearedCount: clearedEmails.length
       });
@@ -7862,12 +7869,13 @@ Sitemap: ${baseUrl}/sitemap.xml
       res.status(500).json({ success: false, error: err?.message || "\u062E\u0637\u0627 \u062F\u0631 \u062D\u0630\u0641 \u0627\u06CC\u0645\u06CC\u0644\u200C\u0647\u0627" });
     }
   });
-  app.post("/api/admin/delete-user", requireAdmin, (req, res) => {
+  app.post("/api/admin/delete-user", requireAdmin, async (req, res) => {
     try {
       const { source, userId, phone, chatId, email } = req.body || {};
       if (!source) {
         return res.status(400).json({ success: false, error: "\u0645\u0646\u0628\u0639 \u06A9\u0627\u0631\u0628\u0631 \u0627\u0644\u0632\u0627\u0645\u06CC \u0627\u0633\u062A." });
       }
+      res.setHeader("Cache-Control", "no-store");
       const rawSource = String(source);
       const isEitaa = rawSource === "eitaa" || rawSource === "telegram_eitaa";
       const isTelegram = rawSource === "telegram" || rawSource === "telegram_eitaa";
@@ -7878,50 +7886,64 @@ Sitemap: ${baseUrl}/sitemap.xml
       let eitaaIdentifier = "";
       if (/^eitaa[:_]/i.test(rawUserId)) eitaaIdentifier = rawUserId;
       else if (cleanPhone) eitaaIdentifier = cleanPhone;
-      else if (rawUserId) eitaaIdentifier = rawUserId.replace(/^eitaa_/, "");
-      else if (chatId) eitaaIdentifier = String(chatId);
-      let clearedEmails = [];
-      let handled = false;
-      if (isEitaa && eitaaIdentifier) {
-        const removed = eitaaBotService.deleteUser(eitaaIdentifier);
-        clearedEmails.push(...removed);
-        handled = true;
-        subscriptionStore.deleteSubscriptionsByUserInfo(0, cleanPhone || eitaaIdentifier);
-        if (numericChatId) {
-          const removedById = eitaaBotService.deleteUser(String(numericChatId));
-          clearedEmails.push(...removedById);
+      else if (rawUserId && !rawUserId.startsWith("phone_") && !rawUserId.startsWith("web_")) {
+        eitaaIdentifier = rawUserId.replace(/^eitaa_/, "");
+      } else if (chatId) eitaaIdentifier = String(chatId);
+      const clearedEmails = /* @__PURE__ */ new Set();
+      let removedUsers = 0;
+      if (isEitaa) {
+        const candidates = [eitaaIdentifier, rawUserId.replace(/^eitaa[:_]/i, ""), numericChatId ? String(numericChatId) : "", cleanPhone].filter(Boolean);
+        for (const candidate of Array.from(new Set(candidates))) {
+          const removed = eitaaBotService.deleteUser(candidate);
+          if (removed.length > 0) {
+            removedUsers++;
+            removed.forEach((em) => clearedEmails.add(em));
+          }
         }
+        subscriptionStore.deleteSubscriptionsByUserInfo(0, cleanPhone || eitaaIdentifier || void 0);
       }
-      if (isTelegram && numericChatId) {
-        clearedEmails.push(...telegramBotService.deleteUser(numericChatId));
-        ticketStore.deleteTicketsByChatId(numericChatId);
-        subscriptionStore.deleteSubscriptionsByUserInfo(numericChatId, cleanPhone || void 0);
-        handled = true;
+      if (isTelegram || cleanPhone) {
+        const tgTargets = /* @__PURE__ */ new Set();
+        if (isTelegram && numericChatId) tgTargets.add(numericChatId);
+        const tgByPhone = cleanPhone ? telegramBotService.getUserByPhone(cleanPhone) : void 0;
+        if (tgByPhone?.chatId) tgTargets.add(tgByPhone.chatId);
+        for (const targetChatId of tgTargets) {
+          const removed = telegramBotService.deleteUser(targetChatId);
+          if (removed.length > 0) removedUsers++;
+          removed.forEach((em) => clearedEmails.add(em));
+          ticketStore.deleteTicketsByChatId(targetChatId);
+          subscriptionStore.deleteSubscriptionsByUserInfo(targetChatId, cleanPhone || void 0);
+        }
       }
       if (isWeb) {
         const targetEmail = String(email || rawUserId.replace("web_", "")).toLowerCase().trim();
-        if (targetEmail) {
-          clearedEmails.push(targetEmail);
-        }
-        handled = true;
+        if (targetEmail) clearedEmails.add(targetEmail);
       }
-      if (!handled) {
-        return res.status(400).json({
-          success: false,
-          error: "\u0634\u0646\u0627\u0633\u0647 \u06CC\u0627 \u0645\u0646\u0628\u0639 \u06A9\u0627\u0631\u0628\u0631 \u0628\u0631\u0627\u06CC \u062D\u0630\u0641 \u0634\u0646\u0627\u0633\u0627\u06CC\u06CC \u0646\u0634\u062F."
-        });
-      }
-      const uniqueEmails = Array.from(new Set(clearedEmails.map((e) => String(e).toLowerCase().trim()).filter(Boolean)));
+      const uniqueEmails = Array.from(clearedEmails).map((e) => String(e).toLowerCase().trim()).filter(Boolean);
       for (const em of uniqueEmails) {
         try {
           emailStore.removeEmailFromDatabase(em);
+          emailStore.deleteInbox(em);
         } catch (e) {
           console.error(`Failed to completely delete email ${em} from store:`, e);
         }
       }
+      try {
+        await storage.flush();
+      } catch (e) {
+        console.error("[DeleteUser] storage.flush failed:", e);
+      }
+      if (removedUsers === 0 && uniqueEmails.length === 0) {
+        return res.status(404).json({
+          success: false,
+          error: "\u06A9\u0627\u0631\u0628\u0631 \u062F\u0631 \u062F\u06CC\u062A\u0627\u0628\u06CC\u0633 \u06CC\u0627\u0641\u062A \u0646\u0634\u062F (\u0645\u0645\u06A9\u0646 \u0627\u0633\u062A \u0642\u0628\u0644\u0627\u064B \u062D\u0630\u0641 \u0634\u062F\u0647 \u0628\u0627\u0634\u062F)."
+        });
+      }
       res.json({
         success: true,
+        removedUsers,
         deletedEmails: uniqueEmails.length,
+        deletedEmailList: uniqueEmails,
         message: "\u06A9\u0627\u0631\u0628\u0631 \u0628\u0647 \u0647\u0645\u0631\u0627\u0647 \u062A\u0645\u0627\u0645 \u0627\u06CC\u0645\u06CC\u0644\u200C\u0647\u0627\u060C \u062A\u06CC\u06A9\u062A\u200C\u0647\u0627 \u0648 \u0627\u0634\u062A\u0631\u0627\u06A9\u200C\u0647\u0627 \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u0628\u0647 \u0637\u0648\u0631 \u06A9\u0627\u0645\u0644 \u062D\u0630\u0641 \u0634\u062F."
       });
     } catch (err) {
