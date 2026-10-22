@@ -63,6 +63,19 @@ export const EitaaLoginPage: React.FC<EitaaLoginPageProps> = ({
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isSuccess, setIsSuccess] = useState<boolean>(false);
+  // بررسی خودکار شناسه کاربر پیش از نمایش فرم ثبت‌نام
+  const [isCheckingSession, setIsCheckingSession] = useState<boolean>(true);
+
+  // با ?preview=1 می‌توان فرم ثبت‌نام را حتی برای کاربر موجود دید
+  const forcePreview = (() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.has('preview') || params.has('new') || params.get('force') === '1';
+    } catch {
+      return false;
+    }
+  })();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // System Maintenance State
@@ -205,6 +218,68 @@ export const EitaaLoginPage: React.FC<EitaaLoginPageProps> = ({
     }
   }, [getEitaaIdentity, isMaintenance, maintenanceMessage, onLoginSuccess]);
 
+  // ذخیره نشست و رفتن به صفحه اصلی سایت
+  const completeSession = useCallback(
+    (accountKey: string, inboxes?: TempInbox[], remainingEmails?: number) => {
+      localStorage.setItem('admin_auth_user', accountKey);
+      localStorage.setItem('admin_is_authenticated', 'true');
+      sessionStorage.setItem('admin_auth_user', accountKey);
+      sessionStorage.setItem('admin_is_authenticated', 'true');
+      setIsSuccess(true);
+      onLoginSuccess(accountKey, inboxes, remainingEmails);
+    },
+    [onLoginSuccess]
+  );
+
+  /**
+   * هنگام باز شدن صفحه، ابتدا شناسه کاربر به سرور ارسال می‌شود:
+   * - اگر در سیستم موجود بود: صفحه /eitaa نمایش داده نمی‌شود و کاربر مستقیم
+   *   وارد صفحه اصلی سایت می‌شود.
+   * - اگر نبود: فرم ثبت‌نام نمایش داده می‌شود.
+   */
+  const checkExistingAccount = useCallback(async () => {
+    if (forcePreview) {
+      setIsCheckingSession(false);
+      return;
+    }
+
+    // کمی صبر برای آماده شدن SDK ایتا (اسکریپت async بارگذاری می‌شود)
+    const startedAt = Date.now();
+    let identity = getEitaaIdentity();
+    while (!identity.eitaaId && Date.now() - startedAt < 6000) {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      identity = getEitaaIdentity();
+    }
+
+    if (!identity.eitaaId) {
+      setIsCheckingSession(false);
+      return;
+    }
+
+    try {
+      const res = await api.eitaaSession(identity.eitaaId);
+      if (res.success && res.found && res.user) {
+        completeSession(res.user, res.inboxes, res.remainingEmails);
+        return;
+      }
+      setIsCheckingSession(false);
+    } catch {
+      setIsCheckingSession(false);
+    }
+  }, [completeSession, forcePreview, getEitaaIdentity]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      await checkExistingAccount();
+      if (cancelled) return;
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Prepare Eitaa WebApp viewport without requesting anything automatically
   useEffect(() => {
     patchEitaaWebAppVersion();
@@ -297,10 +372,15 @@ export const EitaaLoginPage: React.FC<EitaaLoginPageProps> = ({
                 <button
                   id="btn-eitaa-request-contact"
                   onClick={executeRegisterById}
-                  disabled={isLoading || isSuccess}
+                  disabled={isLoading || isSuccess || isCheckingSession}
                   className="w-full min-h-[52px] py-3.5 px-6 rounded-2xl bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 hover:from-orange-600 hover:to-amber-600 active:scale-95 text-white font-black text-base shadow-2xl shadow-orange-500/50 border border-white/50 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-90 backdrop-blur-xs"
                 >
-                  {isLoading ? (
+                  {isCheckingSession ? (
+                    <>
+                      <RefreshCw className="w-5 h-5 animate-spin" />
+                      <span>در حال بررسی حساب کاربری...</span>
+                    </>
+                  ) : isLoading ? (
                     <>
                       <RefreshCw className="w-5 h-5 animate-spin" />
                       <span>در حال ثبت‌نام...</span>
