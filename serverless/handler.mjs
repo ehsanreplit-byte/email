@@ -7773,20 +7773,27 @@ Sitemap: ${baseUrl}/sitemap.xml
       res.status(500).json({ success: false, error: "\u062E\u0637\u0627 \u062F\u0631 \u062F\u0631\u06CC\u0627\u0641\u062A \u0644\u06CC\u0633\u062A \u0627\u0639\u0636\u0627\u06CC \u0627\u06CC\u062A\u0627" });
     }
   });
-  app.post("/api/eitaa/delete-emails", requireAdmin, (req, res) => {
+  app.post("/api/eitaa/delete-emails", requireAdmin, async (req, res) => {
     try {
       const { phone } = req.body || {};
-      const cleanPhone = extractValidPhoneNumber(phone);
+      const rawIdentifier = phone ? String(phone).trim() : "";
+      const cleanPhone = /^eitaa[:_]/i.test(rawIdentifier) ? rawIdentifier : extractValidPhoneNumber(rawIdentifier) || formatIranianMobile(rawIdentifier);
       if (!cleanPhone) {
-        return res.status(400).json({ success: false, error: "\u0634\u0645\u0627\u0631\u0647 \u062A\u0644\u0641\u0646 \u06A9\u0627\u0631\u0628\u0631 \u0627\u0644\u0632\u0627\u0645\u06CC \u0627\u0633\u062A." });
+        return res.status(400).json({ success: false, error: "\u0634\u0646\u0627\u0633\u0647 \u06CC\u0627 \u0634\u0645\u0627\u0631\u0647 \u06A9\u0627\u0631\u0628\u0631 \u0627\u0644\u0632\u0627\u0645\u06CC \u0627\u0633\u062A." });
       }
       const clearedEmails = eitaaBotService.clearUserEmails(cleanPhone);
       for (const email of clearedEmails) {
         try {
           emailStore.removeEmailFromDatabase(email);
+          emailStore.deleteInbox(email);
         } catch (e) {
           console.error(`Failed to completely delete email ${email} from store:`, e);
         }
+      }
+      try {
+        await storage.flush();
+      } catch (e) {
+        console.error("[EitaaDeleteEmails] storage.flush failed:", e);
       }
       res.json({
         success: true,
