@@ -52,9 +52,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       const digitsOnly = cleanPhone.replace(/[^0-9]/g, '');
       const looksLikePhone = digitsOnly.length >= 10 && /^(09|9|98|989)/.test(digitsOnly) && /^[0-9+\s-]+$/.test(cleanPhone);
 
-      const res = looksLikePhone
-        ? await api.adminLogin(cleanPhone, cleanPass)
-        : await api.loginWithUsername(cleanPhone, cleanPass);
+      // اول با اعتبارنامهٔ کاربران (شماره موبایل + رمز) تلاش می‌کنیم، بعد ورود مدیر
+      let res = looksLikePhone
+        ? await api.loginWithPhone(cleanPhone, cleanPass)
+        : await api.loginWithPhone(cleanPhone, cleanPass);
+
+      if (!res.success && looksLikePhone) {
+        res = await api.adminLogin(cleanPhone, cleanPass);
+      }
       setIsLoading(false);
 
       if (res.success) {
@@ -230,7 +235,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <form onSubmit={handleLogin} className="space-y-3.5 sm:space-y-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5 text-right">
-                    شماره موبایل یا نام کاربری
+                    شماره موبایل
                   </label>
                   <div className="relative">
                     <input
@@ -239,7 +244,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       dir="ltr"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      placeholder="09121234567 یا username"
+                      placeholder="شماره موبایل"
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 sm:py-2.5 px-3.5 pl-10 text-right sm:text-right text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-500 font-sans transition-colors"
                       required
                     />
