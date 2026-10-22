@@ -24,6 +24,31 @@ import {
   ExternalLink, Eye, Image as ImageIcon, ShieldCheck, Lock as LockIcon, LogIn
 } from 'lucide-react';
 
+/**
+ * پیام‌های دریافتی را با لیست فعلی ادغام می‌کند (بر اساس شناسه).
+ * هیچ پیام قبلی حذف نمی‌شود؛ فقط پیام‌های جدید اضافه یا وضعیت‌ها به‌روز می‌شوند.
+ */
+function mergeMessagesById(prev: EmailMessage[], incoming: EmailMessage[]): EmailMessage[] {
+  if (!incoming || incoming.length === 0) return prev;
+
+  const byId = new Map<string, EmailMessage>();
+  for (const m of prev) byId.set(m.id, m);
+
+  for (const m of incoming) {
+    const existing = byId.get(m.id);
+    if (existing) {
+      // وضعیت خوانده‌شدن محلی را از دست نمی‌دهیم
+      byId.set(m.id, { ...existing, ...m, isRead: Boolean(existing.isRead || m.isRead) });
+    } else {
+      byId.set(m.id, m);
+    }
+  }
+
+  return Array.from(byId.values()).sort(
+    (a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime()
+  );
+}
+
 export default function App() {
   const [inboxes, setInboxes] = useState<TempInbox[]>([]);
   const [currentInbox, setCurrentInbox] = useState<TempInbox | null>(null);
@@ -211,7 +236,12 @@ export default function App() {
   // Toast notifications
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
 
-  const prevMessageCountRef = useRef<number>(0);
+  // شناسهٔ پیام‌هایی که قبلاً دیده شده‌اند (برای تشخیص «پیام جدید» بدون بازنویسی لیست)
+  const knownMessageIdsRef = useRef<Set<string>>(new Set());
+  const messagesRef = useRef<EmailMessage[]>([]);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   const showToast = useCallback((text: string, type: 'success' | 'info' | 'error' = 'success') => {
     setToastMessage({ text, type });
@@ -445,23 +475,29 @@ export default function App() {
       const msgs = await api.getMessagesForUser(allEmails, authed);
       if (isStale()) return;
 
-      // Check for new incoming emails to trigger sound and toast alert
-      if (prevMessageCountRef.current > 0 && msgs.length > prevMessageCountRef.current) {
-        const newest = msgs[0];
+      // 🔑 فقط پیام‌های جدید به لیست اضافه می‌شوند؛ لیست قبلی هرگز پاک/بازنویسی نمی‌شود
+      const hadMessagesBefore = messagesRef.current.length > 0;
+      const knownIds = knownMessageIdsRef.current;
+      const newMessages = msgs.filter((m) => !knownIds.has(m.id));
+
+      setMessages((prev) => mergeMessagesById(prev, msgs));
+      for (const m of msgs) knownIds.add(m.id);
+
+      // فقط وقتی از قبل پیامی روی صفحه بود و واقعاً پیام تازه‌ای رسیده، صدا/اعلان بده
+      if (hadMessagesBefore && newMessages.length > 0) {
+        const newest = newMessages[0];
         try { playNewEmailSound(); } catch {}
         showToast(
-          `📩 پیام جدید دریافت شد از: ${newest.from.name || newest.from.address}`,
+          `📩 پیام جدید دریافت شد از: ${newest.from?.name || newest.from?.address || 'ناشناس'}`,
           'success'
         );
       }
-      prevMessageCountRef.current = msgs.length;
-      setMessages(msgs);
 
-      // Preserve currently open message if already open
+      // پیام باز‌شده را باز نگه دار (حتی اگر در این پاسخ نبود)
       setSelectedMessage((prev) => {
         if (!prev) return null;
         const found = msgs.find((m) => m.id === prev.id);
-        return found || null;
+        return found ? { ...prev, ...found } : prev;
       });
     } catch (err) {
       console.warn('Failed to fetch messages:', err);
@@ -477,7 +513,6 @@ export default function App() {
   useEffect(() => {
     if (currentInbox?.email) {
       setIsLoadingMessages(true);
-      prevMessageCountRef.current = 0;
       fetchInboxMessages(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -539,8 +574,12 @@ export default function App() {
 
       setInboxes(updated);
       setCurrentInbox(newInbox);
-      setMessages([]);
-      setSelectedMessage(null);
+      // برای کاربر مهمان فقط یک صندوق وجود دارد، پس لیست پیام‌ها ریست می‌شود.
+      // برای کاربر لاگین‌شده لیست پیام‌ها حفظ می‌شود تا با ساخت ایمیل جدید نپرد.
+      if (!authed) {
+        setMessages([]);
+        setSelectedMessage(null);
+      }
 
       if (!authed) {
         localStorage.setItem('tempmail_inboxes', JSON.stringify([newInbox]));
@@ -669,6 +708,7 @@ export default function App() {
       setCurrentInbox(guestInbox);
       setMessages([]);
       setSelectedMessage(null);
+      knownMessageIdsRef.current = new Set();
       localStorage.setItem('tempmail_inboxes', JSON.stringify([guestInbox]));
     } catch {}
 
@@ -1192,7 +1232,7 @@ export default function App() {
               /* Inbox of Received Messages (صندوق ورودی) */
               <div className="space-y-3 pt-1 sm:pt-2">
                 {/* Messages List Area */}
-                {isLoadingMessages ? (
+                {isLoadingMessages && messages.length === 0 ? (
                   <div className="py-10 sm:py-12 flex flex-col items-center justify-center text-slate-500 gap-3">
                     <RefreshCw className="w-6 h-6 animate-spin text-indigo-600" />
                     <span className="text-xs">در حال بارگذاری پیام‌ها...</span>
