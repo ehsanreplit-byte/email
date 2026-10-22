@@ -7385,6 +7385,33 @@ Sitemap: ${baseUrl}/sitemap.xml
       res.status(500).json({ success: false, error: "Internal server error during login" });
     }
   });
+  app.post("/api/eitaa/session", async (req, res) => {
+    try {
+      const { eitaaId } = req.body || {};
+      const normalizedId = eitaaBotService.normalizeEitaaId(eitaaId);
+      if (!normalizedId) {
+        return res.status(400).json({ success: false, found: false, error: "\u0634\u0646\u0627\u0633\u0647 \u06A9\u0627\u0631\u0628\u0631\u06CC \u0627\u06CC\u062A\u0627 \u0627\u0631\u0633\u0627\u0644 \u0646\u0634\u062F\u0647 \u0627\u0633\u062A." });
+      }
+      const user = eitaaBotService.getUserByEitaaId(normalizedId);
+      if (!user) {
+        return res.json({ success: true, found: false, user: null });
+      }
+      const accountKey = `eitaa:${normalizedId}`;
+      const payload = buildEitaaSessionPayload(accountKey);
+      return res.json({
+        success: true,
+        found: true,
+        user: accountKey,
+        eitaaId: normalizedId,
+        name: user.firstName || "\u06A9\u0627\u0631\u0628\u0631 \u0627\u06CC\u062A\u0627",
+        isAdmin: false,
+        ...payload
+      });
+    } catch (err) {
+      console.error("Eitaa session check error:", err);
+      res.status(500).json({ success: false, found: false, error: "\u062E\u0637\u0627\u06CC \u0633\u0631\u0648\u0631 \u062F\u0631 \u0628\u0631\u0631\u0633\u06CC \u0634\u0646\u0627\u0633\u0647 \u0627\u06CC\u062A\u0627." });
+    }
+  });
   app.post("/api/eitaa/register", loginLimiter, async (req, res) => {
     try {
       const { eitaaId, userData, initData } = req.body || {};
