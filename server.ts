@@ -1909,21 +1909,38 @@ async function startServer() {
   app.post('/api/user/credentials', loginLimiter, async (req, res) => {
     try {
       res.setHeader('Cache-Control', 'no-store');
-      const { account, username, password } = req.body || {};
+      const { account, phone, password, username } = req.body || {};
       const accKey = account ? String(account).trim() : '';
 
       if (!/^eitaa[:_]/i.test(accKey) && !/^09\d{9}$/.test(accKey)) {
         return res.status(400).json({ success: false, error: 'حساب کاربری معتبر نیست.' });
       }
 
+      // شناسهٔ ورود، شماره موبایل است (username فقط برای سازگاری با نسخهٔ قبلی)
+      const loginPhone = extractValidPhoneNumber(phone || username) || formatIranianMobile(phone || username);
+      if (!/^09\d{9}$/.test(loginPhone)) {
+        return res.status(400).json({ success: false, error: 'شماره موبایل معتبر نیست (مثال: 09121234567).' });
+      }
+
       await syncStoresFromDb(0);
-      const result = credentialsStore.setCredentials(accKey, username, password);
+      const result = credentialsStore.setCredentials(accKey, loginPhone, password);
       if (!result.success) {
         return res.status(400).json({ success: false, error: result.error });
       }
 
+      // همین شماره روی پروفایل حساب هم ذخیره می‌شود
+      try {
+        const user = eitaaBotService.findUser(accKey);
+        if (user) {
+          user.phone = loginPhone;
+          eitaaBotService.saveUsers();
+        }
+      } catch (e) {
+        console.error('[Credentials] failed to save phone on user:', e);
+      }
+
       await commitToDb();
-      return res.json({ success: true, username: result.record?.username, account: accKey });
+      return res.json({ success: true, phone: loginPhone, username: result.record?.username, account: accKey });
     } catch (err: any) {
       console.error('Set credentials error:', err);
       res.status(500).json({ success: false, error: 'خطای سرور در ثبت نام کاربری.' });
@@ -1936,14 +1953,17 @@ async function startServer() {
   app.post('/api/auth/login', loginLimiter, async (req, res) => {
     try {
       res.setHeader('Cache-Control', 'no-store');
-      const { username, password } = req.body || {};
+      const { username, phone, password } = req.body || {};
+      const rawIdentifier = String(phone || username || '').trim();
 
-      if (!String(username || '').trim() || !String(password || '')) {
-        return res.status(400).json({ success: false, error: 'نام کاربری و رمز عبور الزامی است.' });
+      if (!rawIdentifier || !String(password || '')) {
+        return res.status(400).json({ success: false, error: 'شماره موبایل و رمز عبور الزامی است.' });
       }
 
+      const loginPhone = extractValidPhoneNumber(rawIdentifier) || formatIranianMobile(rawIdentifier) || rawIdentifier;
+
       await syncStoresFromDb(0);
-      const result = credentialsStore.verify(String(username), String(password));
+      const result = credentialsStore.verify(loginPhone, String(password));
       if (!result.success || !result.account) {
         return res.status(401).json({ success: false, error: result.error || 'نام کاربری یا رمز عبور نادرست است.' });
       }
