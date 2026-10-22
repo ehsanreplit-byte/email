@@ -3,28 +3,21 @@ import type { IncomingMessage, ServerResponse } from 'http';
 /**
  * Vercel serverless entry point.
  *
- * The whole Express application (API routes, static assets and SPA fallback) is
- * served through this single function. `getApp()` boots the app once per
- * process, which includes connecting to MongoDB and hydrating all stores.
+ * `serverless/handler.mjs` is a pre-bundled (esbuild) build of the Express app.
+ * It is imported by an explicit file path so Node ESM never has to resolve the
+ * ambiguous `../server` (file `server.ts` vs directory `server/`).
  *
- * The import is wrapped in a try/catch so that any boot-time failure is
- * reported as readable text instead of an opaque FUNCTION_INVOCATION_FAILED.
+ * Any boot-time failure is reported as readable text instead of an opaque
+ * FUNCTION_INVOCATION_FAILED response.
  */
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   try {
-    const mod: any = await import('../server');
-    const getApp: () => Promise<any> =
-      mod.getApp ||
-      mod.default?.getApp ||
-      mod.server?.getApp ||
-      (typeof mod.default === 'function' ? mod.default : undefined);
-
-    if (!getApp) {
-      throw new Error('getApp export not found in ../server');
+    const mod: any = await import('../serverless/handler.mjs');
+    const fn = mod?.default || mod?.handler;
+    if (typeof fn !== 'function') {
+      throw new Error('handler export not found in serverless/handler.mjs');
     }
-
-    const app = await getApp();
-    return (app as unknown as (req: IncomingMessage, res: ServerResponse) => void)(req, res);
+    return fn(req, res);
   } catch (err: any) {
     const message = err?.stack || err?.message || String(err);
     console.error('[api/index] boot failure:', message);
