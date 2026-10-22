@@ -690,6 +690,21 @@ export default function App() {
     }
   };
 
+  // اگر کاربر از قبل وارد شده باشد، صفحه /eitaa نمایش داده نمی‌شود و به صفحه اصلی می‌رود
+  // (با ?preview=1 / ?new=1 / ?force=1 می‌توان فرم ثبت‌نام را دید)
+  useEffect(() => {
+    if (!isEitaaPage) return;
+    let preview = false;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      preview = params.has('preview') || params.has('new') || params.get('force') === '1';
+    } catch {}
+    if (preview || !isAuthenticated) return;
+
+    setIsEitaaPage(false);
+    window.history.replaceState({}, '', '/');
+  }, [isEitaaPage, isAuthenticated]);
+
   const handleMessageClick = async (msg: EmailMessage) => {
     if (!isAuthenticated) {
       showToast('⚠️ جهت دیدن و خواندن متن کامل پیام، ثبت‌نام کنید یا وارد شوید!', 'info');
@@ -745,7 +760,8 @@ export default function App() {
           const cleanPhone = /^eitaa[:_]/i.test(phone) ? phone : (extractValidPhoneNumber(phone) || phone);
           handleLoginSuccess(cleanPhone, serverInboxes, remainingEmails, syncedTelegramCount);
           setIsEitaaPage(false);
-          window.history.pushState({}, '', '/');
+          // رفتن مستقیم به صفحه اصلی سایت (بدون باقی ماندن /eitaa در تاریخچه)
+          window.history.replaceState({}, '', '/');
         }}
         onBackToLanding={() => {
           setIsEitaaPage(false);
