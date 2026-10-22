@@ -6026,6 +6026,15 @@ async function startServer() {
       console.error("[DbSync] Failed to refresh stores from MongoDB:", err);
     }
   };
+  const commitToDb = async () => {
+    try {
+      await storage.flush();
+    } catch (e) {
+      console.error("[DbSync] flush failed:", e);
+    }
+    lastDbRefreshAt = 0;
+    await syncStoresFromDb(0);
+  };
   const isEitaaAccountKey = (value) => typeof value === "string" && /^eitaa[:_]/i.test(value.trim());
   if (process.env.VERCEL || process.env.SERVERLESS === "true") {
     if (telegramBotService.isConfigured()) {
@@ -6476,7 +6485,7 @@ Sitemap: ${baseUrl}/sitemap.xml
   }
   app.get("/api/admin/all-users", requireAdmin, async (req, res) => {
     try {
-      await syncStoresFromDb();
+      await syncStoresFromDb(0);
       const telegramUsers = telegramBotService.getRegisteredUsers() || [];
       const eitaaUsers = eitaaBotService.getUsers() || [];
       const activeInboxes = emailStore.getAllActiveInboxes() || [];
@@ -7809,7 +7818,7 @@ Sitemap: ${baseUrl}/sitemap.xml
       res.status(500).json({ success: false, error: err?.message || "Failed to sync inboxes" });
     }
   });
-  app.post("/api/eitaa/link-email", (req, res) => {
+  app.post("/api/eitaa/link-email", async (req, res) => {
     try {
       const { phone, email } = req.body || {};
       const rawIdentifier = phone ? String(phone).trim() : "";
@@ -7817,7 +7826,9 @@ Sitemap: ${baseUrl}/sitemap.xml
       if (!cleanPhone || !email) {
         return res.status(400).json({ success: false, error: "\u0634\u0646\u0627\u0633\u0647 \u06A9\u0627\u0631\u0628\u0631 \u0648 \u0622\u062F\u0631\u0633 \u0627\u06CC\u0645\u06CC\u0644 \u0645\u0639\u062A\u0628\u0631 \u0627\u0644\u0632\u0627\u0645\u06CC \u0627\u0633\u062A." });
       }
+      emailStore.restoreInbox(email);
       eitaaBotService.linkEmailToUser(cleanPhone, email);
+      await commitToDb();
       res.json({ success: true, message: "\u0627\u06CC\u0645\u06CC\u0644 \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u0628\u0647 \u06A9\u0627\u0631\u0628\u0631 \u062F\u0631 \u0627\u06CC\u062A\u0627 \u0645\u062A\u0635\u0644 \u0634\u062F." });
     } catch (err) {
       console.error("Error linking email to Eitaa user:", err);
@@ -7864,7 +7875,7 @@ Sitemap: ${baseUrl}/sitemap.xml
   });
   app.get("/api/eitaa/users", requireAdmin, async (req, res) => {
     try {
-      await syncStoresFromDb();
+      await syncStoresFromDb(0);
       const users = eitaaBotService.getUsers();
       res.json({ success: true, users });
     } catch (err) {
@@ -7889,11 +7900,7 @@ Sitemap: ${baseUrl}/sitemap.xml
           console.error(`Failed to completely delete email ${email} from store:`, e);
         }
       }
-      try {
-        await storage.flush();
-      } catch (e) {
-        console.error("[EitaaDeleteEmails] storage.flush failed:", e);
-      }
+      await commitToDb();
       res.json({
         success: true,
         message: "\u062A\u0645\u0627\u0645\u06CC \u0627\u06CC\u0645\u06CC\u0644\u200C\u0647\u0627\u06CC \u0633\u0627\u062E\u062A\u0647 \u0634\u062F\u0647 \u0628\u0631\u0627\u06CC \u0627\u06CC\u0646 \u06A9\u0627\u0631\u0628\u0631 \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u062D\u0630\u0641 \u0634\u062F\u0646\u062F.",
@@ -7959,11 +7966,7 @@ Sitemap: ${baseUrl}/sitemap.xml
           console.error(`Failed to completely delete email ${em} from store:`, e);
         }
       }
-      try {
-        await storage.flush();
-      } catch (e) {
-        console.error("[DeleteUserEmails] storage.flush failed:", e);
-      }
+      await commitToDb();
       res.json({
         success: true,
         deletedEmails: clearedEmails.length,
@@ -8036,11 +8039,7 @@ Sitemap: ${baseUrl}/sitemap.xml
           console.error(`Failed to completely delete email ${em} from store:`, e);
         }
       }
-      try {
-        await storage.flush();
-      } catch (e) {
-        console.error("[DeleteUser] storage.flush failed:", e);
-      }
+      await commitToDb();
       if (removedUsers === 0 && uniqueEmails.length === 0) {
         return res.status(404).json({
           success: false,
