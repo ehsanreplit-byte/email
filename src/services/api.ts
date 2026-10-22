@@ -1,6 +1,13 @@
 import { EmailMessage, FakeIdentity, TempInbox } from '../types';
 import { clientEngine } from './clientEngine';
 
+/**
+ * کلید حساب فعال (شماره تلفن یا eitaa:<id>).
+ * در WebView های محدود (مثل برنامک ایتا) ممکن است localStorage در دسترس نباشد،
+ * بنابراین یک نسخهٔ درون‌حافظه‌ای هم نگه می‌داریم تا ساخت ایمیل هرگز بدون «مالک» ثبت نشود.
+ */
+let activeAccountKey: string | null = null;
+
 function adminHeaders(extra: Record<string, string> = {}): Record<string, string> {
   const token = typeof window !== 'undefined' ? (localStorage.getItem('admin_token') || sessionStorage.getItem('admin_token') || '') : '';
   return {
@@ -127,6 +134,33 @@ export const api = {
     return [];
   },
 
+  /** ثبت کلید حساب فعال در حافظه + storage */
+  setActiveAccount(accountKey?: string | null): void {
+    const key = accountKey ? String(accountKey).trim() : '';
+    activeAccountKey = key || null;
+    try {
+      if (key) {
+        localStorage.setItem('admin_auth_user', key);
+        sessionStorage.setItem('admin_auth_user', key);
+      }
+    } catch {}
+  },
+
+  /** خواندن کلید حساب فعال (اول storage، بعد حافظه) */
+  getActiveAccount(): string | null {
+    let stored: string | null = null;
+    try {
+      stored = localStorage.getItem('admin_auth_user') || sessionStorage.getItem('admin_auth_user');
+    } catch {
+      stored = null;
+    }
+    if (stored) {
+      activeAccountKey = stored;
+      return stored;
+    }
+    return activeAccountKey;
+  },
+
   async getDomains(): Promise<string[]> {
     try {
       const res = await fetch('/api/domains');
@@ -146,8 +180,7 @@ export const api = {
    * هیچ‌گاه ایمیل «محلی» بدون ثبت در دیتابیس ساخته نمی‌شود.
    */
   async createInbox(username?: string, domain?: string, ttl: number = 300, userPhone?: string): Promise<TempInbox & { quota?: { limit: number; totalUsed: number; remaining: number } }> {
-    const activeUser = userPhone ||
-      (typeof window !== 'undefined' ? (localStorage.getItem('admin_auth_user') || sessionStorage.getItem('admin_auth_user')) : null);
+    const activeUser = userPhone || this.getActiveAccount();
 
     let res: Response;
     try {
