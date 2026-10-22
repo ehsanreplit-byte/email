@@ -7894,8 +7894,9 @@ Sitemap: ${baseUrl}/sitemap.xml
       if (isEitaa) {
         const candidates = [eitaaIdentifier, rawUserId.replace(/^eitaa[:_]/i, ""), numericChatId ? String(numericChatId) : "", cleanPhone].filter(Boolean);
         for (const candidate of Array.from(new Set(candidates))) {
+          const existed = Boolean(eitaaBotService.findUser(candidate));
           const removed = eitaaBotService.deleteUser(candidate);
-          if (removed.length > 0) {
+          if (existed || removed.length > 0) {
             removedUsers++;
             removed.forEach((em) => clearedEmails.add(em));
           }
@@ -7908,8 +7909,9 @@ Sitemap: ${baseUrl}/sitemap.xml
         const tgByPhone = cleanPhone ? telegramBotService.getUserByPhone(cleanPhone) : void 0;
         if (tgByPhone?.chatId) tgTargets.add(tgByPhone.chatId);
         for (const targetChatId of tgTargets) {
+          const existed = Boolean(telegramBotService.getUserByChatId(targetChatId));
           const removed = telegramBotService.deleteUser(targetChatId);
-          if (removed.length > 0) removedUsers++;
+          if (existed || removed.length > 0) removedUsers++;
           removed.forEach((em) => clearedEmails.add(em));
           ticketStore.deleteTicketsByChatId(targetChatId);
           subscriptionStore.deleteSubscriptionsByUserInfo(targetChatId, cleanPhone || void 0);
