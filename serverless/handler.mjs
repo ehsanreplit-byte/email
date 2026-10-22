@@ -6196,7 +6196,19 @@ Sitemap: ${baseUrl}/sitemap.xml
           console.error("[BotService] Error linking email to user:", e);
         }
       }
-      res.json(inbox);
+      let quota;
+      try {
+        const afterUsage = getUserUnifiedUsageStats(
+          accountKey || "",
+          0,
+          (p) => telegramBotService.getUserByPhone(p),
+          (p) => eitaaBotService.getUserByPhone(p)
+        );
+        quota = { limit: afterUsage.limit, totalUsed: afterUsage.totalUsed, remaining: afterUsage.remaining };
+      } catch (quotaErr) {
+        console.error("[InboxCreate] Failed to compute quota:", quotaErr);
+      }
+      res.json({ ...inbox, quota });
     } catch (err) {
       if (err.message && err.message.startsWith("DUPLICATE_EMAIL")) {
         return res.status(409).json({ error: "DUPLICATE_EMAIL", message: err.message });
