@@ -863,7 +863,7 @@ export const api = {
     phone?: string;
     chatId?: number;
     email?: string;
-  }): Promise<{ success: boolean; message?: string; error?: string }> {
+  }): Promise<{ success: boolean; message?: string; error?: string; removedUsers?: number; deletedEmails?: number }> {
     try {
       const res = await fetch('/api/admin/delete-user', {
         method: 'POST',
