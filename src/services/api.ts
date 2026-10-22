@@ -760,7 +760,7 @@ export const api = {
     }
   },
 
-  async eitaaSession(eitaaId: string): Promise<{ success: boolean; found: boolean; user?: string | null; eitaaId?: string; name?: string; phone?: string | null; error?: string; inboxes?: TempInbox[]; remainingEmails?: number; limit?: number; totalUsed?: number }> {
+  async eitaaSession(eitaaId: string): Promise<{ success: boolean; found: boolean; user?: string | null; eitaaId?: string; name?: string; phone?: string | null; hasCredentials?: boolean; username?: string | null; error?: string; inboxes?: TempInbox[]; remainingEmails?: number; limit?: number; totalUsed?: number }> {
     try {
       const res = await fetch('/api/eitaa/session', {
         method: 'POST',
@@ -776,6 +776,8 @@ export const api = {
           eitaaId: data.eitaaId,
           name: data.name,
           phone: data.phone ?? null,
+          hasCredentials: Boolean(data.hasCredentials),
+          username: data.username ?? null,
           inboxes: data.inboxes || [],
           remainingEmails: data.remainingEmails,
           limit: data.limit,
@@ -785,6 +787,38 @@ export const api = {
       return { success: false, found: false, error: data.error || 'خطا در بررسی شناسه کاربری ایتا.' };
     } catch {
       return { success: false, found: false, error: 'خطا در ارتباط با سرور.' };
+    }
+  },
+
+  /** ثبت نام کاربری و رمز عبور برای یک حساب (ورود از سایت) */
+  async setUserCredentials(account: string, username: string, password: string): Promise<{ success: boolean; username?: string; error?: string }> {
+    try {
+      const res = await fetch('/api/user/credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account, username, password }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) return { success: true, username: data.username };
+      return { success: false, error: data.error || 'خطا در ثبت نام کاربری.' };
+    } catch {
+      return { success: false, error: 'خطا در ارتباط با سرور.' };
+    }
+  },
+
+  /** ورود با نام کاربری و رمز عبور */
+  async loginWithUsername(username: string, password: string): Promise<{ success: boolean; user?: string; error?: string }> {
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) return { success: true, user: data.user };
+      return { success: false, error: data.error || 'نام کاربری یا رمز عبور نادرست است.' };
+    } catch {
+      return { success: false, error: 'خطا در ارتباط با سرور.' };
     }
   },
 
