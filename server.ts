@@ -2283,6 +2283,63 @@ async function startServer() {
     }
   });
 
+  /** عیب‌یابی اعلان‌ها: این نمونه چه کاربرانی را می‌شناسد و چرا پیام نمی‌رود */
+  app.get('/api/eitaa/diagnostics', requireAdmin, (req, res) => {
+    try {
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({ success: true, ...eitaaBotService.getDiagnostics(), storage: storage.mongoEnabled ? 'mongodb' : 'local' });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err?.message });
+    }
+  });
+
+  /** ارسال آزمایشی اعلان برای یک ایمیل مشخص (برای عیب‌یابی مسیر اطلاع‌رسانی) */
+  app.post('/api/eitaa/notify-test', requireAdmin, async (req, res) => {
+    try {
+      res.setHeader('Cache-Control', 'no-store');
+      const { email } = req.body || {};
+      const found = eitaaBotService.findUserByEmail(String(email || ''));
+      if (!found) {
+        return res.status(404).json({
+          success: false,
+          resolved: false,
+          error: 'هیچ کاربری برای این ایمیل پیدا نشد.',
+          ...eitaaBotService.getDiagnostics()
+        });
+      }
+
+      await eitaaBotService.handleIncomingEmailNotification(String(email), {
+        id: `diag_${Date.now()}`,
+        inboxEmail: String(email),
+        from: { name: 'تست عیب‌یابی', address: 'diag@ja-be-ja.ir' },
+        to: String(email),
+        subject: 'پیام تست اعلان',
+        preview: 'تست',
+        bodyText: 'این یک پیام تست برای بررسی مسیر اطلاع‌رسانی است.',
+        bodyHtml: '<p>تست</p>',
+        receivedAt: new Date().toISOString(),
+        isRead: false,
+        isStarred: false,
+        attachments: [],
+        headers: {},
+        security: { spf: 'pass', dkim: 'pass', dmarc: 'pass', spamScore: 0, encrypted: false }
+      } as any);
+
+      const after = eitaaBotService.findUserByEmail(String(email));
+      res.json({
+        success: true,
+        resolved: true,
+        userKey: after?.key || found.key,
+        chatId: after?.user?.chatId ?? found.user?.chatId,
+        lastMessageStatus: after?.user?.lastMessageStatus,
+        lastMessageError: after?.user?.lastMessageError,
+        ...eitaaBotService.getDiagnostics()
+      });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err?.message });
+    }
+  });
+
   app.get('/api/eitaa/users', requireAdmin, async (req, res) => {
     try {
       await syncStoresFromDb(0);
