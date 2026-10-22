@@ -6130,7 +6130,12 @@ Sitemap: ${baseUrl}/sitemap.xml
     res.type("application/xml").send(xml);
   });
   app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", timestamp: (/* @__PURE__ */ new Date()).toISOString() });
+    res.json({
+      status: "ok",
+      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+      storage: storage.mongoEnabled ? "mongodb" : "local-ephemeral",
+      database: storage.mongoEnabled ? storage.databaseName : null
+    });
   });
   app.get("/api/domains", (req, res) => {
     res.json({ domains: emailStore.getDomains() });
