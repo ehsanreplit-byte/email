@@ -381,6 +381,9 @@ export default function App() {
   // تا پایان بارگذاری اولیه (رفرش/باز شدن مجدد صفحه) هیچ پیامی «جدید» اعلام نمی‌شود
   const bootstrappedRef = useRef(false);
 
+  // ایمیل‌هایی که در همین نشست ساخته شده‌اند (تنها موردی که مجاز است موقتاً از لیست محلی محافظت شود)
+  const sessionCreatedEmailsRef = useRef<Set<string>>(new Set());
+
   // syncList=false یعنی فقط پیام‌ها را بگیر و لیست ایمیل‌ها را دست نزن (جلوگیری از پرش لیست)
   const fetchInboxMessages = useCallback(async (isManual = false, syncList = true) => {
     const authed = resolveAccountKey();
@@ -447,14 +450,11 @@ export default function App() {
           const fetchedInboxes = syncRes.inboxes;
           const userInboxesKey = `tempmail_inboxes_${authed}`;
 
-          // ایمیل‌هایی که همین چند لحظه پیش ساخته شده‌اند ممکن است هنوز در سرور
-          // به حساب کاربر وصل نشده باشند؛ آن‌ها را از لیست حذف نمی‌کنیم.
-          const RECENT_MS = 2 * 60 * 1000;
-          const now = Date.now();
-          const recentLocal = inboxesRef.current.filter((ib) => {
-            const created = new Date(ib.createdAt).getTime();
-            return !isNaN(created) && now - created < RECENT_MS;
-          });
+          // فقط ایمیل‌هایی که در همین نشست ساخته شده‌اند ممکن است هنوز در دیتابیس
+          // به حساب وصل نشده باشند؛ بقیهٔ لیست دقیقاً همان چیزی است که دیتابیس می‌گوید.
+          const recentLocal = inboxesRef.current.filter((ib) =>
+            sessionCreatedEmailsRef.current.has((ib.email || '').toLowerCase())
+          );
 
           const seen = new Set<string>();
           const merged: typeof fetchedInboxes = [];
@@ -585,6 +585,9 @@ export default function App() {
       }
 
       const newInbox = await api.createInbox(undefined, undefined, undefined, authed);
+      if (newInbox?.email) {
+        sessionCreatedEmailsRef.current.add(newInbox.email.toLowerCase());
+      }
 
       // اگر کاربر وارد شده باشد ولی ایمیل به حسابش متصل نشده باشد، یعنی مالک ثبت نشده
       if (authed && (newInbox as any).owner === null) {
