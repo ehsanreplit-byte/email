@@ -207,7 +207,7 @@ export const EitaaLoginPage: React.FC<EitaaLoginPageProps> = ({ onLoginSuccess }
     } catch {
       setPhase('register');
     }
-  }, [completeLogin]);
+  }, [completeLogin, forcePreview]);
 
   // مرحله دوم: ثبت‌نام با شناسه ایتا (بدون شماره تلفن)
   const executeRegister = useCallback(async () => {
@@ -284,7 +284,7 @@ export const EitaaLoginPage: React.FC<EitaaLoginPageProps> = ({ onLoginSuccess }
       if (checkInterval) clearInterval(checkInterval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [checkExistingSession]);
 
   const isLoading = phase === 'checking' || phase === 'submitting';
   const isSuccess = phase === 'success';
