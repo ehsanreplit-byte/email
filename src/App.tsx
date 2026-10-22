@@ -330,29 +330,14 @@ export default function App() {
           }
         }
 
-        if (isAuthed && authedUser) {
-          try {
-            const syncRes = await api.syncUserInboxes(authedUser);
-            if (syncRes.success && Array.isArray(syncRes.inboxes)) {
-              setInboxes(syncRes.inboxes);
-              if (syncRes.remainingEmails !== undefined && syncRes.limit !== undefined) {
-                setUserQuota({
-                  limit: syncRes.limit,
-                  totalUsed: syncRes.totalUsed ?? (syncRes.limit - syncRes.remainingEmails),
-                  remaining: syncRes.remainingEmails
-                });
-              }
-              if (syncRes.inboxes.length > 0) {
-                setCurrentInbox(syncRes.inboxes[0]);
-              } else {
-                setCurrentInbox(null);
-              }
-              localStorage.setItem(userInboxesKey, JSON.stringify(syncRes.inboxes));
-              localStorage.setItem('tempmail_inboxes', JSON.stringify(syncRes.inboxes));
-            }
-          } catch (syncErr) {
-            console.error('Failed live sync during init:', syncErr);
-          }
+        if (isAuthed && authedUser && !initialInbox) {
+          // اگر هیچ صندوقی از localStorage بازیابی نشد، همین‌جا از دیتابیس بخوان.
+          // اگر بازیابی شد، افکت انتخاب صندوق خودش fetch را انجام می‌دهد (بدون درخواست تکراری).
+          // بارگذاری اولیه: یک بار و فقط از یک مسیر (fetchInboxMessages) —
+          // هم لیست ایمیل‌ها از دیتابیس خوانده می‌شود و هم پیام‌ها نمایش داده می‌شوند.
+          // قبلاً اینجا و داخل fetch هر دو syncUserInboxes صدا زده می‌شد که هم کند بود
+          // و هم باعث می‌شد پاسخ اولی (و پیام‌هایش) دور ریخته شود.
+          void fetchInboxMessages(false, true);
         }
 
         // Record visit for dashboard analytics
@@ -386,9 +371,57 @@ export default function App() {
     const seq = ++fetchSeqRef.current;
     const isStale = () => seq !== fetchSeqRef.current;
 
-    let currentInboxesList = [...inboxesRef.current];
-    if (authed && syncList) {
-      try {
+    if (isManual) setIsRefreshing(true);
+    // اسپینر فقط وقتی لیست خالی است (تا رفرش، محتوای موجود را پاک نکند)
+    if (messagesRef.current.length === 0) setIsLoadingMessages(true);
+
+    try {
+      // ────────────────────────────────────────────────
+      // ۱) اول پیام‌ها را با لیست محلی بگیر (سریع، بدون انتظار برای همگام‌سازی)
+      // ────────────────────────────────────────────────
+      const buildEmailList = () => {
+        const list = inboxesRef.current.map((i) => i.email);
+        const active = currentInboxRef.current;
+        if (active?.email && !list.includes(active.email)) list.push(active.email);
+        return list;
+      };
+
+      const applyMessages = async (emails: string[]) => {
+        if (emails.length === 0) return;
+        const msgs = await api.getMessagesForUser(emails, authed);
+        if (isStale()) return;
+
+        const hadMessagesBefore = messagesRef.current.length > 0;
+        const knownIds = knownMessageIdsRef.current;
+        const newMessages = msgs.filter((m) => !knownIds.has(m.id));
+
+        setMessages((prev) => mergeMessagesById(prev, msgs));
+        for (const m of msgs) knownIds.add(m.id);
+
+        if (hadMessagesBefore && newMessages.length > 0) {
+          const newest = newMessages[0];
+          try { playNewEmailSound(); } catch {}
+          showToast(
+            `📩 پیام جدید دریافت شد از: ${newest.from?.name || newest.from?.address || 'ناشناس'}`,
+            'success'
+          );
+        }
+
+        setSelectedMessage((prev) => {
+          if (!prev) return null;
+          const found = msgs.find((m) => m.id === prev.id);
+          return found ? { ...prev, ...found } : prev;
+        });
+      };
+
+      const localEmails = buildEmailList();
+      await applyMessages(localEmails);
+      if (isStale()) return;
+
+      // ────────────────────────────────────────────────
+      // ۲) بعد لیست ایمیل‌ها را از دیتابیس همگام کن (بدون بلاک کردن نمایش پیام)
+      // ────────────────────────────────────────────────
+      if (authed && syncList) {
         const syncRes = await api.syncUserInboxes(authed);
         if (isStale()) return;
 
@@ -430,9 +463,8 @@ export default function App() {
           });
 
           if (prevEmails !== nextEmails || countsChanged) {
-            currentInboxesList = merged;
-
-            if (prevEmails !== nextEmails) {
+            const userInboxesKeyExists = !!userInboxesKey;
+            if (prevEmails !== nextEmails && userInboxesKeyExists) {
               localStorage.setItem(userInboxesKey, JSON.stringify(merged));
               localStorage.setItem('tempmail_inboxes', JSON.stringify(merged));
               setCurrentInbox((curr) => {
@@ -456,55 +488,19 @@ export default function App() {
               return { limit: nextLimit, totalUsed: nextUsed, remaining: nextRemaining };
             });
           }
+
+          // اگر در ابتدا هیچ ایمیل محلی نداشتیم (رفرش روی دستگاه جدید)، حالا پیام‌ها را بگیر
+          if (localEmails.length === 0 && merged.length > 0 && !isStale()) {
+            await applyMessages(merged.map((i) => i.email));
+          }
         }
-      } catch (syncErr) {
-        console.warn('Live inboxes sync failed:', syncErr);
       }
-    }
-
-    const activeInbox = currentInboxRef.current;
-    if (!activeInbox && currentInboxesList.length === 0) return;
-    if (isManual) setIsRefreshing(true);
-
-    try {
-      const allEmails = currentInboxesList.map((i) => i.email);
-      if (activeInbox?.email && !allEmails.includes(activeInbox.email)) {
-        allEmails.push(activeInbox.email);
-      }
-
-      const msgs = await api.getMessagesForUser(allEmails, authed);
-      if (isStale()) return;
-
-      // 🔑 فقط پیام‌های جدید به لیست اضافه می‌شوند؛ لیست قبلی هرگز پاک/بازنویسی نمی‌شود
-      const hadMessagesBefore = messagesRef.current.length > 0;
-      const knownIds = knownMessageIdsRef.current;
-      const newMessages = msgs.filter((m) => !knownIds.has(m.id));
-
-      setMessages((prev) => mergeMessagesById(prev, msgs));
-      for (const m of msgs) knownIds.add(m.id);
-
-      // فقط وقتی از قبل پیامی روی صفحه بود و واقعاً پیام تازه‌ای رسیده، صدا/اعلان بده
-      if (hadMessagesBefore && newMessages.length > 0) {
-        const newest = newMessages[0];
-        try { playNewEmailSound(); } catch {}
-        showToast(
-          `📩 پیام جدید دریافت شد از: ${newest.from?.name || newest.from?.address || 'ناشناس'}`,
-          'success'
-        );
-      }
-
-      // پیام باز‌شده را باز نگه دار (حتی اگر در این پاسخ نبود)
-      setSelectedMessage((prev) => {
-        if (!prev) return null;
-        const found = msgs.find((m) => m.id === prev.id);
-        return found ? { ...prev, ...found } : prev;
-      });
     } catch (err) {
-      console.warn('Failed to fetch messages:', err);
+      console.warn('Failed to fetch messages/inboxes:', err);
     } finally {
       if (!isStale()) {
-        if (isManual) setIsRefreshing(false);
         setIsLoadingMessages(false);
+        if (isManual) setIsRefreshing(false);
       }
     }
   }, [showToast]);
