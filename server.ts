@@ -97,6 +97,17 @@ async function startServer() {
     }
   };
 
+  /** بعد از هر تغییر: نوشتن‌ها را در MongoDB پایدار کن و حافظه را از دیتابیس بازخوانی کن */
+  const commitToDb = async () => {
+    try {
+      await storage.flush();
+    } catch (e) {
+      console.error('[DbSync] flush failed:', e);
+    }
+    lastDbRefreshAt = 0;
+    await syncStoresFromDb(0);
+  };
+
   /** تشخیص می‌دهد که ورودی، کلید حساب مبتنی بر شناسه ایتا است یا شماره تلفن */
   const isEitaaAccountKey = (value: any): boolean =>
     typeof value === 'string' && /^eitaa[:_]/i.test(value.trim());
@@ -640,7 +651,8 @@ async function startServer() {
   // Comprehensive Multi-Tier User Management API (Telegram, Eitaa, Website)
   app.get('/api/admin/all-users', requireAdmin, async (req, res) => {
     try {
-      await syncStoresFromDb();
+      // لیست کاربران فقط از MongoDB خوانده می‌شود (بدون کش کهنهٔ این نمونه)
+      await syncStoresFromDb(0);
       const telegramUsers = telegramBotService.getRegisteredUsers() || [];
       const eitaaUsers = eitaaBotService.getUsers() || [];
       const activeInboxes = emailStore.getAllActiveInboxes() || [];
@@ -2205,7 +2217,7 @@ async function startServer() {
   });
 
   // Link an email directly to an Eitaa user
-  app.post('/api/eitaa/link-email', (req, res) => {
+  app.post('/api/eitaa/link-email', async (req, res) => {
     try {
       const { phone, email } = req.body || {};
       const rawIdentifier = phone ? String(phone).trim() : '';
@@ -2215,7 +2227,10 @@ async function startServer() {
       if (!cleanPhone || !email) {
         return res.status(400).json({ success: false, error: 'شناسه کاربر و آدرس ایمیل معتبر الزامی است.' });
       }
+      // افزودن اتصال ایمیل به کاربر فقط در MongoDB ثبت می‌شود
+      emailStore.restoreInbox(email);
       eitaaBotService.linkEmailToUser(cleanPhone, email);
+      await commitToDb();
       res.json({ success: true, message: 'ایمیل با موفقیت به کاربر در ایتا متصل شد.' });
     } catch (err: any) {
       console.error('Error linking email to Eitaa user:', err);
@@ -2266,7 +2281,7 @@ async function startServer() {
 
   app.get('/api/eitaa/users', requireAdmin, async (req, res) => {
     try {
-      await syncStoresFromDb();
+      await syncStoresFromDb(0);
       const users = eitaaBotService.getUsers();
       res.json({ success: true, users });
     } catch (err) {
@@ -2297,11 +2312,7 @@ async function startServer() {
         }
       }
 
-      try {
-        await storage.flush();
-      } catch (e) {
-        console.error('[EitaaDeleteEmails] storage.flush failed:', e);
-      }
+      await commitToDb();
 
       res.json({
         success: true,
@@ -2381,11 +2392,7 @@ async function startServer() {
       }
 
       // اطمینان از پایدار شدن حذف در MongoDB قبل از پاسخ
-      try {
-        await storage.flush();
-      } catch (e) {
-        console.error('[DeleteUserEmails] storage.flush failed:', e);
-      }
+      await commitToDb();
 
       res.json({
         success: true,
@@ -2490,13 +2497,8 @@ async function startServer() {
         }
       }
 
-      // 5) اطمینان از نوشته شدن تغییرات در MongoDB پیش از پایان درخواست
-      // (در Vercel پس از پاسخ، نمونه ممکن است فریز شود و نوشتن‌های صف‌شده از دست بروند)
-      try {
-        await storage.flush();
-      } catch (e) {
-        console.error('[DeleteUser] storage.flush failed:', e);
-      }
+      // 5) تغییرات را در MongoDB پایدار کن و حافظه را با دیتابیس همگام کن
+      await commitToDb();
 
       if (removedUsers === 0 && uniqueEmails.length === 0) {
         return res.status(404).json({
