@@ -339,7 +339,8 @@ async function startServer() {
         console.error('[InboxCreate] Failed to compute quota:', quotaErr);
       }
 
-      res.json({ ...inbox, quota });
+      // owner برای تشخیص این‌که آیا ایمیل واقعاً به حساب کاربر متصل شده است یا نه
+      res.json({ ...inbox, owner: accountKey || null, quota });
     } catch (err: any) {
       if (err.message && err.message.startsWith('DUPLICATE_EMAIL')) {
         return res.status(409).json({ error: 'DUPLICATE_EMAIL', message: err.message });
