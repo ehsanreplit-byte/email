@@ -334,8 +334,8 @@ export class EitaaBotService {
   /**
    * Clears all linked emails and history for a registered Eitaa user
    */
-  public clearUserEmails(phone: string): string[] {
-    const user = this.getUserByPhone(phone);
+  public clearUserEmails(identifier: string): string[] {
+    const user = this.findUser(identifier);
     if (!user) return [];
 
     const historyEmails = (user.history || []).map(h => h.email?.toLowerCase().trim()).filter(Boolean) as string[];
@@ -356,23 +356,48 @@ export class EitaaBotService {
   /**
    * Deletes a registered Eitaa user completely along with mapping references
    */
-  public deleteUser(phone: string): string[] {
-    const user = this.getUserByPhone(phone);
-    if (!user) return [];
+  public deleteUser(identifier: string): string[] {
+    if (!identifier) return [];
+
+    // پشتیبانی از سه حالت: شماره تلفن، شناسه ایتا (eitaa:<id>) و کلید حساب
+    const user = this.findUser(identifier);
+    if (!user) {
+      // حتی اگر کاربر پیدا نشد، تلاش می‌کنیم کلید دقیق را حذف کنیم
+      const raw = String(identifier).trim();
+      if (this.users.has(raw)) {
+        this.users.delete(raw);
+        this.saveUsers();
+      }
+      return [];
+    }
 
     const historyEmails = (user.history || []).map(h => h.email?.toLowerCase().trim()).filter(Boolean) as string[];
     const linkedEmails = (user.emails || []).map(e => e.toLowerCase().trim()).filter(Boolean);
     const clearedEmails = Array.from(new Set([...historyEmails, ...linkedEmails]));
 
-    if (user.phone) this.users.delete(user.phone);
-    const normPhone = extractValidPhoneNumber(phone) || formatIranianMobile(phone);
+    // حذف تمام کلیدهایی که به همین کاربر اشاره می‌کنند (کلید eitaa:<id> یا شماره تلفن)
+    for (const [key, value] of Array.from(this.users.entries())) {
+      if (value === user) {
+        this.users.delete(key);
+      }
+    }
+
+    const normPhone = extractValidPhoneNumber(identifier) || formatIranianMobile(identifier);
     if (normPhone) this.users.delete(normPhone);
+    if (user.phone) {
+      const uPhone = extractValidPhoneNumber(user.phone) || formatIranianMobile(user.phone);
+      if (uPhone) this.users.delete(uPhone);
+    }
+
+    const eitaaId = this.normalizeEitaaId((user as any).eitaaId || identifier);
+    if (eitaaId) this.eitaaIdIndex.delete(eitaaId);
 
     for (const em of clearedEmails) {
       this.emailToPhoneMap.delete(em);
     }
 
     this.saveUsers();
+    console.log(`[EitaaBot] Deleted eitaa user (${identifier}) with ${clearedEmails.length} linked emails`);
     return clearedEmails;
   }
 
@@ -380,7 +405,7 @@ export class EitaaBotService {
    * Deletes/unlinks a single email address for a registered Eitaa user
    */
   public deleteUserEmail(phone: string, email: string): boolean {
-    const user = this.getUserByPhone(phone);
+    const user = this.findUser(phone);
     if (!user) return false;
 
     const target = email.toLowerCase().trim();
