@@ -1,20 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, Suspense, lazy } from 'react';
 import { EmailMessage, TempInbox, ActiveTab } from './types';
 import { api } from './services/api';
-import { AuthModal } from './components/AuthModal';
-import { SubscriptionModal } from './components/SubscriptionModal';
-import { AdminSidebar } from './components/AdminSidebar';
-import { SendEmailView } from './components/SendEmailView';
-import { TelegramView } from './components/TelegramView';
-import { UserEmailsView } from './components/UserEmailsView';
-import { SubscriptionsView } from './components/SubscriptionsView';
-import { TicketsView } from './components/TicketsView';
-import { AdminDashboardView } from './components/AdminDashboardView';
-import { BluPalView } from './components/BluPalView';
-import { BackupView } from './components/BackupView';
-import { EitaaView } from './components/EitaaView';
+// صفحه‌های ورودی (لندینگ ایتا و وب‌اپ) باید فوری رندر شوند و lazy نیستند.
 import { EitaaLoginPage } from './components/EitaaLoginPage';
 import { WebAppInboxView } from './components/WebAppInboxView';
+
 import { playNewEmailSound, playCopySound } from './utils/audio';
 import { extractValidPhoneNumber } from './utils/phone';
 import { sanitizeEmailHtml } from './utils/sanitizeHtml';
@@ -23,6 +13,32 @@ import {
   Trash2, Clock, User, Download, FileText, X, Key, CheckCircle2, AlertCircle, Sparkles, Menu, MessageCircle,
   ExternalLink, Eye, Image as ImageIcon, ShieldCheck, Lock as LockIcon, LogIn
 } from 'lucide-react';
+
+/**
+ * تقسیم کد (code splitting):
+ * ویوهای پنل مدیریت و مودال‌ها فقط زمانی دانلود می‌شوند که کاربر واقعاً به آن‌ها نیاز داشته باشد.
+ * این کار حجم بارگذاری اولیهٔ لندینگ/ایتا را به‌طور محسوس کم می‌کند.
+ */
+const AuthModal = lazy(() => import('./components/AuthModal').then((m) => ({ default: m.AuthModal })));
+const SubscriptionModal = lazy(() => import('./components/SubscriptionModal').then((m) => ({ default: m.SubscriptionModal })));
+const AdminSidebar = lazy(() => import('./components/AdminSidebar').then((m) => ({ default: m.AdminSidebar })));
+const SendEmailView = lazy(() => import('./components/SendEmailView').then((m) => ({ default: m.SendEmailView })));
+const TelegramView = lazy(() => import('./components/TelegramView').then((m) => ({ default: m.TelegramView })));
+const UserEmailsView = lazy(() => import('./components/UserEmailsView').then((m) => ({ default: m.UserEmailsView })));
+const SubscriptionsView = lazy(() => import('./components/SubscriptionsView').then((m) => ({ default: m.SubscriptionsView })));
+const TicketsView = lazy(() => import('./components/TicketsView').then((m) => ({ default: m.TicketsView })));
+const AdminDashboardView = lazy(() => import('./components/AdminDashboardView').then((m) => ({ default: m.AdminDashboardView })));
+const BluPalView = lazy(() => import('./components/BluPalView').then((m) => ({ default: m.BluPalView })));
+const BackupView = lazy(() => import('./components/BackupView').then((m) => ({ default: m.BackupView })));
+const EitaaView = lazy(() => import('./components/EitaaView').then((m) => ({ default: m.EitaaView })));
+
+/** نمایشگر سبک برای زمان دانلود چانک‌های تنبل */
+const LazyChunkFallback = ({ label = 'در حال بارگذاری…' }: { label?: string }) => (
+  <div className="w-full py-14 flex flex-col items-center justify-center gap-3">
+    <RefreshCw className="w-6 h-6 text-indigo-600 animate-spin" />
+    <p className="text-xs font-semibold text-slate-500">{label}</p>
+  </div>
+);
 
 /**
  * پیام‌های دریافتی را با لیست فعلی ادغام می‌کند (بر اساس شناسه).
@@ -143,6 +159,25 @@ export default function App() {
     }
     return false;
   });
+
+  // پیش‌بارگذاری تنبل (بعد از اولین رندر) برای مودال ورود تا باز شدنش فوری باشد
+  useEffect(() => {
+    const idle = (window as any).requestIdleCallback as undefined | ((cb: () => void, opts?: any) => number);
+    let timer: number | undefined;
+    let idleId: number | undefined;
+    const prefetch = () => { import('./components/AuthModal').catch(() => {}); };
+
+    if (typeof idle === 'function') {
+      idleId = idle(prefetch, { timeout: 5000 });
+    } else {
+      timer = window.setTimeout(prefetch, 5000);
+    }
+
+    return () => {
+      if (idleId !== undefined && (window as any).cancelIdleCallback) (window as any).cancelIdleCallback(idleId);
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, []);
 
   useEffect(() => {
     api.getSystemStatus().then((res) => {
@@ -1056,15 +1091,17 @@ export default function App() {
             </div>
 
             <div className="pt-2">
-              {adminActiveTab === 'dashboard' && <AdminDashboardView isFa={true} onNavigateTab={(t) => setAdminActiveTab(t)} />}
-              {adminActiveTab === 'send_email' && <SendEmailView isFa={true} />}
-              {adminActiveTab === 'telegram' && <TelegramView isFa={true} />}
-              {adminActiveTab === 'eitaa' && <EitaaView isFa={true} showToast={showToast} />}
-              {adminActiveTab === 'user_emails' && <UserEmailsView lang="fa" />}
-              {adminActiveTab === 'subscriptions' && <SubscriptionsView lang="fa" />}
-              {adminActiveTab === 'tickets' && <TicketsView isFa={true} />}
-              {adminActiveTab === 'blupal' && <BluPalView lang="fa" />}
-              {adminActiveTab === 'backup' && <BackupView isFa={true} />}
+              <Suspense fallback={<LazyChunkFallback label="در حال بارگذاری بخش مدیریت…" />}>
+                {adminActiveTab === 'dashboard' && <AdminDashboardView isFa={true} onNavigateTab={(t: ActiveTab) => setAdminActiveTab(t)} />}
+                {adminActiveTab === 'send_email' && <SendEmailView isFa={true} />}
+                {adminActiveTab === 'telegram' && <TelegramView isFa={true} />}
+                {adminActiveTab === 'eitaa' && <EitaaView isFa={true} showToast={showToast} />}
+                {adminActiveTab === 'user_emails' && <UserEmailsView lang="fa" />}
+                {adminActiveTab === 'subscriptions' && <SubscriptionsView lang="fa" />}
+                {adminActiveTab === 'tickets' && <TicketsView isFa={true} />}
+                {adminActiveTab === 'blupal' && <BluPalView lang="fa" />}
+                {adminActiveTab === 'backup' && <BackupView isFa={true} />}
+              </Suspense>
             </div>
           </div>
         ) : (
@@ -1403,36 +1440,38 @@ export default function App() {
 
       {/* Right-side Admin Panel Sidebar */}
       {isAdminUser && (
-        <AdminSidebar
-          isOpenMobile={isAdminSidebarOpen}
-          onCloseMobile={() => setIsAdminSidebarOpen(false)}
-          isFa={true}
-          adminUsername={currentUser || '09134336627'}
-          totalMessagesCount={messages.length}
-          unreadMessagesCount={messages.filter((m) => !m.isRead).length}
-          onLogout={handleLogout}
-          theme="light"
-          setTheme={() => {}}
-          lang="fa"
-          setLang={() => {}}
-          soundEnabled={true}
-          setSoundEnabled={() => {}}
-          activeInboxesCount={adminStats?.activeInboxesCount ?? inboxes.length}
-          createdEmailsCount={adminStats?.createdEmailsCount ?? inboxes.length}
-          telegramEmailsCount={adminStats?.telegramEmailsCount ?? 0}
-          eitaaEmailsCount={adminStats?.eitaaEmailsCount ?? 0}
-          webEmailsCount={adminStats?.webEmailsCount ?? 0}
-          totalUsersCount={adminStats?.totalUsersCount ?? 0}
-          totalReceivedCount={adminStats?.totalReceived ?? messages.length}
-          onManualRefresh={() => fetchInboxMessages(true)}
-          isRefreshing={isRefreshing}
-          activeTab={adminActiveTab}
-          setActiveTab={(tab) => {
-            setAdminActiveTab(tab);
-            setIsAdminSidebarOpen(false);
-          }}
-          unreadTicketsCount={unreadTicketsCount}
-        />
+        <Suspense fallback={null}>
+          <AdminSidebar
+            isOpenMobile={isAdminSidebarOpen}
+            onCloseMobile={() => setIsAdminSidebarOpen(false)}
+            isFa={true}
+            adminUsername={currentUser || '09134336627'}
+            totalMessagesCount={messages.length}
+            unreadMessagesCount={messages.filter((m) => !m.isRead).length}
+            onLogout={handleLogout}
+            theme="light"
+            setTheme={() => {}}
+            lang="fa"
+            setLang={() => {}}
+            soundEnabled={true}
+            setSoundEnabled={() => {}}
+            activeInboxesCount={adminStats?.activeInboxesCount ?? inboxes.length}
+            createdEmailsCount={adminStats?.createdEmailsCount ?? inboxes.length}
+            telegramEmailsCount={adminStats?.telegramEmailsCount ?? 0}
+            eitaaEmailsCount={adminStats?.eitaaEmailsCount ?? 0}
+            webEmailsCount={adminStats?.webEmailsCount ?? 0}
+            totalUsersCount={adminStats?.totalUsersCount ?? 0}
+            totalReceivedCount={adminStats?.totalReceived ?? messages.length}
+            onManualRefresh={() => fetchInboxMessages(true)}
+            isRefreshing={isRefreshing}
+            activeTab={adminActiveTab}
+            setActiveTab={(tab: ActiveTab) => {
+              setAdminActiveTab(tab);
+              setIsAdminSidebarOpen(false);
+            }}
+            unreadTicketsCount={unreadTicketsCount}
+          />
+        </Suspense>
       )}
 
       {/* Message Details Modal */}
@@ -1695,27 +1734,31 @@ export default function App() {
       )}
 
       {/* Auth Modal (ورود و ثبت‌نام) */}
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
-        isAuthenticated={isAuthenticated}
-        currentUser={currentUser}
-        onLoginSuccess={handleLoginSuccess}
-        onLogout={handleLogout}
-        onOpenEitaaLogin={() => {
-          setIsAuthModalOpen(false);
-          setIsEitaaPage(true);
-          window.history.pushState({}, '', '/eitaa');
-        }}
-      />
+      <Suspense fallback={null}>
+        <AuthModal
+          isOpen={isAuthModalOpen}
+          onClose={() => setIsAuthModalOpen(false)}
+          isAuthenticated={isAuthenticated}
+          currentUser={currentUser}
+          onLoginSuccess={handleLoginSuccess}
+          onLogout={handleLogout}
+          onOpenEitaaLogin={() => {
+            setIsAuthModalOpen(false);
+            setIsEitaaPage(true);
+            window.history.pushState({}, '', '/eitaa');
+          }}
+        />
+      </Suspense>
 
       {/* Subscription Purchase Modal */}
-      <SubscriptionModal
-        isOpen={isSubscriptionModalOpen}
-        onClose={() => setIsSubscriptionModalOpen(false)}
-        currentUser={currentUser}
-        showToast={showToast}
-      />
+      <Suspense fallback={null}>
+        <SubscriptionModal
+          isOpen={isSubscriptionModalOpen}
+          onClose={() => setIsSubscriptionModalOpen(false)}
+          currentUser={currentUser}
+          showToast={showToast}
+        />
+      </Suspense>
 
       {/* Floating Toast Notification */}
       {toastMessage && (
