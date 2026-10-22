@@ -456,6 +456,21 @@ class EmailStore {
     return item.inbox;
   }
 
+  /**
+   * یک صندوق را فوراً منقضی می‌کند (بدون حذف پیام‌های قبلی).
+   * با ساخت ایمیل جدید، ایمیل‌های قبلی همین حساب منقضی می‌شوند.
+   */
+  public expireInbox(email: string): boolean {
+    const normalized = email.trim().toLowerCase();
+    const item = this.inboxes.get(normalized);
+    if (!item) return false;
+    if (item.inbox.isPermanent) return false;
+
+    item.inbox.expiresAt = new Date().toISOString();
+    this.saveInboxesToStorage();
+    return true;
+  }
+
   public extendInbox(email: string, extraSeconds: number = 300): TempInbox | null {
     const normalized = email.trim().toLowerCase();
     const item = this.inboxes.get(normalized);
