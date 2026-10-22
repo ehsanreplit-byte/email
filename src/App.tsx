@@ -350,13 +350,14 @@ export default function App() {
   // شمارهٔ درخواست برای نادیده گرفتن پاسخ‌های قدیمی (جلوگیری از بازنویسی لیست جدید)
   const fetchSeqRef = useRef(0);
 
-  const fetchInboxMessages = useCallback(async (isManual = false) => {
+  // syncList=false یعنی فقط پیام‌ها را بگیر و لیست ایمیل‌ها را دست نزن (جلوگیری از پرش لیست)
+  const fetchInboxMessages = useCallback(async (isManual = false, syncList = true) => {
     const authed = localStorage.getItem('admin_auth_user') || sessionStorage.getItem('admin_auth_user') || undefined;
     const seq = ++fetchSeqRef.current;
     const isStale = () => seq !== fetchSeqRef.current;
 
     let currentInboxesList = [...inboxesRef.current];
-    if (authed) {
+    if (authed && syncList) {
       try {
         const syncRes = await api.syncUserInboxes(authed);
         if (isStale()) return;
@@ -483,12 +484,17 @@ export default function App() {
   }, [currentInbox?.email, fetchInboxMessages]);
 
   // 3. Auto Refresh Timer Countdown
+  const pollTickRef = useRef(0);
   useEffect(() => {
     setSecondsUntilRefresh(autoRefreshInterval);
     const interval = setInterval(() => {
       setSecondsUntilRefresh((prev) => {
         if (prev <= 1) {
-          fetchInboxMessages(false);
+          pollTickRef.current += 1;
+          // هر ۳ بار (۱۵ ثانیه) لیست ایمیل‌ها هم از سرور همگام می‌شود؛
+          // بقیهٔ تیک‌ها فقط پیام‌های صندوق را تازه می‌کنند تا لیست/تعداد پرش نکند.
+          const shouldSyncList = pollTickRef.current % 3 === 0;
+          fetchInboxMessages(false, shouldSyncList);
           return autoRefreshInterval;
         }
         return prev - 1;
