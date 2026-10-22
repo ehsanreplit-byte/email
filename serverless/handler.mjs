@@ -6257,6 +6257,20 @@ Sitemap: ${baseUrl}/sitemap.xml
         targetEmails = emails.map((e) => String(e).toLowerCase().trim());
       }
       if (phone) {
+        const rawPhoneKey = String(phone).trim();
+        if (/^eitaa[:_]/i.test(rawPhoneKey)) {
+          const eitaaAccount = eitaaBotService.findUser(rawPhoneKey);
+          if (eitaaAccount) {
+            if (Array.isArray(eitaaAccount.emails)) {
+              targetEmails.push(...eitaaAccount.emails.map((e) => String(e).toLowerCase()));
+            }
+            if (Array.isArray(eitaaAccount.history)) {
+              targetEmails.push(
+                ...eitaaAccount.history.map((h) => String(h?.email || "").toLowerCase()).filter(Boolean)
+              );
+            }
+          }
+        }
         const cleanPhone = extractValidPhoneNumber(phone);
         if (cleanPhone) {
           const eitaaUser = eitaaBotService.getUserByPhone(cleanPhone);
