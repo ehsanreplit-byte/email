@@ -42,13 +42,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     const cleanPass = password.trim();
 
     if (!cleanPhone || !cleanPass) {
-      setError('لطفاً شماره موبایل و رمز عبور را وارد نمایید.');
+      setError('لطفاً شماره موبایل/نام کاربری و رمز عبور را وارد نمایید.');
       return;
     }
 
     setIsLoading(true);
     try {
-      const res = await api.adminLogin(cleanPhone, cleanPass);
+      // اگر ورودی شماره موبایل نبود، به‌عنوان نام کاربری بررسی می‌شود
+      const digitsOnly = cleanPhone.replace(/[^0-9]/g, '');
+      const looksLikePhone = digitsOnly.length >= 10 && /^(09|9|98|989)/.test(digitsOnly) && /^[0-9+\s-]+$/.test(cleanPhone);
+
+      const res = looksLikePhone
+        ? await api.adminLogin(cleanPhone, cleanPass)
+        : await api.loginWithUsername(cleanPhone, cleanPass);
       setIsLoading(false);
 
       if (res.success) {
@@ -64,7 +70,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           onClose();
         }, 800);
       } else {
-        setError(res.error || 'شماره موبایل یا رمز عبور نامعتبر است.');
+        setError(res.error || 'شماره موبایل/نام کاربری یا رمز عبور نامعتبر است.');
       }
     } catch {
       setIsLoading(false);
@@ -224,7 +230,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <form onSubmit={handleLogin} className="space-y-3.5 sm:space-y-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5 text-right">
-                    شماره موبایل
+                    شماره موبایل یا نام کاربری
                   </label>
                   <div className="relative">
                     <input
@@ -233,7 +239,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       dir="ltr"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      placeholder="شماره موبایل"
+                      placeholder="09121234567 یا username"
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 sm:py-2.5 px-3.5 pl-10 text-right sm:text-right text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-500 font-sans transition-colors"
                       required
                     />
