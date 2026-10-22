@@ -1142,18 +1142,6 @@ export default function App() {
                       </span>
                     </div>
                   </div>
-                  <button
-                    onClick={handleCreateNewEmail}
-                    disabled={isRefreshing}
-                    className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 min-h-[36px] ${
-                      isLimitReached
-                        ? 'bg-slate-100 border border-slate-200 text-slate-500 hover:bg-slate-200'
-                        : 'bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 active:scale-95 text-indigo-700'
-                    }`}
-                  >
-                    <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                    <span>{isLimitReached ? `سهمیه ${currentLimit} ایمیل تکمیل` : 'ایمیل جدید'}</span>
-                  </button>
                 </div>
 
                 <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-0.5 pl-0.5">
