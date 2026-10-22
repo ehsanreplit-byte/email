@@ -140,30 +140,51 @@ export const api = {
     return clientEngine.getDomains();
   },
 
-  async createInbox(username?: string, domain?: string, ttl: number = 300, userPhone?: string): Promise<TempInbox> {
+  /**
+   * ساخت ایمیل جدید.
+   * ترتیب کار: (۱) بررسی سهمیه در سرور، (۲) ساخت در دیتابیس، (۳) برگشت ایمیل ساخته‌شده.
+   * هیچ‌گاه ایمیل «محلی» بدون ثبت در دیتابیس ساخته نمی‌شود.
+   */
+  async createInbox(username?: string, domain?: string, ttl: number = 300, userPhone?: string): Promise<TempInbox & { quota?: { limit: number; totalUsed: number; remaining: number } }> {
+    const activeUser = userPhone ||
+      (typeof window !== 'undefined' ? (localStorage.getItem('admin_auth_user') || sessionStorage.getItem('admin_auth_user')) : null);
+
+    let res: Response;
     try {
-      const activeUser = userPhone || 
-        (typeof window !== 'undefined' ? (localStorage.getItem('admin_auth_user') || sessionStorage.getItem('admin_auth_user')) : null);
-      
-      const res = await fetch('/api/inbox/create', {
+      res = await fetch('/api/inbox/create', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           ...(activeUser ? { 'x-user-phone': activeUser } : {})
         },
         body: JSON.stringify({ username, domain, ttl, user: activeUser }),
       });
-      if (res.ok) {
-        const inbox = await res.json();
-        if (activeUser && inbox?.email) {
-          this.linkEmailToUser(inbox.email, activeUser).catch(() => {});
-        }
-        return inbox;
-      }
     } catch {
-      // fallback to client engine
+      const err: any = new Error('NETWORK_ERROR');
+      err.code = 'NETWORK_ERROR';
+      throw err;
     }
-    return clientEngine.createInbox(username, domain, ttl);
+
+    const data = await res.json().catch(() => null as any);
+
+    if (res.status === 403 || data?.error === 'QUOTA_EXCEEDED') {
+      const err: any = new Error(data?.message || 'سهمیه ایمیل شما تکمیل شده است.');
+      err.code = 'QUOTA_EXCEEDED';
+      throw err;
+    }
+
+    if (!res.ok || !data?.email) {
+      const err: any = new Error(data?.message || data?.error || 'خطا در ساخت ایمیل در دیتابیس.');
+      err.code = data?.error || 'CREATE_FAILED';
+      throw err;
+    }
+
+    // ایمیل فقط زمانی به لیست اضافه می‌شود که در دیتابیس ساخته شده باشد
+    const inbox = data as TempInbox & { quota?: { limit: number; totalUsed: number; remaining: number } };
+    if (activeUser && inbox.email) {
+      this.linkEmailToUser(inbox.email, activeUser).catch(() => {});
+    }
+    return inbox;
   },
 
   async linkEmailToUser(email: string, phone: string): Promise<boolean> {
