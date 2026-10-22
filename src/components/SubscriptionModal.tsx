@@ -179,20 +179,20 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white border-t sm:border border-slate-200 rounded-t-3xl sm:rounded-3xl w-full max-w-4xl max-h-[92vh] sm:max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in slide-in-from-bottom-6 sm:zoom-in-95 duration-200">
+      <div className="subscription-sheet bg-white border-t sm:border border-slate-200 rounded-t-3xl sm:rounded-3xl w-full max-w-4xl flex flex-col shadow-2xl overflow-hidden animate-in slide-in-from-bottom-6 sm:zoom-in-95 duration-200">
         
         {/* Mobile Drag Indicator */}
         <div className="w-12 h-1.5 bg-slate-300 rounded-full mx-auto my-2.5 sm:hidden shrink-0" />
 
         {/* Modal Header */}
-        <div className="p-3.5 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
-          <div className="flex items-center gap-2.5">
+        <div className="p-3.5 sm:p-5 border-b border-slate-100 flex items-center justify-between gap-2 bg-slate-50/80 shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-md shadow-amber-500/20 shrink-0">
               <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <h3 className="font-extrabold text-slate-950 text-xs sm:text-base">تهیه اشتراک ویژه جا به جا</h3>
-              <p className="text-slate-500 text-[10px] sm:text-xs">با خرید اشتراک ظرفیت صندوق ایمیل‌های خود را ارتقا دهید</p>
+            <div className="min-w-0">
+              <h3 className="font-extrabold text-slate-950 text-xs sm:text-base leading-snug break-words">تهیه اشتراک ویژه جا به جا</h3>
+              <p className="text-slate-500 text-[10px] sm:text-xs leading-relaxed break-words">با خرید اشتراک ظرفیت صندوق ایمیل‌های خود را ارتقا دهید</p>
             </div>
           </div>
           <button
@@ -204,7 +204,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-4 sm:space-y-6">
           {step === 'loading' ? (
             <div className="py-16 flex flex-col items-center justify-center gap-3">
               <RefreshCw className="w-8 h-8 text-emerald-600 animate-spin" />
@@ -292,24 +292,24 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
               </div>
 
               <div className="p-4 sm:p-5 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-3 text-right">
-                <div className="flex justify-between items-center text-xs text-slate-600">
-                  <span>نام طرح خریداری شده:</span>
-                  <span className="font-bold text-slate-900">{selectedPlanForPayment.title}</span>
+                <div className="flex justify-between items-start gap-3 text-xs text-slate-600">
+                  <span className="shrink-0">نام طرح خریداری شده:</span>
+                  <span className="font-bold text-slate-900 text-left break-words min-w-0">{selectedPlanForPayment.title}</span>
                 </div>
-                <div className="flex justify-between items-center text-xs text-slate-600">
-                  <span>مدت زمان اعتبار:</span>
-                  <span className="font-bold text-slate-900">{selectedPlanForPayment.durationDays} روز</span>
+                <div className="flex justify-between items-center gap-3 text-xs text-slate-600">
+                  <span className="shrink-0">مدت زمان اعتبار:</span>
+                  <span className="font-bold text-slate-900 text-left whitespace-nowrap">{selectedPlanForPayment.durationDays} روز</span>
                 </div>
-                <div className="flex justify-between items-center text-xs text-slate-600">
-                  <span>سهمیه ایمیل این طرح:</span>
-                  <span className="font-bold text-slate-900">+{selectedPlanForPayment.monthlyEmailLimit} آدرس ایمیل</span>
+                <div className="flex justify-between items-center gap-3 text-xs text-slate-600">
+                  <span className="shrink-0">سهمیه ایمیل این طرح:</span>
+                  <span className="font-bold text-slate-900 text-left break-words min-w-0">+{selectedPlanForPayment.monthlyEmailLimit} آدرس ایمیل</span>
                 </div>
                 <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-semibold text-center">
                   ✨ سهمیه خریداری شده به مانده قبلی حساب شما اضافه شده و جمع آن در مانده ایمیل نمایش داده خواهد شد.
                 </div>
-                <div className="border-t border-slate-200 pt-3 flex justify-between items-center text-sm">
-                  <span className="font-bold text-slate-800">مبلغ قابل پرداخت:</span>
-                  <span className="font-extrabold text-indigo-600">
+                <div className="border-t border-slate-200 pt-3 flex justify-between items-center gap-3 text-sm">
+                  <span className="font-bold text-slate-800 shrink-0">مبلغ قابل پرداخت:</span>
+                  <span className="font-extrabold text-indigo-600 text-left whitespace-nowrap">
                     {selectedPlanForPayment.priceToman === 0 ? 'رایگان' : `${selectedPlanForPayment.priceToman.toLocaleString()} تومان`}
                   </span>
                 </div>
@@ -360,7 +360,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setExpandedPlanId(isExpanded ? null : plan.id)}
-                      className="w-full p-3.5 sm:p-4 text-right flex items-center justify-between gap-3 cursor-pointer select-none transition-colors hover:bg-slate-50/80 active:bg-slate-100/60"
+                      className="w-full p-3.5 sm:p-4 text-right flex items-center justify-between gap-2 sm:gap-3 cursor-pointer select-none transition-colors hover:bg-slate-50/80 active:bg-slate-100/60"
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         {/* Plan Icon */}
@@ -375,7 +375,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                         {/* Title & Badge */}
                         <div className="min-w-0 text-right">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <h4 className="font-extrabold text-slate-900 text-xs sm:text-sm">
+                            <h4 className="font-extrabold text-slate-900 text-xs sm:text-sm break-words">
                               {plan.title}
                             </h4>
                             {plan.badge && (
@@ -391,9 +391,9 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                       </div>
 
                       {/* Right Summary: Price & Chevron Arrow */}
-                      <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
-                        <div className="text-left font-mono">
-                          <div className="text-xs sm:text-sm font-black text-indigo-600">
+                      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                        <div className="text-left font-mono whitespace-nowrap">
+                          <div className="text-[11px] sm:text-sm font-black text-indigo-600">
                             {isFree ? 'رایگان' : `${plan.priceToman.toLocaleString()} تومان`}
                           </div>
                           {!isFree && (
@@ -413,10 +413,10 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
 
                     {/* Accordion Content (Details Underneath) */}
                     {isExpanded && (
-                      <div className="px-3.5 pb-4 sm:px-5 sm:pb-5 pt-2 border-t border-slate-100 space-y-3.5 animate-in fade-in slide-in-from-top-1 duration-200 bg-slate-50/40">
+                      <div className="px-3.5 pb-4 sm:px-5 sm:pb-5 pt-3 border-t border-slate-100 space-y-3.5 animate-in fade-in slide-in-from-top-1 duration-200 bg-slate-50/40">
                         {/* Description Text */}
                         {plan.description && (
-                          <div className="p-3 rounded-xl bg-white border border-slate-200/70 text-xs text-slate-600 leading-relaxed">
+                          <div className="p-3 rounded-xl bg-white border border-slate-200/70 text-xs text-slate-600 leading-relaxed break-words">
                             {plan.description}
                           </div>
                         )}
@@ -482,7 +482,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="p-3.5 sm:p-4 border-t border-slate-100 bg-slate-50/80 flex flex-col xs:flex-row items-stretch xs:items-center justify-between gap-2.5 text-[11px] text-slate-500 px-4 sm:px-6">
+        <div className="p-3.5 pb-[max(0.875rem,env(safe-area-inset-bottom))] sm:p-4 sm:pb-4 border-t border-slate-100 bg-slate-50/80 flex flex-col xs:flex-row items-stretch xs:items-center justify-between gap-2.5 text-[11px] text-slate-500 px-4 sm:px-6 shrink-0">
           <span className="flex items-center gap-1 text-[10px] sm:text-[11px]">
             <Shield className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
             <span>پرداخت امن متصل به شبکه شتاب از طریق درگاه رسمی بلوپال</span>
