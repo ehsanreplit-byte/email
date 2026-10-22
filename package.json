@@ -6,10 +6,9 @@
   "scripts": {
     "dev": "tsx server.ts",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
-    "build:vercel": "vite build && npm run build:api",
+    "build:vercel": "vite build",
     "start": "node dist/server.cjs",
-    "lint": "tsc --noEmit",
-    "build:api": "esbuild serverless/handler.ts --bundle --platform=node --format=esm --packages=external --outfile=serverless/handler.mjs"
+    "lint": "tsc --noEmit"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -50,9 +49,11 @@
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-legacy": "^8.2.3",
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.28.0",
     "tailwindcss": "^4.3.3",
+    "terser": "^5.51.2",
     "tsx": "^4.21.0",
     "typescript": "^7.0.2"
   }
