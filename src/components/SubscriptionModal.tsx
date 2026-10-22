@@ -23,18 +23,16 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
   const [selectedPlanForPayment, setSelectedPlanForPayment] = useState<SubscriptionPlan | null>(null);
   const [expandedPlanId, setExpandedPlanId] = useState<string | null>(null);
 
-  // مرحلهٔ دریافت شماره موبایل برای کاربرانی که با شناسهٔ ایتا ثبت‌نام کرده‌اند
-  const [step, setStep] = useState<'plans' | 'phone' | 'credentials'>('plans');
+  // مرحلهٔ دریافت «شماره موبایل + رمز عبور» برای کاربرانی که با شناسهٔ ایتا ثبت‌نام کرده‌اند
+  // یک فرم واحد برای همهٔ این کاربران؛ فقط اگر هر دو مورد قبلاً ثبت شده باشد مستقیم به لیست اشتراک‌ها می‌رویم.
+  const [step, setStep] = useState<'plans' | 'loading' | 'credentials'>('plans');
   const [hasCredentials, setHasCredentials] = useState<boolean>(false);
   const [credPhone, setCredPhone] = useState<string>('');
   const [credPassword, setCredPassword] = useState<string>('');
   const [credConfirm, setCredConfirm] = useState<string>('');
   const [credError, setCredError] = useState<string | null>(null);
   const [isSavingCred, setIsSavingCred] = useState<boolean>(false);
-  const [phoneInput, setPhoneInput] = useState<string>('');
   const [resolvedPhone, setResolvedPhone] = useState<string>('');
-  const [isSavingPhone, setIsSavingPhone] = useState<boolean>(false);
-  const [phoneError, setPhoneError] = useState<string | null>(null);
 
   const isEitaaAccount = Boolean(currentUser && /^eitaa[:_]/i.test(currentUser));
 
@@ -42,11 +40,13 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
     if (isOpen) {
       setPaymentUrl(null);
       setSelectedPlanForPayment(null);
-      setPhoneError(null);
+      setCredError(null);
+      setCredPassword('');
+      setCredConfirm('');
 
       if (isEitaaAccount && currentUser) {
-        // اگر شماره قبلاً ثبت شده باشد، مستقیم به لیست اشتراک‌ها می‌رویم
-        setStep('phone');
+        // تا زمان رسیدن پاسخ سرور، فرمی نمایش نمی‌دهیم تا فرم اشتباه «پرش» نکند
+        setStep('loading');
         const cached = (() => {
           try { return localStorage.getItem(`eitaa_phone_${currentUser}`) || ''; } catch { return ''; }
         })();
@@ -57,18 +57,20 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
           const creds = Boolean(res.success && res.hasCredentials);
 
           setHasCredentials(creds);
-          if (phone) setCredPhone(phone);
-          else if (res.success && res.username) setCredPhone(res.username);
+          setCredPhone(phone || (res.success && res.username) || '');
 
           if (phone) {
             setResolvedPhone(phone);
             try { localStorage.setItem(`eitaa_phone_${currentUser}`, phone); } catch {}
-            setStep(creds ? 'plans' : 'credentials');
           } else {
-            setStep('phone');
+            setResolvedPhone('');
           }
+
+          // فرم واحد: فقط وقتی شماره و رمز هر دو ثبت شده باشند از آن رد می‌شویم
+          setStep(phone && creds ? 'plans' : 'credentials');
         }).catch(() => {
-          if (cached) { setResolvedPhone(cached); setStep('credentials'); }
+          if (cached) { setResolvedPhone(cached); setCredPhone(cached); }
+          setStep('credentials');
         });
       } else {
         setStep('plans');
@@ -79,38 +81,6 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
-
-  const handleSavePhone = async () => {
-    if (!currentUser) return;
-    const clean = (phoneInput || '').replace(/[^0-9]/g, '');
-    const normalized = clean.startsWith('98') && clean.length === 12
-      ? '0' + clean.slice(2)
-      : (clean.length === 10 && clean.startsWith('9') ? '0' + clean : clean);
-
-    if (!/^09\d{9}$/.test(normalized)) {
-      setPhoneError('شماره موبایل معتبر نیست. مثال: 09121234567');
-      return;
-    }
-
-    setIsSavingPhone(true);
-    setPhoneError(null);
-    try {
-      const res = await api.eitaaSetPhone(currentUser, normalized);
-      if (res.success) {
-        const phone = res.phone || normalized;
-        setResolvedPhone(phone);
-        try { localStorage.setItem(`eitaa_phone_${currentUser}`, phone); } catch {}
-        setStep(hasCredentials ? 'plans' : 'credentials');
-        showToast('شماره موبایل با موفقیت ثبت شد.', 'success');
-      } else {
-        setPhoneError(res.error || 'خطا در ثبت شماره موبایل.');
-      }
-    } catch {
-      setPhoneError('خطا در ارتباط با سرور.');
-    } finally {
-      setIsSavingPhone(false);
-    }
-  };
 
   const fetchPlans = async () => {
     setIsLoading(true);
@@ -165,7 +135,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
         setStep('plans');
         showToast('شماره موبایل و رمز عبور ثبت شد؛ از این پس می‌توانید از سایت وارد شوید.', 'success');
       } else {
-        setCredError(res.error || 'خطا در ثبت شماره موبایل.');
+        setCredError(res.error || 'خطا در ثبت شماره موبایل و رمز عبور.');
       }
     } catch {
       setCredError('خطا در ارتباط با سرور.');
@@ -235,54 +205,53 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
 
         {/* Modal Body */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
-          {step === 'credentials' ? (
-            /* مرحلهٔ دوم: انتخاب نام کاربری و رمز عبور برای ورود از سایت */
+          {step === 'loading' ? (
+            <div className="py-16 flex flex-col items-center justify-center gap-3">
+              <RefreshCw className="w-8 h-8 text-emerald-600 animate-spin" />
+              <p className="text-xs font-semibold text-slate-600">در حال بررسی وضعیت حساب...</p>
+            </div>
+          ) : step === 'credentials' ? (
+            /* فرم واحد: شماره موبایل + رمز عبور (برای ورود از سایت و صدور فاکتور) */
             <div className="max-w-md mx-auto py-6 sm:py-10 space-y-5 text-center">
               <div className="space-y-1.5">
                 <h4 className="font-extrabold text-slate-900 text-sm sm:text-base">شماره موبایل و رمز عبور</h4>
                 <p className="text-slate-500 text-xs leading-relaxed">
-                  با شماره موبایل و رمز عبور می‌توانید علاوه بر ایتا، از طریق سایت هم وارد حساب خود شوید.
+                  برای صدور فاکتور و اتصال اشتراک به حساب شما، شماره موبایل لازم است. با همین شماره و رمز عبور می‌توانید از طریق سایت هم وارد حساب خود شوید.
                 </p>
               </div>
 
               <div className="space-y-2.5 text-right">
-                <div className="space-y-1.5">
-                  <input
-                    type="tel"
-                    inputMode="numeric"
-                    dir="ltr"
-                    autoComplete="tel"
-                    value={credPhone}
-                    onChange={(e) => { setCredPhone(e.target.value); setCredError(null); }}
-                    placeholder="09121234567"
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none text-sm font-mono text-center tracking-widest min-h-[48px]"
-                  />
-                </div>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  dir="ltr"
+                  autoComplete="tel"
+                  value={credPhone}
+                  onChange={(e) => { setCredPhone(e.target.value); setCredError(null); }}
+                  placeholder="09121234567"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none text-sm font-mono text-center tracking-widest min-h-[48px]"
+                />
 
-                <div className="space-y-1.5">
-                  <input
-                    type="password"
-                    dir="ltr"
-                    autoComplete="new-password"
-                    value={credPassword}
-                    onChange={(e) => { setCredPassword(e.target.value); setCredError(null); }}
-                    placeholder="••••••"
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none text-sm font-mono text-center min-h-[48px]"
-                  />
-                </div>
+                <input
+                  type="password"
+                  dir="ltr"
+                  autoComplete="new-password"
+                  value={credPassword}
+                  onChange={(e) => { setCredPassword(e.target.value); setCredError(null); }}
+                  placeholder="رمز عبور (حداقل ۶ کاراکتر)"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none text-sm text-center min-h-[48px]"
+                />
 
-                <div className="space-y-1.5">
-                  <input
-                    type="password"
-                    dir="ltr"
-                    autoComplete="new-password"
-                    value={credConfirm}
-                    onChange={(e) => { setCredConfirm(e.target.value); setCredError(null); }}
-                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveCredentials(); }}
-                    placeholder="••••••"
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none text-sm font-mono text-center min-h-[48px]"
-                  />
-                </div>
+                <input
+                  type="password"
+                  dir="ltr"
+                  autoComplete="new-password"
+                  value={credConfirm}
+                  onChange={(e) => { setCredConfirm(e.target.value); setCredError(null); }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleSaveCredentials(); }}
+                  placeholder="تکرار رمز عبور"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none text-sm text-center min-h-[48px]"
+                />
 
                 {credError && (
                   <p className="text-[11px] font-bold text-rose-600 text-center">{credError}</p>
@@ -301,53 +270,6 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                   </>
                 ) : (
                   <span>ذخیره و نمایش اشتراک‌ها</span>
-                )}
-              </button>
-            </div>
-          ) : step === 'phone' ? (
-            /* مرحلهٔ اول: دریافت شماره موبایل (برای کاربران ثبت‌نام‌شده با شناسهٔ ایتا) */
-            <div className="max-w-md mx-auto py-6 sm:py-10 space-y-5 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center mx-auto shadow-sm">
-                <Shield className="w-7 h-7" />
-              </div>
-
-              <div className="space-y-1.5">
-                <h4 className="font-extrabold text-slate-900 text-sm sm:text-base">شماره موبایل خود را وارد کنید</h4>
-                <p className="text-slate-500 text-xs leading-relaxed">
-                  برای صدور فاکتور و اتصال اشتراک به حساب شما، شماره موبایل لازم است.
-                </p>
-              </div>
-
-              <div className="space-y-2 text-right">
-                <label className="text-[11px] font-bold text-slate-700 block">شماره موبایل</label>
-                <input
-                  type="tel"
-                  inputMode="numeric"
-                  autoComplete="tel"
-                  dir="ltr"
-                  value={phoneInput}
-                  onChange={(e) => { setPhoneInput(e.target.value); setPhoneError(null); }}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleSavePhone(); }}
-                  placeholder="09121234567"
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none text-sm font-mono text-center tracking-widest min-h-[48px]"
-                />
-                {phoneError && (
-                  <p className="text-[11px] font-bold text-rose-600 text-center">{phoneError}</p>
-                )}
-              </div>
-
-              <button
-                onClick={handleSavePhone}
-                disabled={isSavingPhone}
-                className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white font-extrabold text-sm shadow-md shadow-indigo-600/20 transition-all disabled:opacity-60 cursor-pointer min-h-[48px] flex items-center justify-center gap-2"
-              >
-                {isSavingPhone ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>در حال ثبت شماره...</span>
-                  </>
-                ) : (
-                  <span>ادامه و نمایش اشتراک‌ها</span>
                 )}
               </button>
 
