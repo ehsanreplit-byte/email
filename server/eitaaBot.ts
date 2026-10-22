@@ -274,6 +274,11 @@ export class EitaaBotService {
       incomingToken.length > 0 &&
       !this.isMaskedToken(incomingToken);
 
+    if (shouldReplaceToken && incomingToken !== this.config.token) {
+      // با تغییر توکن، مسیر موفق قبلی دیگر معتبر نیست
+      this.preferredSendUrl = null;
+    }
+
     this.config = {
       ...this.config,
       ...newConfig,
@@ -581,152 +586,6 @@ export class EitaaBotService {
   /**
    * Sends a message through Eitaa API (EitaaYar / Bot API) with multi-strategy endpoint & encoding support
    */
-  public async sendMessage(
-    target: string | number,
-    text: string
-  ): Promise<{ success: boolean; data?: any; error?: string }> {
-    const rawToken = this.config.token || '';
-    const token = this.cleanToken(rawToken);
-
-    if (!token) {
-      return { success: false, error: 'توکن ربات ایتا تنظیم نشده است.' };
-    }
-
-    if (!target) {
-      return { success: false, error: 'شناسه چت یا شماره مقصد مشخص نیست.' };
-    }
-
-    const cleanTarget = String(target).trim();
-    let lastError = '';
-    let lastErrorCode: number | undefined;
-    const sendStartedAt = Date.now();
-    const SEND_BUDGET_MS = 20000;
-
-    // Determine comprehensive list of endpoints to try based on Eitaa Yar and Eitaa Bot standards
-    const endpointsToTry: string[] = [
-      `https://eitaayar.ir/api/${token}/sendMessage`,
-      `https://eitaayar.ir/api/bot${token}/sendMessage`,
-      `https://eitaayar.ir/api/bot/${token}/sendMessage`,
-      `https://eitaayar.ir/api/app/${token}/sendMessage`,
-      'https://eitaayar.ir/api/bot/sendMessage',
-      'https://eitaayar.ir/api/app/sendMessage',
-      'https://eitaayar.ir/api/sendMessage'
-    ];
-
-    // آدرس موفقی که قبلاً کار کرده را اول امتحان کن (کاهش تأخیر ارسال)
-    const orderedEndpoints = this.preferredSendUrl
-      ? [this.preferredSendUrl, ...endpointsToTry.filter((u) => u !== this.preferredSendUrl)]
-      : endpointsToTry;
-
-    for (const url of orderedEndpoints) {
-      if (Date.now() - sendStartedAt > SEND_BUDGET_MS) {
-        lastError = lastError || 'زمان ارسال پیام به ایتا به پایان رسید.';
-        break;
-      }
-      try {
-        // Strategy A: URLSearchParams (Form URL-Encoded)
-        const params = new URLSearchParams();
-        params.append('token', token);
-        params.append('chat_id', cleanTarget);
-        params.append('text', text);
-        params.append('date', Math.floor(Date.now() / 1000).toString());
-
-        const resForm = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-          },
-          body: params.toString(),
-          signal: AbortSignal.timeout(8000)
-        });
-
-        const json = await resForm.json().catch(() => null);
-        if (json) {
-          if (json.ok === true || json.status === true || json.result === 'success') {
-            this.preferredSendUrl = url;
-            console.log(`[EitaaBot] Successfully delivered message to ${cleanTarget} via ${url}`);
-            return { success: true, data: json };
-          }
-
-          // Extract detailed error from Eitaa result object or description
-          const errorMsg = 
-            json.result?.message || 
-            json.result?.text || 
-            json.description || 
-            json.error || 
-            json.message;
-
-          if (errorMsg) {
-            lastError = String(errorMsg);
-            lastErrorCode = json.error_code || (json.result?.text === '403' ? 403 : undefined);
-
-            // If Eitaa specifically replied about write access or app recognition, don't fallback to generic endpoints!
-            if (lastError.includes('not allow write access') || lastError.includes('chat_id') || lastError.includes('app_id')) {
-              const humanError = this.formatEitaaError(lastError, cleanTarget, lastErrorCode);
-              console.log(`[EitaaBot] Eitaa API recognized token but access restricted: ${lastError}`);
-              return { success: false, error: humanError, data: json };
-            }
-          }
-        }
-
-        // Strategy B: JSON Body (if form gave generic error)
-        const jsonBody = {
-          token: token,
-          chat_id: cleanTarget,
-          text: text,
-          date: Math.floor(Date.now() / 1000)
-        };
-
-        const resJson = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json; charset=UTF-8',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-          },
-          body: JSON.stringify(jsonBody),
-          signal: AbortSignal.timeout(8000)
-        });
-
-        const jsonResData = await resJson.json().catch(() => null);
-        if (jsonResData) {
-          if (jsonResData.ok === true || jsonResData.status === true || jsonResData.result === 'success') {
-            this.preferredSendUrl = url;
-            console.log(`[EitaaBot] Successfully delivered message to ${cleanTarget} via ${url} (json)`);
-            return { success: true, data: jsonResData };
-          }
-
-          const errorMsg = 
-            jsonResData.result?.message || 
-            jsonResData.result?.text || 
-            jsonResData.description || 
-            jsonResData.error || 
-            jsonResData.message;
-
-          if (errorMsg) {
-            lastError = String(errorMsg);
-            lastErrorCode = jsonResData.error_code || (jsonResData.result?.text === '403' ? 403 : undefined);
-
-            if (lastError.includes('not allow write access') || lastError.includes('chat_id') || lastError.includes('app_id')) {
-              const humanError = this.formatEitaaError(lastError, cleanTarget, lastErrorCode);
-              return { success: false, error: humanError, data: jsonResData };
-            }
-          }
-        }
-      } catch (err: any) {
-        console.warn(`[EitaaBot] Attempt failed on ${url}:`, err?.message);
-        lastError = err?.message || lastError;
-      }
-    }
-
-    const humanError = this.formatEitaaError(lastError, cleanTarget, lastErrorCode);
-    console.warn(`[EitaaBot] Delivery failed for ${cleanTarget}: ${lastError} (${humanError})`);
-    return { success: false, error: humanError };
-  }
-
-  /**
-   * Robustly extracts user ID, chat ID, first name, and username from multiple possible Eitaa/Telegram WebApp payload formats
-   */
   public extractUserDetails(
     phone: string,
     userData?: any,
@@ -819,8 +678,136 @@ export class EitaaBotService {
   }
 
   /**
-   * Sends a message to a user, automatically trying chat_id, numeric user id, and phone number variants
+   * توکن‌های «برنامک/ربات» ایتا به شکل `<bot_id>:<secret>` هستند و باید در بدنهٔ درخواست
+   * به `https://eitaayar.ir/api/app/sendMessage` فرستاده شوند؛ نه در مسیر URL.
    */
+  public isAppToken(token?: string): boolean {
+    const value = String(token ?? this.config.token ?? '').trim();
+    return /^\d+:[^\s]+$/.test(value);
+  }
+
+  public async sendMessage(
+    target: string | number,
+    text: string
+  ): Promise<{ success: boolean; data?: any; error?: string }> {
+    const rawToken = this.config.token || '';
+    const token = this.cleanToken(rawToken);
+
+    if (!token) {
+      return { success: false, error: 'توکن ربات ایتا تنظیم نشده است.' };
+    }
+
+    if (!target) {
+      return { success: false, error: 'شناسه چت یا شماره مقصد مشخص نیست.' };
+    }
+
+    const cleanTarget = String(target).trim();
+    const isAppToken = this.isAppToken(token);
+
+    // توکن برنامک ایتا فقط «ایتا آیدی عددی» را می‌پذیرد، نه شماره موبایل
+    if (isAppToken && /^(\+?98|0)?9\d{9}$/.test(cleanTarget)) {
+      return {
+        success: false,
+        error: 'این توکن از نوع «برنامک/ربات» ایتاست و ارسال با شماره موبایل را پشتیبانی نمی‌کند. مقصد باید ایتا آیدی عددی کاربر باشد (مثلاً 123456789).'
+      };
+    }
+
+    // توکن ممکن است شامل کاراکترهایی مثل # % { } باشد؛ بدون encode، URL خراب می‌شود.
+    const encodedToken = encodeURIComponent(token);
+
+    const appEndpoint = 'https://eitaayar.ir/api/app/sendMessage';
+    const pathEndpoints = [
+      `https://eitaayar.ir/api/${encodedToken}/sendMessage`,
+      `https://eitaayar.ir/api/bot${encodedToken}/sendMessage`,
+      `https://eitaayar.ir/api/bot/${encodedToken}/sendMessage`
+    ];
+    const genericEndpoints = [
+      'https://eitaayar.ir/api/bot/sendMessage',
+      'https://eitaayar.ir/api/app/sendMessage',
+      'https://eitaayar.ir/api/sendMessage'
+    ];
+
+    const baseEndpoints = isAppToken
+      ? [appEndpoint, ...pathEndpoints, ...genericEndpoints]
+      : [...pathEndpoints, appEndpoint, ...genericEndpoints];
+
+    // آدرس موفقی که قبلاً کار کرده را اول امتحان کن (کاهش تأخیر ارسال)
+    const orderedEndpoints = this.preferredSendUrl
+      ? [this.preferredSendUrl, ...baseEndpoints.filter((u) => u !== this.preferredSendUrl)]
+      : baseEndpoints;
+
+    let lastError = '';
+    let lastErrorCode: number | undefined;
+    const sendStartedAt = Date.now();
+    const SEND_BUDGET_MS = isAppToken ? 12000 : 20000;
+
+    const buildBody = (asJson: boolean) => {
+      const payload: Record<string, string | number> = {
+        token,
+        chat_id: cleanTarget,
+        text,
+        date: Math.floor(Date.now() / 1000)
+      };
+      if (asJson) return JSON.stringify(payload);
+      return new URLSearchParams(Object.entries(payload).map(([k, v]) => [k, String(v)])).toString();
+    };
+
+    for (const url of orderedEndpoints) {
+      if (Date.now() - sendStartedAt > SEND_BUDGET_MS) {
+        lastError = lastError || 'زمان ارسال پیام به ایتا به پایان رسید.';
+        break;
+      }
+
+      for (const asJson of [true, false]) {
+        try {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': asJson ? 'application/json; charset=UTF-8' : 'application/x-www-form-urlencoded; charset=UTF-8',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            },
+            body: buildBody(asJson),
+            signal: AbortSignal.timeout(8000)
+          });
+
+          const rawBody = await res.text().catch(() => '');
+          let json: any = null;
+          try { json = rawBody ? JSON.parse(rawBody) : null; } catch { json = null; }
+
+          if (json && (json.ok === true || json.status === true || json.result === 'success')) {
+            this.preferredSendUrl = url;
+            console.log(`[EitaaBot] Successfully delivered message to ${cleanTarget} via ${url} (${asJson ? 'json' : 'form'})`);
+            return { success: true, data: json };
+          }
+
+          const errorMsg =
+            json?.result?.message ||
+            json?.result?.text ||
+            json?.description ||
+            json?.error ||
+            json?.message ||
+            (rawBody && rawBody.length < 300 ? rawBody : '');
+
+          if (errorMsg) {
+            lastError = String(errorMsg);
+            lastErrorCode = json?.error_code || (json?.result?.text === '403' ? 403 : undefined);
+
+            // خطاهای مربوط به دسترسی/شناسه را با اندپوینت‌های دیگر تکرار نکن
+            if (/not allow write access|chat_id|app_id/i.test(lastError)) {
+              return { success: false, error: this.formatEitaaError(lastError, cleanTarget, lastErrorCode), data: json };
+            }
+          }
+        } catch (err: any) {
+          lastError = err?.message || lastError;
+        }
+      }
+    }
+
+    const humanError = this.formatEitaaError(lastError, cleanTarget, lastErrorCode);
+    console.warn(`[EitaaBot] Delivery failed for ${cleanTarget}: ${lastError} (${humanError})`);
+    return { success: false, error: humanError };
+  }
+
   public async sendMessageToUser(
     user: EitaaRegisteredUser | string,
     text: string
@@ -843,39 +830,61 @@ export class EitaaBotService {
       }
     };
 
+    const isAppToken = this.isAppToken();
+    const isEitaaNumericId = (value?: string | number) => {
+      const str = String(value ?? '').trim();
+      return /^\d{5,12}$/.test(str) && !str.startsWith('09');
+    };
+
     // 1. Primary Chat ID if it exists and is not equal to phone
     if (user.chatId && user.chatId !== user.phone) {
       addTarget(user.chatId);
     }
 
-    // 2. Numeric User ID
+    // 2. Numeric User ID (شناسهٔ ایتا)
     if (user.id) {
       addTarget(user.id);
     }
 
-    // 3. User Phone as 09...
-    const cleanPhone = user.phone ? user.phone.trim() : '';
-    if (cleanPhone) {
-      addTarget(cleanPhone);
-      // 4. Iranian country code 989...
-      if (cleanPhone.startsWith('09')) {
-        addTarget(`98${cleanPhone.slice(1)}`);
-        addTarget(`+98${cleanPhone.slice(1)}`);
+    if (isAppToken) {
+      // API برنامک ایتا فقط «ایتا آیدی» عددی کاربر را می‌پذیرد؛ شماره موبایل بی‌فایده است
+      if (user.chatId && isEitaaNumericId(user.chatId)) {
+        addTarget(user.chatId);
+      }
+      if (user.username) addTarget(user.username);
+      // 3. Raw numeric chatId only when it looks like an Eitaa id
+      targetsToTry.splice(
+        0,
+        targetsToTry.length,
+        ...targetsToTry.filter((t) => isEitaaNumericId(t) || t === user.username)
+      );
+    } else {
+      // 3. User Phone as 09...
+      const cleanPhone = user.phone ? user.phone.trim() : '';
+      if (cleanPhone) {
+        addTarget(cleanPhone);
+        // 4. Iranian country code 989...
+        if (cleanPhone.startsWith('09')) {
+          addTarget(`98${cleanPhone.slice(1)}`);
+          addTarget(`+98${cleanPhone.slice(1)}`);
+        }
+      }
+
+      // 5. Fallback to raw chatId
+      if (user.chatId) {
+        addTarget(user.chatId);
+      }
+
+      // 6. Username
+      if (user.username) {
+        addTarget(`@${user.username}`);
+        addTarget(user.username);
       }
     }
 
-    // 5. Fallback to raw chatId
-    if (user.chatId) {
-      addTarget(user.chatId);
-    }
-
-    // 6. Username
-    if (user.username) {
-      addTarget(`@${user.username}`);
-      addTarget(user.username);
-    }
-
-    let lastError = 'هیچ مقصدی برای ارسال یافت نشد.';
+    let lastError = isAppToken
+      ? 'برای توکن برنامک ایتا، شناسهٔ عددی کاربر (ایتا آیدی) لازم است؛ این کاربر هنوز ایتا آیدی عددی ثبت‌شده ندارد.'
+      : 'هیچ مقصدی برای ارسال یافت نشد.';
     for (const target of targetsToTry) {
       console.log(`[EitaaBot] Attempting delivery to candidate target '${target}' for user ${user.phone}...`);
       const res = await this.sendMessage(target, text);
@@ -1171,6 +1180,7 @@ export class EitaaBotService {
     return {
       isEnabled: this.config.isEnabled,
       tokenConfigured: Boolean(this.config.token && this.config.token.trim().length > 5),
+      tokenType: this.isAppToken() ? 'app' : (this.config.token && this.config.token.trim() ? 'channel' : 'none'),
       tokenLength: this.config.token ? this.config.token.trim().length : 0,
       usersCount: this.users.size,
       mappedEmails: this.emailToPhoneMap.size,
