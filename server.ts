@@ -2216,9 +2216,10 @@ async function startServer() {
     }
   });
 
-  app.post('/api/admin/delete-user-emails', requireAdmin, (req, res) => {
+  app.post('/api/admin/delete-user-emails', requireAdmin, async (req, res) => {
     try {
       const { source, userId, phone, chatId, email } = req.body || {};
+      res.setHeader('Cache-Control', 'no-store');
       const rawUserId = userId ? String(userId).trim() : '';
       const rawUser = phone || rawUserId.replace(/^eitaa[:_]/i, '').replace('web_', '').replace('tg_', '');
       const cleanPhone = extractValidPhoneNumber(rawUser) || formatIranianMobile(rawUser);
@@ -2281,8 +2282,16 @@ async function startServer() {
         }
       }
 
+      // اطمینان از پایدار شدن حذف در MongoDB قبل از پاسخ
+      try {
+        await storage.flush();
+      } catch (e) {
+        console.error('[DeleteUserEmails] storage.flush failed:', e);
+      }
+
       res.json({
         success: true,
+        deletedEmails: clearedEmails.length,
         message: email 
           ? 'ایمیل انتخاب شده با موفقیت حذف گردید.'
           : 'تمامی ایمیل‌های ساخته شده برای این کاربر با موفقیت به طور کامل از سیستم و دیتابیس حذف شدند.',
@@ -2294,12 +2303,14 @@ async function startServer() {
     }
   });
 
-  app.post('/api/admin/delete-user', requireAdmin, (req, res) => {
+  app.post('/api/admin/delete-user', requireAdmin, async (req, res) => {
     try {
       const { source, userId, phone, chatId, email } = req.body || {};
       if (!source) {
         return res.status(400).json({ success: false, error: 'منبع کاربر الزامی است.' });
       }
+
+      res.setHeader('Cache-Control', 'no-store');
 
       const rawSource = String(source);
       const isEitaa = rawSource === 'eitaa' || rawSource === 'telegram_eitaa';
@@ -2317,64 +2328,87 @@ async function startServer() {
       let eitaaIdentifier = '';
       if (/^eitaa[:_]/i.test(rawUserId)) eitaaIdentifier = rawUserId;
       else if (cleanPhone) eitaaIdentifier = cleanPhone;
-      else if (rawUserId) eitaaIdentifier = rawUserId.replace(/^eitaa_/, '');
-      else if (chatId) eitaaIdentifier = String(chatId);
+      else if (rawUserId && !rawUserId.startsWith('phone_') && !rawUserId.startsWith('web_')) {
+        eitaaIdentifier = rawUserId.replace(/^eitaa_/, '');
+      } else if (chatId) eitaaIdentifier = String(chatId);
 
-      let clearedEmails: string[] = [];
-      let handled = false;
+      const clearedEmails = new Set<string>();
+      let removedUsers = 0;
 
       // 1) حذف کاربر ایتا (شامل کاربران ثبت‌نام‌شده با شناسه، بدون شماره تلفن)
-      if (isEitaa && eitaaIdentifier) {
-        const removed = eitaaBotService.deleteUser(eitaaIdentifier);
-        clearedEmails.push(...removed);
-        handled = true;
+      if (isEitaa) {
+        const candidates = [eitaaIdentifier, rawUserId.replace(/^eitaa[:_]/i, ''), numericChatId ? String(numericChatId) : '', cleanPhone]
+          .filter(Boolean) as string[];
 
-        subscriptionStore.deleteSubscriptionsByUserInfo(0, cleanPhone || eitaaIdentifier);
-
-        // تلاش مکمل: اگر شناسه عددی هم موجود است، همان را هم پاک کن
-        if (numericChatId) {
-          const removedById = eitaaBotService.deleteUser(String(numericChatId));
-          clearedEmails.push(...removedById);
+        for (const candidate of Array.from(new Set(candidates))) {
+          const removed = eitaaBotService.deleteUser(candidate);
+          if (removed.length > 0) {
+            removedUsers++;
+            removed.forEach((em) => clearedEmails.add(em));
+          }
         }
+
+        subscriptionStore.deleteSubscriptionsByUserInfo(0, cleanPhone || eitaaIdentifier || undefined);
       }
 
-      // 2) حذف کاربر تلگرام
-      if (isTelegram && numericChatId) {
-        clearedEmails.push(...telegramBotService.deleteUser(numericChatId));
-        ticketStore.deleteTicketsByChatId(numericChatId);
-        subscriptionStore.deleteSubscriptionsByUserInfo(numericChatId, cleanPhone || undefined);
-        handled = true;
+      // 2) حذف کاربر تلگرام (حتی اگر کاربر ترکیبی تلگرام+ایتا باشد)
+      if (isTelegram || cleanPhone) {
+        const tgTargets = new Set<number>();
+        if (isTelegram && numericChatId) tgTargets.add(numericChatId);
+
+        // پیدا کردن کاربر تلگرام از روی شماره یا ایمیل هم برای اطمینان
+        const tgByPhone = cleanPhone ? telegramBotService.getUserByPhone(cleanPhone) : undefined;
+        if (tgByPhone?.chatId) tgTargets.add(tgByPhone.chatId);
+
+        for (const targetChatId of tgTargets) {
+          const removed = telegramBotService.deleteUser(targetChatId);
+          if (removed.length > 0) removedUsers++;
+          removed.forEach((em) => clearedEmails.add(em));
+          ticketStore.deleteTicketsByChatId(targetChatId);
+          subscriptionStore.deleteSubscriptionsByUserInfo(targetChatId, cleanPhone || undefined);
+        }
       }
 
       // 3) کاربر وب
       if (isWeb) {
         const targetEmail = String(email || rawUserId.replace('web_', '')).toLowerCase().trim();
-        if (targetEmail) {
-          clearedEmails.push(targetEmail);
-        }
-        handled = true;
+        if (targetEmail) clearedEmails.add(targetEmail);
       }
 
-      if (!handled) {
-        return res.status(400).json({
-          success: false,
-          error: 'شناسه یا منبع کاربر برای حذف شناسایی نشد.'
-        });
-      }
+      // 4) حذف واقعی صندوق‌ها و پیام‌ها از استوریج (فایل داخلی + MongoDB)
+      const uniqueEmails = Array.from(clearedEmails)
+        .map((e) => String(e).toLowerCase().trim())
+        .filter(Boolean);
 
-      // حذف ایمیل‌ها و صندوق‌های واقعی
-      const uniqueEmails = Array.from(new Set(clearedEmails.map((e) => String(e).toLowerCase().trim()).filter(Boolean)));
       for (const em of uniqueEmails) {
         try {
           emailStore.removeEmailFromDatabase(em);
+          emailStore.deleteInbox(em);
         } catch (e) {
           console.error(`Failed to completely delete email ${em} from store:`, e);
         }
       }
 
+      // 5) اطمینان از نوشته شدن تغییرات در MongoDB پیش از پایان درخواست
+      // (در Vercel پس از پاسخ، نمونه ممکن است فریز شود و نوشتن‌های صف‌شده از دست بروند)
+      try {
+        await storage.flush();
+      } catch (e) {
+        console.error('[DeleteUser] storage.flush failed:', e);
+      }
+
+      if (removedUsers === 0 && uniqueEmails.length === 0) {
+        return res.status(404).json({
+          success: false,
+          error: 'کاربر در دیتابیس یافت نشد (ممکن است قبلاً حذف شده باشد).'
+        });
+      }
+
       res.json({
         success: true,
+        removedUsers,
         deletedEmails: uniqueEmails.length,
+        deletedEmailList: uniqueEmails,
         message: 'کاربر به همراه تمام ایمیل‌ها، تیکت‌ها و اشتراک‌ها با موفقیت به طور کامل حذف شد.'
       });
     } catch (err: any) {
