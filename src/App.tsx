@@ -336,47 +336,94 @@ export default function App() {
   }, []);
 
   // 2. Fetch Messages for All User Inboxes (30-day retention)
+  // مراجع پایدار برای جلوگیری از بازسازی بی‌پایان تایمر و حلقهٔ رفرش
+  const inboxesRef = useRef(inboxes);
+  useEffect(() => {
+    inboxesRef.current = inboxes;
+  }, [inboxes]);
+
+  const currentInboxRef = useRef(currentInbox);
+  useEffect(() => {
+    currentInboxRef.current = currentInbox;
+  }, [currentInbox]);
+
+  // شمارهٔ درخواست برای نادیده گرفتن پاسخ‌های قدیمی (جلوگیری از بازنویسی لیست جدید)
+  const fetchSeqRef = useRef(0);
+
   const fetchInboxMessages = useCallback(async (isManual = false) => {
     const authed = localStorage.getItem('admin_auth_user') || sessionStorage.getItem('admin_auth_user') || undefined;
-    
-    let currentInboxesList = [...inboxes];
+    const seq = ++fetchSeqRef.current;
+    const isStale = () => seq !== fetchSeqRef.current;
+
+    let currentInboxesList = [...inboxesRef.current];
     if (authed) {
       try {
         const syncRes = await api.syncUserInboxes(authed);
+        if (isStale()) return;
+
         if (syncRes.success && Array.isArray(syncRes.inboxes)) {
           const fetchedInboxes = syncRes.inboxes;
           const userInboxesKey = `tempmail_inboxes_${authed}`;
-          const prevEmails = inboxes.map(i => i.email).sort().join(',');
-          const nextEmails = fetchedInboxes.map(i => i.email).sort().join(',');
-          // Also refresh when unread/total counts change (not only when the
-          // list of inboxes changes), otherwise the counters stay stale.
-          const countsChanged = fetchedInboxes.some((fi) => {
-            const ex = inboxes.find(i => i.email.trim().toLowerCase() === fi.email.trim().toLowerCase());
+
+          // ایمیل‌هایی که همین چند لحظه پیش ساخته شده‌اند ممکن است هنوز در سرور
+          // به حساب کاربر وصل نشده باشند؛ آن‌ها را از لیست حذف نمی‌کنیم.
+          const RECENT_MS = 2 * 60 * 1000;
+          const now = Date.now();
+          const recentLocal = inboxesRef.current.filter((ib) => {
+            const created = new Date(ib.createdAt).getTime();
+            return !isNaN(created) && now - created < RECENT_MS;
+          });
+
+          const seen = new Set<string>();
+          const merged: typeof fetchedInboxes = [];
+          for (const ib of fetchedInboxes) {
+            const key = (ib.email || '').trim().toLowerCase();
+            if (!key || seen.has(key)) continue;
+            seen.add(key);
+            merged.push(ib);
+          }
+          for (const ib of recentLocal) {
+            const key = (ib.email || '').trim().toLowerCase();
+            if (!key || seen.has(key)) continue;
+            seen.add(key);
+            merged.push(ib);
+          }
+
+          const prevEmails = inboxesRef.current.map((i) => i.email.trim().toLowerCase()).sort().join(',');
+          const nextEmails = merged.map((i) => i.email.trim().toLowerCase()).sort().join(',');
+          const countsChanged = merged.some((fi) => {
+            const ex = inboxesRef.current.find(
+              (i) => i.email.trim().toLowerCase() === fi.email.trim().toLowerCase()
+            );
             return !ex || (ex.unreadCount || 0) !== (fi.unreadCount || 0) || (ex.totalCount || 0) !== (fi.totalCount || 0);
           });
 
           if (prevEmails !== nextEmails || countsChanged) {
-            currentInboxesList = fetchedInboxes;
+            currentInboxesList = merged;
 
             if (prevEmails !== nextEmails) {
-              localStorage.setItem(userInboxesKey, JSON.stringify(fetchedInboxes));
-              localStorage.setItem('tempmail_inboxes', JSON.stringify(fetchedInboxes));
+              localStorage.setItem(userInboxesKey, JSON.stringify(merged));
+              localStorage.setItem('tempmail_inboxes', JSON.stringify(merged));
               setCurrentInbox((curr) => {
-                if (!curr) return fetchedInboxes[0] || null;
-                const isStillValid = fetchedInboxes.some(i => i.email === curr.email);
-                return isStillValid ? curr : (fetchedInboxes[0] || null);
+                if (!curr) return merged[0] || null;
+                const isStillValid = merged.some((i) => i.email === curr.email);
+                return isStillValid ? curr : (merged[0] || null);
               });
             }
 
-            setInboxes(fetchedInboxes);
+            setInboxes(merged);
+          }
 
-            if (syncRes.remainingEmails !== undefined && syncRes.limit !== undefined) {
-              setUserQuota({
-                limit: syncRes.limit,
-                totalUsed: syncRes.totalUsed ?? (syncRes.limit - syncRes.remainingEmails),
-                remaining: syncRes.remainingEmails
-              });
-            }
+          if (syncRes.remainingEmails !== undefined && syncRes.limit !== undefined) {
+            setUserQuota((prev) => {
+              const nextLimit = syncRes.limit as number;
+              const nextUsed = syncRes.totalUsed ?? (nextLimit - (syncRes.remainingEmails as number));
+              const nextRemaining = syncRes.remainingEmails as number;
+              if (prev && prev.limit === nextLimit && prev.totalUsed === nextUsed && prev.remaining === nextRemaining) {
+                return prev;
+              }
+              return { limit: nextLimit, totalUsed: nextUsed, remaining: nextRemaining };
+            });
           }
         }
       } catch (syncErr) {
@@ -384,17 +431,19 @@ export default function App() {
       }
     }
 
-    if (!currentInbox && currentInboxesList.length === 0) return;
+    const activeInbox = currentInboxRef.current;
+    if (!activeInbox && currentInboxesList.length === 0) return;
     if (isManual) setIsRefreshing(true);
 
     try {
-      const allEmails = currentInboxesList.map(i => i.email);
-      if (currentInbox?.email && !allEmails.includes(currentInbox.email)) {
-        allEmails.push(currentInbox.email);
+      const allEmails = currentInboxesList.map((i) => i.email);
+      if (activeInbox?.email && !allEmails.includes(activeInbox.email)) {
+        allEmails.push(activeInbox.email);
       }
 
       const msgs = await api.getMessagesForUser(allEmails, authed);
-      
+      if (isStale()) return;
+
       // Check for new incoming emails to trigger sound and toast alert
       if (prevMessageCountRef.current > 0 && msgs.length > prevMessageCountRef.current) {
         const newest = msgs[0];
@@ -416,19 +465,22 @@ export default function App() {
     } catch (err) {
       console.warn('Failed to fetch messages:', err);
     } finally {
-      if (isManual) setIsRefreshing(false);
-      setIsLoadingMessages(false);
+      if (!isStale()) {
+        if (isManual) setIsRefreshing(false);
+        setIsLoadingMessages(false);
+      }
     }
-  }, [currentInbox, inboxes, showToast]);
+  }, [showToast]);
 
-  // Trigger fetch when current inbox changes
+  // Trigger fetch only when the selected inbox actually changes
   useEffect(() => {
-    if (currentInbox) {
+    if (currentInbox?.email) {
       setIsLoadingMessages(true);
       prevMessageCountRef.current = 0;
       fetchInboxMessages(true);
     }
-  }, [currentInbox, fetchInboxMessages]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentInbox?.email, fetchInboxMessages]);
 
   // 3. Auto Refresh Timer Countdown
   useEffect(() => {
