@@ -362,12 +362,25 @@ export default function App() {
     currentInboxRef.current = currentInbox;
   }, [currentInbox]);
 
+  // مرجع کاربر جاری: منبع اصلی، state است (نه storage) تا در WebView های محدود هم از دست نرود
+  const userRef = useRef<string | null>(currentUser);
+  useEffect(() => {
+    userRef.current = currentUser;
+  }, [currentUser]);
+
+  const resolveAccountKey = useCallback((): string | undefined => {
+    const fromState = userRef.current;
+    if (fromState && fromState !== 'admin') return fromState;
+    const fromHelper = api.getActiveAccount();
+    return fromHelper || undefined;
+  }, []);
+
   // شمارهٔ درخواست برای نادیده گرفتن پاسخ‌های قدیمی (جلوگیری از بازنویسی لیست جدید)
   const fetchSeqRef = useRef(0);
 
   // syncList=false یعنی فقط پیام‌ها را بگیر و لیست ایمیل‌ها را دست نزن (جلوگیری از پرش لیست)
   const fetchInboxMessages = useCallback(async (isManual = false, syncList = true) => {
-    const authed = localStorage.getItem('admin_auth_user') || sessionStorage.getItem('admin_auth_user') || undefined;
+    const authed = resolveAccountKey();
     const seq = ++fetchSeqRef.current;
     const isStale = () => seq !== fetchSeqRef.current;
 
@@ -555,7 +568,7 @@ export default function App() {
   const handleCreateNewEmail = async () => {
     try {
       setIsRefreshing(true);
-      const authed = localStorage.getItem('admin_auth_user') || sessionStorage.getItem('admin_auth_user') || undefined;
+      const authed = resolveAccountKey();
 
       // Apply unified emails limit for registered users
       if (authed && isLimitReached) {
@@ -565,6 +578,12 @@ export default function App() {
       }
 
       const newInbox = await api.createInbox(undefined, undefined, undefined, authed);
+
+      // اگر کاربر وارد شده باشد ولی ایمیل به حسابش متصل نشده باشد، یعنی مالک ثبت نشده
+      if (authed && (newInbox as any).owner === null) {
+        console.error('[CreateInbox] Created without owner; account key was not accepted by server.');
+        showToast('هشدار: ایمیل به حساب شما متصل نشد. لطفاً دوباره وارد شوید.', 'error');
+      }
       // با ساخت ایمیل جدید، ایمیل‌های قبلی همین حساب فوراً منقضی می‌شوند (هم سمت سرور، هم در UI)
       const nowIso = new Date().toISOString();
       const updated = !authed
@@ -709,6 +728,7 @@ export default function App() {
   };
 
   const handleLogout = async () => {
+    api.setActiveAccount(null);
     localStorage.removeItem('admin_is_authenticated');
     sessionStorage.removeItem('admin_is_authenticated');
     localStorage.removeItem('admin_auth_user');
@@ -747,6 +767,7 @@ export default function App() {
       : (/^eitaa[:_]/i.test(user) ? user : (extractValidPhoneNumber(user) || user));
     setIsAuthenticated(true);
     setCurrentUser(cleanUser);
+    api.setActiveAccount(cleanUser);
     localStorage.setItem('admin_auth_user', cleanUser);
     localStorage.setItem('admin_is_authenticated', 'true');
     sessionStorage.setItem('admin_auth_user', cleanUser);
