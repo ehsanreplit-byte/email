@@ -7716,9 +7716,34 @@ Sitemap: ${baseUrl}/sitemap.xml
     app.use(vite.middlewares);
   } else {
     const distPath = path2.join(process.cwd(), "dist");
+    const assetsPath = path2.join(distPath, "assets");
     app.use(express.static(distPath));
+    const serveStaleAsset = (req, res) => {
+      try {
+        const file = path2.basename(String(req.path || ""));
+        const ext = path2.extname(file);
+        if (!ext) return res.status(404).end();
+        const withoutExt = file.slice(0, -ext.length);
+        const base = withoutExt.replace(/-[A-Za-z0-9_.]+$/, "");
+        if (!base) return res.status(404).end();
+        const candidates = fs2.readdirSync(assetsPath).filter((f) => f.startsWith(`${base}-`) && f.endsWith(ext)).sort();
+        if (candidates.length === 0) return res.status(404).end();
+        const chosen = candidates[candidates.length - 1];
+        res.setHeader("Cache-Control", "no-store");
+        res.setHeader(
+          "Content-Type",
+          ext === ".css" ? "text/css; charset=utf-8" : "application/javascript; charset=utf-8"
+        );
+        return res.sendFile(path2.join(assetsPath, chosen));
+      } catch {
+        return res.status(404).end();
+      }
+    };
+    app.get(/^\/assets\/[A-Za-z0-9_.-]+\.(js|css)$/, serveStaleAsset);
     app.get("*", (req, res) => {
-      res.sendFile(path2.join(distPath, "index.html"));
+      res.sendFile(path2.join(distPath, "index.html"), {
+        headers: { "Cache-Control": "no-store, max-age=0, must-revalidate" }
+      });
     });
   }
   return app;
