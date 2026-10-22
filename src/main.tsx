@@ -4,6 +4,8 @@ import App from './App.tsx';
 import './index.css';
 
 const container = document.getElementById('root')!;
+// deploy-marker: eitaa page restored to the original phone flow
+
 
 createRoot(container).render(
   <StrictMode>
