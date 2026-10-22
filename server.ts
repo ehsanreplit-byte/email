@@ -51,6 +51,7 @@ async function startServer() {
   telegramBotService.loadConfig();
   eitaaBotService.loadUsers();
   eitaaBotService.loadConfig();
+  eitaaBotService.persistPendingConfig();
 
   // ساخت پاسخ نشست کاربر برای پنل کاربری (بر اساس کلید حساب: شماره تلفن یا eitaa:<id>)
   const buildEitaaSessionPayload = (accountKey: string) => {
