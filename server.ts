@@ -2295,9 +2295,16 @@ async function startServer() {
         const base = withoutExt.replace(/-[A-Za-z0-9_.]+$/, '');
         if (!base) return res.status(404).end();
 
+        // Keep modern and legacy bundles apart: a legacy chunk is a SystemJS
+        // module and must never be served in place of a normal ES module.
+        const wantsLegacy = withoutExt.includes('-legacy');
         const candidates = fs
           .readdirSync(assetsPath)
-          .filter((f) => f.startsWith(`${base}-`) && f.endsWith(ext))
+          .filter((f) => {
+            if (!f.startsWith(`${base}-`) || !f.endsWith(ext)) return false;
+            const isLegacyFile = f.includes('-legacy-');
+            return wantsLegacy ? isLegacyFile : !isLegacyFile;
+          })
           .sort();
 
         if (candidates.length === 0) return res.status(404).end();
