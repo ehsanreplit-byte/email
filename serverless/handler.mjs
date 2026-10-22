@@ -2419,6 +2419,10 @@ var EitaaBotService = class {
     /** ایندکس شناسه ایتا → کلید حساب کاربر در users */
     this.eitaaIdIndex = /* @__PURE__ */ new Map();
     this.lastUsersRefreshAt = 0;
+    /** آدرس API ای که آخرین بار موفق بود (برای ارسال سریع‌تر) */
+    this.preferredSendUrl = null;
+    /** شناسهٔ پیام‌هایی که اعلانشان ارسال شده (جلوگیری از ارسال تکراری) */
+    this.recentNotificationIds = /* @__PURE__ */ new Set();
     this.loadConfig();
     this.loadUsers();
     emailStore.onNewMessage((email, message) => {
@@ -2775,7 +2779,8 @@ var EitaaBotService = class {
       "https://eitaayar.ir/api/app/sendMessage",
       "https://eitaayar.ir/api/sendMessage"
     ];
-    for (const url of endpointsToTry) {
+    const orderedEndpoints = this.preferredSendUrl ? [this.preferredSendUrl, ...endpointsToTry.filter((u) => u !== this.preferredSendUrl)] : endpointsToTry;
+    for (const url of orderedEndpoints) {
       try {
         const params = new URLSearchParams();
         params.append("token", token);
@@ -2793,6 +2798,7 @@ var EitaaBotService = class {
         const json = await resForm.json().catch(() => null);
         if (json) {
           if (json.ok === true || json.status === true || json.result === "success") {
+            this.preferredSendUrl = url;
             console.log(`[EitaaBot] Successfully delivered message to ${cleanTarget} via ${url}`);
             return { success: true, data: json };
           }
@@ -2824,6 +2830,7 @@ var EitaaBotService = class {
         const jsonResData = await resJson.json().catch(() => null);
         if (jsonResData) {
           if (jsonResData.ok === true || jsonResData.status === true || jsonResData.result === "success") {
+            this.preferredSendUrl = url;
             console.log(`[EitaaBot] Successfully delivered message to ${cleanTarget} via ${url} (json)`);
             return { success: true, data: jsonResData };
           }
@@ -3089,6 +3096,10 @@ var EitaaBotService = class {
     console.log(`[EitaaBot] Eitaa-ID login ${eitaaId} -> key ${accountKey} (new: ${isNew})`);
     return { success: true, user: userRecord, accountKey, isNew, messageSent, error: sendError };
   }
+  /** فراخوانی عمومی برای وبهوک تا ارسال را await کند */
+  async notifyNewEmail(email, message) {
+    return this.handleIncomingEmailNotification(email, message);
+  }
   /**
    * حافظهٔ این نمونه را با MongoDB تازه می‌کند.
    * لازم است چون هر نمونهٔ سرورلس کش مستقل دارد و ممکن است ایمیل‌های تازه
@@ -3140,26 +3151,30 @@ var EitaaBotService = class {
    * Handles incoming email notifications and forwards them directly to the user's Eitaa account
    */
   async handleIncomingEmailNotification(email, message) {
+    const startedAt = Date.now();
     if (!this.config.isEnabled || !this.config.token.trim()) {
       return;
     }
-    await this.refreshUsersFromDb();
     const normalizedEmail = (email || "").toLowerCase().trim();
     if (!normalizedEmail) return;
-    let userPhone = this.emailToPhoneMap.get(normalizedEmail);
-    if (!userPhone) {
-      for (const [phone, user2] of this.users.entries()) {
-        if (user2.emails && user2.emails.some((e) => e.toLowerCase().trim() === normalizedEmail) || user2.history && user2.history.some((h) => h.email?.toLowerCase().trim() === normalizedEmail)) {
-          userPhone = phone;
-          this.emailToPhoneMap.set(normalizedEmail, phone);
-          break;
-        }
+    const dedupeKey = `${normalizedEmail}::${message?.id || ""}`;
+    if (message?.id) {
+      if (this.recentNotificationIds.has(dedupeKey)) return;
+      this.recentNotificationIds.add(dedupeKey);
+      if (this.recentNotificationIds.size > 300) {
+        this.recentNotificationIds = new Set(Array.from(this.recentNotificationIds).slice(-150));
       }
     }
-    if (!userPhone) {
+    let found = this.findUserByEmail(normalizedEmail);
+    if (!found) {
+      await this.refreshUsersFromDb(0);
+      found = this.findUserByEmail(normalizedEmail);
+    }
+    if (!found) {
       return;
     }
-    const user = this.users.get(userPhone);
+    const userPhone = found.key;
+    const user = found.user;
     const senderName = message.from?.name || message.from?.address || "\u0646\u0627\u0645\u0634\u062E\u0635";
     const senderAddr = message.from?.address || "";
     const subject = message.subject || "\u0628\u062F\u0648\u0646 \u0645\u0648\u0636\u0648\u0639";
@@ -3222,7 +3237,7 @@ ${cleanBody}
       this.saveUsers();
     }
     if (res.success) {
-      console.log(`[EitaaBot] Successfully forwarded incoming email for ${normalizedEmail} to Eitaa user ${userPhone} (delivered to ${res.deliveredTo || "target"})`);
+      console.log(`[EitaaBot] Forwarded incoming email for ${normalizedEmail} to ${userPhone} in ${Date.now() - startedAt}ms (target: ${res.deliveredTo || "default"})`);
     } else {
       console.warn(`[EitaaBot] Failed to forward email to Eitaa user ${userPhone}: ${res.error}`);
     }
@@ -3320,6 +3335,7 @@ var TelegramBotService = class {
       persistent: true
     };
     this.lastUsersRefreshAt = 0;
+    this.recentNotificationIds = /* @__PURE__ */ new Set();
     this.loadUsersFromStorage();
     this.loadConfigFromStorage();
     emailStore.onNewMessage((email, message) => {
@@ -4949,9 +4965,20 @@ var TelegramBotService = class {
       console.error("[TelegramBot] refreshUsersFromDb failed:", err);
     }
   }
+  /** فراخوانی عمومی برای وبهوک تا ارسال را await کند */
+  async notifyNewEmail(email, message) {
+    return this.handleIncomingEmailNotification(email, message);
+  }
   async handleIncomingEmailNotification(email, message) {
-    await this.refreshUsersFromDb();
     const normalizedEmail = email.toLowerCase().trim();
+    const dedupeKey = `${normalizedEmail}::${message?.id || ""}`;
+    if (message?.id) {
+      if (this.recentNotificationIds.has(dedupeKey)) return;
+      this.recentNotificationIds.add(dedupeKey);
+      if (this.recentNotificationIds.size > 300) {
+        this.recentNotificationIds = new Set(Array.from(this.recentNotificationIds).slice(-150));
+      }
+    }
     let chatId = this.emailToChatMap.get(normalizedEmail);
     if (!chatId) {
       for (const [cId, session] of this.userSessions.entries()) {
@@ -6456,6 +6483,21 @@ Sitemap: ${baseUrl}/sitemap.xml
         headers: parsed.headers
       });
       console.log(`[Real Webhook] Successfully received and stored clean Persian/MIME email for [${targetEmail}] from [${senderAddress}] (Subject: ${parsed.subject})`);
+      if (newMessage) {
+        const notifyStarted = Date.now();
+        try {
+          await Promise.race([
+            Promise.allSettled([
+              eitaaBotService.notifyNewEmail(targetEmail, newMessage),
+              telegramBotService.notifyNewEmail(targetEmail, newMessage)
+            ]),
+            new Promise((resolve) => setTimeout(resolve, 8e3))
+          ]);
+          console.log(`[Real Webhook] Notifications finished in ${Date.now() - notifyStarted}ms`);
+        } catch (notifyErr) {
+          console.error("[Real Webhook] Notification dispatch failed:", notifyErr);
+        }
+      }
       res.json({ success: true, messageId: newMessage?.id || "msg_1", email: targetEmail });
     } catch (err) {
       console.error("Webhook processing error:", err);
