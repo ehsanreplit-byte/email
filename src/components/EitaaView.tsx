@@ -464,7 +464,13 @@ export const EitaaView: React.FC<EitaaViewProps> = ({ isFa = true, showToast }) 
                   return (
                     <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                       <td className="py-3 px-3 font-mono font-bold text-slate-800 dark:text-slate-200" dir="ltr">
-                        {u.phone}
+                        {u.phone ? (
+                          u.phone
+                        ) : (
+                          <span className="text-[10px] font-sans font-medium text-orange-600 dark:text-orange-400">
+                            {isFa ? 'ثبت‌نام با شناسه ایتا' : 'Eitaa ID sign-up'}
+                          </span>
+                        )}
                       </td>
                       <td className="py-3 px-3 text-slate-700 dark:text-slate-300">
                         <div className="flex flex-col">
