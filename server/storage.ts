@@ -174,6 +174,27 @@ class Storage {
       }
     }  }
 
+  /**
+   * مدارک مشخصی را دوباره از MongoDB در حافظه می‌خواند.
+   * لازم است چون هر نمونهٔ سرورلس حافظهٔ خودش را دارد و می‌تواند کهنه شود.
+   */
+  public async refreshFromDb(keys: string[]): Promise<void> {
+    if (!this.db || keys.length === 0) return;
+    try {
+      const docs = await this.jsonCollection()
+        .find({ _id: { $in: keys as any[] } })
+        .toArray();
+
+      for (const doc of docs as any[]) {
+        if (doc && doc._id !== undefined && typeof doc.data === 'string') {
+          this.cache.set(String(doc._id), doc.data);
+        }
+      }
+    } catch (err) {
+      console.error('[Storage] refreshFromDb failed:', err);
+    }
+  }
+
   /** Kept for API compatibility with the previous fs-based stores. */
   public mkdirSync(): void {
     /* no-op */
