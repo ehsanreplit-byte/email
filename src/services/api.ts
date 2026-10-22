@@ -300,12 +300,13 @@ export const api = {
         return [];
       }
     } catch {
-      // fallback on offline/network error
+      // بدون fallback محلی؛ منبع حقیقت دیتابیس است
     }
-    return clientEngine.getMessages(email);
+    return [];
   },
 
   async getMessagesForUser(emails: string[], phone?: string): Promise<EmailMessage[]> {
+    // منبع حقیقت فقط دیتابیس است؛ در صورت خطا لیست خالی برمی‌گردد (بدون دادهٔ محلی)
     try {
       const res = await fetch('/api/inbox/user-messages', {
         method: 'POST',
@@ -316,10 +317,11 @@ export const api = {
         const data = await res.json();
         return data.messages || [];
       }
-    } catch {
-      // fallback
+      console.warn('[api] getMessagesForUser failed:', res.status);
+    } catch (err) {
+      console.warn('[api] getMessagesForUser network error:', err);
     }
-    return clientEngine.getMessagesForEmails(emails);
+    return [];
   },
 
   async getMessage(email: string, id: string): Promise<EmailMessage> {
