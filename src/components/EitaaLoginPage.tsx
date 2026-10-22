@@ -128,153 +128,82 @@ export const EitaaLoginPage: React.FC<EitaaLoginPageProps> = ({
     };
   }, [checkMaintenanceStatus]);
 
-  // Perform actual login with the cleanly extracted phone number
-  const executeLogin = useCallback(async (phoneOrEvent: any, explicitUserData?: any) => {
-    const cleanPhone = extractValidPhoneNumber(phoneOrEvent);
-    if (!cleanPhone || cleanPhone.length !== 11 || !cleanPhone.startsWith('09')) {
-      setIsLoading(false);
-      setErrorMessage('شماره تلفن معتبر شناسایی نشد.');
-      return;
+  // استخراج شناسه کاربری ایتا از SDK برنامک
+  const getEitaaIdentity = useCallback((): { eitaaId: string; userData: Record<string, any>; initData: string } => {
+    if (typeof window === 'undefined') return { eitaaId: '', userData: {}, initData: '' };
+
+    const tg: any = (window as any).Eitaa?.WebApp;
+    const initData: string = tg?.initData || window.location.hash || window.location.search || '';
+    const userData: Record<string, any> = {
+      ...(tg?.initDataUnsafe?.user || {}),
+      ...(tg?.initDataUnsafe?.chat ? { chat_id: tg.initDataUnsafe.chat.id } : {})
+    };
+
+    if (!userData.id && initData) {
+      try {
+        const raw = initData.startsWith('#') ? initData.slice(1) : initData;
+        const params = new URLSearchParams(raw);
+        const userParam = params.get('user');
+        if (userParam) {
+          const parsed = JSON.parse(userParam);
+          if (parsed?.id) userData.id = parsed.id;
+          if (!userData.first_name && parsed?.first_name) userData.first_name = parsed.first_name;
+          if (!userData.username && parsed?.username) userData.username = parsed.username;
+        }
+        if (!userData.chat_id && params.get('chat_id')) userData.chat_id = params.get('chat_id');
+      } catch {}
     }
 
-    const isAdmin = cleanPhone === '09134336627';
+    const rawId =
+      userData.id ||
+      userData.user_id ||
+      userData.chat_id ||
+      tg?.initDataUnsafe?.user?.id ||
+      tg?.initDataUnsafe?.chat?.id ||
+      '';
 
-    // If maintenance is on and not admin, reject
-    if (isMaintenance && !isAdmin) {
-      setIsLoading(false);
+    const eitaaId = String(rawId || '').replace(/^eitaa[:_]/i, '').replace(/[^\d]/g, '');
+    return { eitaaId, userData, initData };
+  }, []);
+
+  // ثبت‌نام با شناسه کاربری ایتا (بدون ارسال شماره موبایل)
+  const executeRegisterById = useCallback(async () => {
+    setErrorMessage(null);
+
+    if (isMaintenance) {
       setErrorMessage(maintenanceMessage || 'سیستم در حال بروز رسانی است. لطفاً شکیبا باشید.');
       return;
     }
 
+    const { eitaaId, userData, initData } = getEitaaIdentity();
+    if (!eitaaId) {
+      setErrorMessage('شناسه کاربری ایتا شناسایی نشد. لطفاً این صفحه را از داخل پیام‌رسان ایتا باز کنید.');
+      return;
+    }
+
     setIsLoading(true);
-    setErrorMessage(null);
-
     try {
-      const tg = (window as any).Eitaa?.WebApp || (window as any).Telegram?.WebApp;
-      const tgUser = tg?.initDataUnsafe?.user || {};
-      const tgChat = tg?.initDataUnsafe?.chat || {};
-      const tgInitData = tg?.initData || window.location.hash || window.location.search || '';
-
-      const mergedUserData = {
-        ...tgUser,
-        ...(typeof explicitUserData === 'object' ? explicitUserData : {}),
-        id: explicitUserData?.user_id || explicitUserData?.id || tgUser?.id || tgChat?.id,
-        chat_id: explicitUserData?.chat_id || explicitUserData?.user_id || tgChat?.id || tgUser?.id,
-        first_name: explicitUserData?.first_name || tgUser?.first_name || 'کاربر ایتا',
-        username: explicitUserData?.username || tgUser?.username || '',
-      };
-
-      const res = await api.eitaaLogin(cleanPhone, mergedUserData, tgInitData);
-      
-      if (res.success) {
-        const authedUser = res.user || cleanPhone;
+      const res = await api.eitaaRegisterByEitaaId(eitaaId, userData, initData);
+      if (res.success && res.user) {
+        const authedUser = res.user;
         localStorage.setItem('admin_auth_user', authedUser);
         localStorage.setItem('admin_is_authenticated', 'true');
         sessionStorage.setItem('admin_auth_user', authedUser);
         sessionStorage.setItem('admin_is_authenticated', 'true');
 
         setIsSuccess(true);
-
         setTimeout(() => {
-          onLoginSuccess(authedUser, res.inboxes, res.remainingEmails, res.telegramEmailsLinkedCount);
-        }, 600);
+          onLoginSuccess(authedUser, res.inboxes, res.remainingEmails);
+        }, 400);
       } else {
         setIsLoading(false);
-        setErrorMessage(res.error || 'خطا در احراز هویت با ایتا.');
-      }
-    } catch {
-      // Fallback
-      localStorage.setItem('admin_auth_user', cleanPhone);
-      localStorage.setItem('admin_is_authenticated', 'true');
-      sessionStorage.setItem('admin_auth_user', cleanPhone);
-      sessionStorage.setItem('admin_is_authenticated', 'true');
-      setIsSuccess(true);
-      setTimeout(() => {
-        onLoginSuccess(cleanPhone);
-      }, 600);
-    }
-  }, [onLoginSuccess, isMaintenance, maintenanceMessage]);
-
-  // Request phone number using Eitaa Web App SDK ONLY when the user clicks the button
-  const triggerEitaaContactRequest = useCallback(() => {
-    patchEitaaWebAppVersion();
-    const tg = window.Eitaa?.WebApp;
-    setErrorMessage(null);
-
-    // If system is in maintenance, inform the user
-    if (isMaintenance) {
-      setErrorMessage(maintenanceMessage || 'سیستم در حال بروز رسانی است. لطفاً شکیبا باشید.');
-      return;
-    }
-
-    // If running in browser outside Eitaa (developer preview / test), fallback to fast login with admin phone
-    if (!checkIsInsideActualEitaa() && !tg?.initDataUnsafe?.user?.phone_number) {
-      setIsLoading(true);
-      executeLogin('09134336627', tg?.initDataUnsafe?.user || { id: 'admin_preview', first_name: 'مدیر سامانه' });
-      return;
-    }
-
-    if (!tg) {
-      setIsLoading(true);
-      executeLogin('09134336627', { id: 'admin_preview', first_name: 'مدیر سامانه' });
-      return;
-    }
-
-    // If phone number is already present in initData, login immediately upon clicking
-    const existingPhone = tg.initDataUnsafe?.user?.phone_number;
-    if (existingPhone) {
-      executeLogin(existingPhone, tg.initDataUnsafe?.user);
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      // Listen for webview contact event
-      if (typeof tg.onEvent === 'function') {
-        tg.onEvent('contactRequested', (eventData: any) => {
-          if (eventData?.status === 'sent') {
-            const cleanPhone = extractValidPhoneNumber(eventData) || extractValidPhoneNumber(tg.initDataUnsafe);
-            if (cleanPhone) {
-              executeLogin(cleanPhone, eventData?.responseUnsafe?.contact || null);
-            }
-          } else if (eventData?.status === 'cancelled') {
-            setIsLoading(false);
-            setErrorMessage('ارسال شماره توسط کاربر لغو شد.');
-          }
-        });
-      }
-
-      const handleContactCallback = (granted: boolean, event: any) => {
-        if (granted) {
-          const cleanPhone = extractValidPhoneNumber(event) || extractValidPhoneNumber(tg.initDataUnsafe);
-          if (cleanPhone) {
-            executeLogin(cleanPhone, event?.responseUnsafe?.contact || tg.initDataUnsafe?.user);
-          }
-        } else {
-          setIsLoading(false);
-          setErrorMessage('دسترسی شماره تماس تایید نشد.');
-        }
-      };
-
-      patchEitaaWebAppVersion();
-
-      if (typeof tg.requestContact === 'function') {
-        try {
-          tg.requestContact(handleContactCallback);
-        } catch {
-          if (window.Eitaa?.WebView?.postEvent) {
-            window.Eitaa.WebView.postEvent('web_app_request_phone');
-          }
-        }
-      } else if (window.Eitaa?.WebView?.postEvent) {
-        window.Eitaa.WebView.postEvent('web_app_request_phone');
+        setErrorMessage(res.error || 'خطا در ثبت‌نام با شناسه کاربری ایتا.');
       }
     } catch {
       setIsLoading(false);
-      setErrorMessage('خطا در ارتباط با وب‌اپلیکیشن ایتا.');
+      setErrorMessage('خطا در ارتباط با سرور. لطفاً مجدداً تلاش کنید.');
     }
-  }, [executeLogin, isMaintenance, maintenanceMessage]);
+  }, [getEitaaIdentity, isMaintenance, maintenanceMessage, onLoginSuccess]);
 
   // Prepare Eitaa WebApp viewport without requesting anything automatically
   useEffect(() => {
@@ -367,14 +296,14 @@ export const EitaaLoginPage: React.FC<EitaaLoginPageProps> = ({
               <>
                 <button
                   id="btn-eitaa-request-contact"
-                  onClick={triggerEitaaContactRequest}
+                  onClick={executeRegisterById}
                   disabled={isLoading || isSuccess}
                   className="w-full min-h-[52px] py-3.5 px-6 rounded-2xl bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 hover:from-orange-600 hover:to-amber-600 active:scale-95 text-white font-black text-base shadow-2xl shadow-orange-500/50 border border-white/50 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-90 backdrop-blur-xs"
                 >
                   {isLoading ? (
                     <>
                       <RefreshCw className="w-5 h-5 animate-spin" />
-                      <span>در حال دریافت شماره...</span>
+                      <span>در حال ثبت‌نام...</span>
                     </>
                   ) : isSuccess ? (
                     <>
