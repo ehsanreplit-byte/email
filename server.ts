@@ -2187,12 +2187,15 @@ async function startServer() {
     }
   });
 
-  app.post('/api/eitaa/delete-emails', requireAdmin, (req, res) => {
+  app.post('/api/eitaa/delete-emails', requireAdmin, async (req, res) => {
     try {
       const { phone } = req.body || {};
-      const cleanPhone = extractValidPhoneNumber(phone);
+      const rawIdentifier = phone ? String(phone).trim() : '';
+      const cleanPhone = /^eitaa[:_]/i.test(rawIdentifier)
+        ? rawIdentifier
+        : (extractValidPhoneNumber(rawIdentifier) || formatIranianMobile(rawIdentifier));
       if (!cleanPhone) {
-        return res.status(400).json({ success: false, error: 'شماره تلفن کاربر الزامی است.' });
+        return res.status(400).json({ success: false, error: 'شناسه یا شماره کاربر الزامی است.' });
       }
 
       const clearedEmails = eitaaBotService.clearUserEmails(cleanPhone);
@@ -2200,9 +2203,16 @@ async function startServer() {
       for (const email of clearedEmails) {
         try {
           emailStore.removeEmailFromDatabase(email);
+          emailStore.deleteInbox(email);
         } catch (e) {
           console.error(`Failed to completely delete email ${email} from store:`, e);
         }
+      }
+
+      try {
+        await storage.flush();
+      } catch (e) {
+        console.error('[EitaaDeleteEmails] storage.flush failed:', e);
       }
 
       res.json({
