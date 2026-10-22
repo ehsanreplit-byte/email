@@ -7749,18 +7749,31 @@ Sitemap: ${baseUrl}/sitemap.xml
   app.post("/api/user/credentials", loginLimiter, async (req, res) => {
     try {
       res.setHeader("Cache-Control", "no-store");
-      const { account, username, password } = req.body || {};
+      const { account, phone, password, username } = req.body || {};
       const accKey = account ? String(account).trim() : "";
       if (!/^eitaa[:_]/i.test(accKey) && !/^09\d{9}$/.test(accKey)) {
         return res.status(400).json({ success: false, error: "\u062D\u0633\u0627\u0628 \u06A9\u0627\u0631\u0628\u0631\u06CC \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A." });
       }
+      const loginPhone = extractValidPhoneNumber(phone || username) || formatIranianMobile(phone || username);
+      if (!/^09\d{9}$/.test(loginPhone)) {
+        return res.status(400).json({ success: false, error: "\u0634\u0645\u0627\u0631\u0647 \u0645\u0648\u0628\u0627\u06CC\u0644 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A (\u0645\u062B\u0627\u0644: 09121234567)." });
+      }
       await syncStoresFromDb(0);
-      const result = credentialsStore.setCredentials(accKey, username, password);
+      const result = credentialsStore.setCredentials(accKey, loginPhone, password);
       if (!result.success) {
         return res.status(400).json({ success: false, error: result.error });
       }
+      try {
+        const user = eitaaBotService.findUser(accKey);
+        if (user) {
+          user.phone = loginPhone;
+          eitaaBotService.saveUsers();
+        }
+      } catch (e) {
+        console.error("[Credentials] failed to save phone on user:", e);
+      }
       await commitToDb();
-      return res.json({ success: true, username: result.record?.username, account: accKey });
+      return res.json({ success: true, phone: loginPhone, username: result.record?.username, account: accKey });
     } catch (err) {
       console.error("Set credentials error:", err);
       res.status(500).json({ success: false, error: "\u062E\u0637\u0627\u06CC \u0633\u0631\u0648\u0631 \u062F\u0631 \u062B\u0628\u062A \u0646\u0627\u0645 \u06A9\u0627\u0631\u0628\u0631\u06CC." });
@@ -7769,12 +7782,14 @@ Sitemap: ${baseUrl}/sitemap.xml
   app.post("/api/auth/login", loginLimiter, async (req, res) => {
     try {
       res.setHeader("Cache-Control", "no-store");
-      const { username, password } = req.body || {};
-      if (!String(username || "").trim() || !String(password || "")) {
-        return res.status(400).json({ success: false, error: "\u0646\u0627\u0645 \u06A9\u0627\u0631\u0628\u0631\u06CC \u0648 \u0631\u0645\u0632 \u0639\u0628\u0648\u0631 \u0627\u0644\u0632\u0627\u0645\u06CC \u0627\u0633\u062A." });
+      const { username, phone, password } = req.body || {};
+      const rawIdentifier = String(phone || username || "").trim();
+      if (!rawIdentifier || !String(password || "")) {
+        return res.status(400).json({ success: false, error: "\u0634\u0645\u0627\u0631\u0647 \u0645\u0648\u0628\u0627\u06CC\u0644 \u0648 \u0631\u0645\u0632 \u0639\u0628\u0648\u0631 \u0627\u0644\u0632\u0627\u0645\u06CC \u0627\u0633\u062A." });
       }
+      const loginPhone = extractValidPhoneNumber(rawIdentifier) || formatIranianMobile(rawIdentifier) || rawIdentifier;
       await syncStoresFromDb(0);
-      const result = credentialsStore.verify(String(username), String(password));
+      const result = credentialsStore.verify(loginPhone, String(password));
       if (!result.success || !result.account) {
         return res.status(401).json({ success: false, error: result.error || "\u0646\u0627\u0645 \u06A9\u0627\u0631\u0628\u0631\u06CC \u06CC\u0627 \u0631\u0645\u0632 \u0639\u0628\u0648\u0631 \u0646\u0627\u062F\u0631\u0633\u062A \u0627\u0633\u062A." });
       }
