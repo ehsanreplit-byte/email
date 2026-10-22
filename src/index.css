@@ -115,3 +115,17 @@
   word-break: break-all !important;
 }
 
+/* مودال اشتراک در موبایل: ارتفاع دقیق ناحیهٔ دید (با فالبک vh برای وب‌ویوی قدیمی) */
+.subscription-sheet {
+  max-height: 92vh;
+}
+@supports (height: 100dvh) {
+  .subscription-sheet {
+    max-height: 92dvh;
+  }
+}
+@media (min-width: 640px) {
+  .subscription-sheet {
+    max-height: 90vh;
+  }
+}
