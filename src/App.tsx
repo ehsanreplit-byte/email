@@ -724,6 +724,21 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // کاربری که از قبل وارد شده است، در صفحه /eitaa نمی‌ماند و به صفحه اصلی ریدایرکت می‌شود
+  // (با پارامترهای ?preview=1 / ?new=1 / ?force=1 می‌توان صفحه ثبت‌نام را عمداً دید)
+  useEffect(() => {
+    if (!isEitaaPage) return;
+    let forcePreview = false;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      forcePreview = params.has('preview') || params.has('new') || params.has('register') || params.get('force') === '1';
+    } catch {}
+    if (forcePreview || !isAuthenticated) return;
+
+    setIsEitaaPage(false);
+    window.history.replaceState({}, '', '/');
+  }, [isEitaaPage, isAuthenticated]);
+
   const handleMessageClick = async (msg: EmailMessage) => {
     if (!isAuthenticated) {
       showToast('⚠️ جهت دیدن و خواندن متن کامل پیام، ثبت‌نام کنید یا وارد شوید!', 'info');
@@ -779,7 +794,8 @@ export default function App() {
           const cleanPhone = /^eitaa[:_]/i.test(phone) ? phone : (extractValidPhoneNumber(phone) || phone);
           handleLoginSuccess(cleanPhone, serverInboxes, remainingEmails, syncedTelegramCount);
           setIsEitaaPage(false);
-          window.history.pushState({}, '', '/');
+          // ریدایرکت به صفحه اصلی سایت (بدون باقی ماندن /eitaa در تاریخچه)
+          window.history.replaceState({}, '', '/');
         }}
         onBackToLanding={() => {
           setIsEitaaPage(false);
