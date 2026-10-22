@@ -6196,8 +6196,9 @@ Sitemap: ${baseUrl}/sitemap.xml
     const identity = generateFakeIdentity();
     res.json(identity);
   });
-  app.post("/api/inbox/create", (req, res) => {
+  app.post("/api/inbox/create", async (req, res) => {
     try {
+      await syncStoresFromDb(0);
       const { username, domain, ttl, user, phone } = req.body || {};
       const rawUser = user || phone || req.headers["x-user-phone"];
       const rawUserStr = rawUser ? String(rawUser).trim() : "";
@@ -7539,6 +7540,7 @@ Sitemap: ${baseUrl}/sitemap.xml
   });
   app.post("/api/eitaa/register", loginLimiter, async (req, res) => {
     try {
+      await syncStoresFromDb(0);
       const { eitaaId, userData, initData } = req.body || {};
       if (process.env.EITAA_STRICT_VERIFY === "true") {
         const botToken = eitaaBotService.getConfig().token;
@@ -7595,6 +7597,7 @@ Sitemap: ${baseUrl}/sitemap.xml
   });
   app.post("/api/eitaa/login", loginLimiter, async (req, res) => {
     try {
+      await syncStoresFromDb(0);
       const { phone, userData, initData, inboxes } = req.body || {};
       if (process.env.EITAA_STRICT_VERIFY === "true") {
         const botToken = eitaaBotService.getConfig().token;
@@ -7820,6 +7823,7 @@ Sitemap: ${baseUrl}/sitemap.xml
   });
   app.post("/api/eitaa/link-email", async (req, res) => {
     try {
+      await syncStoresFromDb(0);
       const { phone, email } = req.body || {};
       const rawIdentifier = phone ? String(phone).trim() : "";
       const cleanPhone = isEitaaAccountKey(rawIdentifier) ? rawIdentifier : extractValidPhoneNumber(rawIdentifier);
@@ -7885,6 +7889,7 @@ Sitemap: ${baseUrl}/sitemap.xml
   });
   app.post("/api/eitaa/delete-emails", requireAdmin, async (req, res) => {
     try {
+      await syncStoresFromDb(0);
       const { phone } = req.body || {};
       const rawIdentifier = phone ? String(phone).trim() : "";
       const cleanPhone = /^eitaa[:_]/i.test(rawIdentifier) ? rawIdentifier : extractValidPhoneNumber(rawIdentifier) || formatIranianMobile(rawIdentifier);
@@ -7913,6 +7918,7 @@ Sitemap: ${baseUrl}/sitemap.xml
   });
   app.post("/api/admin/delete-user-emails", requireAdmin, async (req, res) => {
     try {
+      await syncStoresFromDb(0);
       const { source, userId, phone, chatId, email } = req.body || {};
       res.setHeader("Cache-Control", "no-store");
       const rawUserId = userId ? String(userId).trim() : "";
@@ -7980,6 +7986,7 @@ Sitemap: ${baseUrl}/sitemap.xml
   });
   app.post("/api/admin/delete-user", requireAdmin, async (req, res) => {
     try {
+      await syncStoresFromDb(0);
       const { source, userId, phone, chatId, email } = req.body || {};
       if (!source) {
         return res.status(400).json({ success: false, error: "\u0645\u0646\u0628\u0639 \u06A9\u0627\u0631\u0628\u0631 \u0627\u0644\u0632\u0627\u0645\u06CC \u0627\u0633\u062A." });
