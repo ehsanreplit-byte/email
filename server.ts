@@ -224,7 +224,13 @@ async function startServer() {
   // API Routes
   // 1. Health & Domains
   app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    // وضعیت استوریج برای تشخیص این‌که داده‌ها از MongoDB خوانده می‌شوند یا فایل محلی موقت
+    res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      storage: storage.mongoEnabled ? 'mongodb' : 'local-ephemeral',
+      database: storage.mongoEnabled ? storage.databaseName : null
+    });
   });
 
   app.get('/api/domains', (req, res) => {
