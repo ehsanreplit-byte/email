@@ -1965,7 +1965,7 @@ async function startServer() {
       await syncStoresFromDb(0);
       const result = credentialsStore.verify(loginPhone, String(password));
       if (!result.success || !result.account) {
-        return res.status(401).json({ success: false, error: result.error || 'نام کاربری یا رمز عبور نادرست است.' });
+        return res.status(401).json({ success: false, error: result.error || 'شماره موبایل یا رمز عبور نادرست است.' });
       }
 
       analyticsStore.recordLogin({
