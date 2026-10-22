@@ -790,33 +790,33 @@ export const api = {
     }
   },
 
-  /** ثبت نام کاربری و رمز عبور برای یک حساب (ورود از سایت) */
-  async setUserCredentials(account: string, username: string, password: string): Promise<{ success: boolean; username?: string; error?: string }> {
+  /** ثبت شماره موبایل + رمز عبور برای یک حساب (ورود از سایت) */
+  async setUserCredentials(account: string, phone: string, password: string): Promise<{ success: boolean; phone?: string; error?: string }> {
     try {
       const res = await fetch('/api/user/credentials', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ account, username, password }),
+        body: JSON.stringify({ account, phone, password }),
       });
       const data = await res.json();
-      if (res.ok && data.success) return { success: true, username: data.username };
-      return { success: false, error: data.error || 'خطا در ثبت نام کاربری.' };
+      if (res.ok && data.success) return { success: true, phone: data.phone };
+      return { success: false, error: data.error || 'خطا در ثبت شماره موبایل.' };
     } catch {
       return { success: false, error: 'خطا در ارتباط با سرور.' };
     }
   },
 
-  /** ورود با نام کاربری و رمز عبور */
-  async loginWithUsername(username: string, password: string): Promise<{ success: boolean; user?: string; error?: string }> {
+  /** ورود به سایت با شماره موبایل و رمز عبور */
+  async loginWithPhone(phone: string, password: string): Promise<{ success: boolean; user?: string; error?: string }> {
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ phone, password }),
       });
       const data = await res.json();
       if (res.ok && data.success) return { success: true, user: data.user };
-      return { success: false, error: data.error || 'نام کاربری یا رمز عبور نادرست است.' };
+      return { success: false, error: data.error || 'شماره موبایل یا رمز عبور نادرست است.' };
     } catch {
       return { success: false, error: 'خطا در ارتباط با سرور.' };
     }
