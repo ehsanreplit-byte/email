@@ -10,7 +10,7 @@ import { extractValidPhoneNumber } from './utils/phone';
 import { sanitizeEmailHtml } from './utils/sanitizeHtml';
 import { 
   Mail, RefreshCw, Copy, Check, Plus, Inbox as InboxIcon, 
-  Trash2, Clock, User, Download, FileText, X, Key, CheckCircle2, AlertCircle, Sparkles, Menu, MessageCircle,
+  Trash2, Clock, User, Download, FileText, X, Key, CheckCircle2, AlertCircle, Menu, MessageCircle,
   ExternalLink, Eye, Image as ImageIcon, ShieldCheck, Lock as LockIcon, LogIn
 } from 'lucide-react';
 
@@ -1048,7 +1048,6 @@ export default function App() {
                   onClick={() => setIsSubscriptionModalOpen(true)}
                   className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 min-h-[38px] sm:min-h-[40px] rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-extrabold text-xs sm:text-sm transition-all shadow-md cursor-pointer animate-pulse-subtle shrink-0"
                 >
-                  <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-100 shrink-0" />
                   <span>اشتراک</span>
                 </button>
               )}
