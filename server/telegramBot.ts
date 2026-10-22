@@ -1963,9 +1963,26 @@ class TelegramBotService {
     }
   }
 
+  private recentNotificationIds = new Set<string>();
+
+  /** فراخوانی عمومی برای وبهوک تا ارسال را await کند */
+  public async notifyNewEmail(email: string, message: EmailMessage): Promise<void> {
+    return this.handleIncomingEmailNotification(email, message);
+  }
+
   private async handleIncomingEmailNotification(email: string, message: EmailMessage): Promise<void> {
-    await this.refreshUsersFromDb();
     const normalizedEmail = email.toLowerCase().trim();
+
+    // جلوگیری از ارسال تکراری (لیسنر + فراخوانی صریح از وبهوک)
+    const dedupeKey = `${normalizedEmail}::${message?.id || ''}`;
+    if (message?.id) {
+      if (this.recentNotificationIds.has(dedupeKey)) return;
+      this.recentNotificationIds.add(dedupeKey);
+      if (this.recentNotificationIds.size > 300) {
+        this.recentNotificationIds = new Set(Array.from(this.recentNotificationIds).slice(-150));
+      }
+    }
+
     let chatId = this.emailToChatMap.get(normalizedEmail);
 
     // Fallback 1: Search active sessions
