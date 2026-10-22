@@ -72,6 +72,31 @@ async function startServer() {
     };
   };
 
+  /**
+   * همگام‌سازی حافظهٔ این نمونه با MongoDB قبل از خواندن لیست‌ها.
+   * منبع حقیقت فقط MongoDB است؛ هر نمونهٔ سرورلس حافظهٔ خودش را دارد و ممکن است کهنه باشد.
+   */
+  const DB_LIST_KEYS = ['inboxes_store.json', 'email_registry.json', 'eitaa_users.json', 'telegram_users.json'];
+  let lastDbRefreshAt = 0;
+  const syncStoresFromDb = async (minIntervalMs = 1200) => {
+    if (!storage.mongoEnabled) return;
+    const now = Date.now();
+    if (now - lastDbRefreshAt < minIntervalMs) return;
+    lastDbRefreshAt = now;
+
+    try {
+      // اول نوشتن‌های در صف را پایین بریز، بعد از دیتابیس بخوان
+      await storage.flush();
+      await storage.refreshFromDb(DB_LIST_KEYS);
+
+      emailStore.loadFromStorage();
+      eitaaBotService.loadUsers();
+      telegramBotService.loadUsers();
+    } catch (err) {
+      console.error('[DbSync] Failed to refresh stores from MongoDB:', err);
+    }
+  };
+
   /** تشخیص می‌دهد که ورودی، کلید حساب مبتنی بر شناسه ایتا است یا شماره تلفن */
   const isEitaaAccountKey = (value: any): boolean =>
     typeof value === 'string' && /^eitaa[:_]/i.test(value.trim());
@@ -387,8 +412,9 @@ async function startServer() {
   });
 
   // 5. Messages
-  app.post('/api/inbox/user-messages', (req, res) => {
+  app.post('/api/inbox/user-messages', async (req, res) => {
     try {
+      await syncStoresFromDb();
       const { emails, phone } = req.body || {};
       let targetEmails: string[] = [];
       if (Array.isArray(emails)) {
@@ -606,8 +632,9 @@ async function startServer() {
   }
 
   // Comprehensive Multi-Tier User Management API (Telegram, Eitaa, Website)
-  app.get('/api/admin/all-users', requireAdmin, (req, res) => {
+  app.get('/api/admin/all-users', requireAdmin, async (req, res) => {
     try {
+      await syncStoresFromDb();
       const telegramUsers = telegramBotService.getRegisteredUsers() || [];
       const eitaaUsers = eitaaBotService.getUsers() || [];
       const activeInboxes = emailStore.getAllActiveInboxes() || [];
@@ -1794,6 +1821,7 @@ async function startServer() {
    */
   app.post('/api/eitaa/session', async (req, res) => {
     try {
+      await syncStoresFromDb();
       const { eitaaId } = req.body || {};
       const normalizedId = eitaaBotService.normalizeEitaaId(eitaaId);
 
@@ -2017,8 +2045,9 @@ async function startServer() {
   });
 
   // Sync active user inboxes from server database
-  app.post('/api/user/sync-inboxes', (req, res) => {
+  app.post('/api/user/sync-inboxes', async (req, res) => {
     try {
+      await syncStoresFromDb();
       const { phone, user } = req.body || {};
       const rawUser = phone || user || req.headers['x-user-phone'];
 
@@ -2229,8 +2258,9 @@ async function startServer() {
     }
   });
 
-  app.get('/api/eitaa/users', requireAdmin, (req, res) => {
+  app.get('/api/eitaa/users', requireAdmin, async (req, res) => {
     try {
+      await syncStoresFromDb();
       const users = eitaaBotService.getUsers();
       res.json({ success: true, users });
     } catch (err) {
