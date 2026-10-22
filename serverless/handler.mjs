@@ -2617,8 +2617,8 @@ var EitaaBotService = class {
   /**
    * Clears all linked emails and history for a registered Eitaa user
    */
-  clearUserEmails(phone) {
-    const user = this.getUserByPhone(phone);
+  clearUserEmails(identifier) {
+    const user = this.findUser(identifier);
     if (!user) return [];
     const historyEmails = (user.history || []).map((h) => h.email?.toLowerCase().trim()).filter(Boolean);
     const linkedEmails = (user.emails || []).map((e) => e.toLowerCase().trim()).filter(Boolean);
@@ -2634,26 +2634,45 @@ var EitaaBotService = class {
   /**
    * Deletes a registered Eitaa user completely along with mapping references
    */
-  deleteUser(phone) {
-    const user = this.getUserByPhone(phone);
-    if (!user) return [];
+  deleteUser(identifier) {
+    if (!identifier) return [];
+    const user = this.findUser(identifier);
+    if (!user) {
+      const raw = String(identifier).trim();
+      if (this.users.has(raw)) {
+        this.users.delete(raw);
+        this.saveUsers();
+      }
+      return [];
+    }
     const historyEmails = (user.history || []).map((h) => h.email?.toLowerCase().trim()).filter(Boolean);
     const linkedEmails = (user.emails || []).map((e) => e.toLowerCase().trim()).filter(Boolean);
     const clearedEmails = Array.from(/* @__PURE__ */ new Set([...historyEmails, ...linkedEmails]));
-    if (user.phone) this.users.delete(user.phone);
-    const normPhone = extractValidPhoneNumber(phone) || formatIranianMobile(phone);
+    for (const [key, value] of Array.from(this.users.entries())) {
+      if (value === user) {
+        this.users.delete(key);
+      }
+    }
+    const normPhone = extractValidPhoneNumber(identifier) || formatIranianMobile(identifier);
     if (normPhone) this.users.delete(normPhone);
+    if (user.phone) {
+      const uPhone = extractValidPhoneNumber(user.phone) || formatIranianMobile(user.phone);
+      if (uPhone) this.users.delete(uPhone);
+    }
+    const eitaaId = this.normalizeEitaaId(user.eitaaId || identifier);
+    if (eitaaId) this.eitaaIdIndex.delete(eitaaId);
     for (const em of clearedEmails) {
       this.emailToPhoneMap.delete(em);
     }
     this.saveUsers();
+    console.log(`[EitaaBot] Deleted eitaa user (${identifier}) with ${clearedEmails.length} linked emails`);
     return clearedEmails;
   }
   /**
    * Deletes/unlinks a single email address for a registered Eitaa user
    */
   deleteUserEmail(phone, email) {
-    const user = this.getUserByPhone(phone);
+    const user = this.findUser(phone);
     if (!user) return false;
     const target = email.toLowerCase().trim();
     if (user.emails) {
@@ -7782,35 +7801,40 @@ Sitemap: ${baseUrl}/sitemap.xml
   app.post("/api/admin/delete-user-emails", requireAdmin, (req, res) => {
     try {
       const { source, userId, phone, chatId, email } = req.body || {};
-      const rawUser = phone || userId?.replace("eitaa_", "").replace("web_", "").replace("tg_", "");
+      const rawUserId = userId ? String(userId).trim() : "";
+      const rawUser = phone || rawUserId.replace(/^eitaa[:_]/i, "").replace("web_", "").replace("tg_", "");
       const cleanPhone = extractValidPhoneNumber(rawUser) || formatIranianMobile(rawUser);
+      const eitaaIdentifier = /^eitaa[:_]/i.test(rawUserId) ? rawUserId : cleanPhone || rawUser;
+      const numericChatId = Number(chatId || rawUserId.replace("tg_", "")) || 0;
       const emailsSet = /* @__PURE__ */ new Set();
       if (email) {
         const targetEmail = String(email).toLowerCase().trim();
         emailsSet.add(targetEmail);
+        if (eitaaIdentifier) {
+          eitaaBotService.deleteUserEmail(eitaaIdentifier, targetEmail);
+        }
         if (cleanPhone) {
-          eitaaBotService.deleteUserEmail(cleanPhone, targetEmail);
           const tgUser = telegramBotService.getUserByPhone(cleanPhone);
           if (tgUser) {
             telegramBotService.deleteUserEmail(tgUser.chatId, targetEmail);
           }
         }
-        const numericChatId = Number(chatId || userId?.replace("tg_", ""));
-        if (numericChatId && !isNaN(numericChatId)) {
+        if (numericChatId) {
           telegramBotService.deleteUserEmail(numericChatId, targetEmail);
         }
       } else {
-        if (cleanPhone) {
-          const eitaaCleared = eitaaBotService.clearUserEmails(cleanPhone);
+        if (eitaaIdentifier) {
+          const eitaaCleared = eitaaBotService.clearUserEmails(eitaaIdentifier);
           for (const em of eitaaCleared) emailsSet.add(em);
+        }
+        if (cleanPhone) {
           const tgUser = telegramBotService.getUserByPhone(cleanPhone);
           if (tgUser) {
             const tgCleared = telegramBotService.clearUserEmails(tgUser.chatId);
             for (const em of tgCleared) emailsSet.add(em);
           }
         }
-        const numericChatId = Number(chatId || userId?.replace("tg_", ""));
-        if (numericChatId && !isNaN(numericChatId)) {
+        if (numericChatId) {
           const tgCleared = telegramBotService.clearUserEmails(numericChatId);
           for (const em of tgCleared) emailsSet.add(em);
         }
@@ -7844,29 +7868,51 @@ Sitemap: ${baseUrl}/sitemap.xml
       if (!source) {
         return res.status(400).json({ success: false, error: "\u0645\u0646\u0628\u0639 \u06A9\u0627\u0631\u0628\u0631 \u0627\u0644\u0632\u0627\u0645\u06CC \u0627\u0633\u062A." });
       }
+      const rawSource = String(source);
+      const isEitaa = rawSource === "eitaa" || rawSource === "telegram_eitaa";
+      const isTelegram = rawSource === "telegram" || rawSource === "telegram_eitaa";
+      const isWeb = rawSource === "web";
+      const rawUserId = userId ? String(userId).trim() : "";
+      const cleanPhone = extractValidPhoneNumber(phone) || formatIranianMobile(phone) || "";
+      const numericChatId = Number(chatId || rawUserId.replace(/^tg_/, "") || 0) || 0;
+      let eitaaIdentifier = "";
+      if (/^eitaa[:_]/i.test(rawUserId)) eitaaIdentifier = rawUserId;
+      else if (cleanPhone) eitaaIdentifier = cleanPhone;
+      else if (rawUserId) eitaaIdentifier = rawUserId.replace(/^eitaa_/, "");
+      else if (chatId) eitaaIdentifier = String(chatId);
       let clearedEmails = [];
-      if (source === "eitaa") {
-        const cleanPhone = extractValidPhoneNumber(phone || userId?.replace("eitaa_", ""));
-        if (!cleanPhone) {
-          return res.status(400).json({ success: false, error: "\u0634\u0645\u0627\u0631\u0647 \u062A\u0644\u0641\u0646 \u0645\u0639\u062A\u0628\u0631 \u0628\u0631\u0627\u06CC \u06A9\u0627\u0631\u0628\u0631 \u0627\u06CC\u062A\u0627 \u06CC\u0627\u0641\u062A \u0646\u0634\u062F." });
-        }
-        clearedEmails = eitaaBotService.deleteUser(cleanPhone);
-        subscriptionStore.deleteSubscriptionsByUserInfo(0, cleanPhone);
-      } else if (source === "telegram") {
-        const numericChatId = Number(chatId || userId?.replace("tg_", ""));
-        if (!numericChatId || isNaN(numericChatId)) {
-          return res.status(400).json({ success: false, error: "\u0634\u0646\u0627\u0633\u0647 \u0686\u062A \u0645\u0639\u062A\u0628\u0631 \u0628\u0631\u0627\u06CC \u06A9\u0627\u0631\u0628\u0631 \u062A\u0644\u06AF\u0631\u0627\u0645 \u06CC\u0627\u0641\u062A \u0646\u0634\u062F." });
-        }
-        clearedEmails = telegramBotService.deleteUser(numericChatId);
-        ticketStore.deleteTicketsByChatId(numericChatId);
-        subscriptionStore.deleteSubscriptionsByUserInfo(numericChatId, phone);
-      } else if (source === "web") {
-        const targetEmail = String(email || userId?.replace("web_", "")).toLowerCase().trim();
-        if (targetEmail) {
-          clearedEmails = [targetEmail];
+      let handled = false;
+      if (isEitaa && eitaaIdentifier) {
+        const removed = eitaaBotService.deleteUser(eitaaIdentifier);
+        clearedEmails.push(...removed);
+        handled = true;
+        subscriptionStore.deleteSubscriptionsByUserInfo(0, cleanPhone || eitaaIdentifier);
+        if (numericChatId) {
+          const removedById = eitaaBotService.deleteUser(String(numericChatId));
+          clearedEmails.push(...removedById);
         }
       }
-      for (const em of clearedEmails) {
+      if (isTelegram && numericChatId) {
+        clearedEmails.push(...telegramBotService.deleteUser(numericChatId));
+        ticketStore.deleteTicketsByChatId(numericChatId);
+        subscriptionStore.deleteSubscriptionsByUserInfo(numericChatId, cleanPhone || void 0);
+        handled = true;
+      }
+      if (isWeb) {
+        const targetEmail = String(email || rawUserId.replace("web_", "")).toLowerCase().trim();
+        if (targetEmail) {
+          clearedEmails.push(targetEmail);
+        }
+        handled = true;
+      }
+      if (!handled) {
+        return res.status(400).json({
+          success: false,
+          error: "\u0634\u0646\u0627\u0633\u0647 \u06CC\u0627 \u0645\u0646\u0628\u0639 \u06A9\u0627\u0631\u0628\u0631 \u0628\u0631\u0627\u06CC \u062D\u0630\u0641 \u0634\u0646\u0627\u0633\u0627\u06CC\u06CC \u0646\u0634\u062F."
+        });
+      }
+      const uniqueEmails = Array.from(new Set(clearedEmails.map((e) => String(e).toLowerCase().trim()).filter(Boolean)));
+      for (const em of uniqueEmails) {
         try {
           emailStore.removeEmailFromDatabase(em);
         } catch (e) {
@@ -7875,6 +7921,7 @@ Sitemap: ${baseUrl}/sitemap.xml
       }
       res.json({
         success: true,
+        deletedEmails: uniqueEmails.length,
         message: "\u06A9\u0627\u0631\u0628\u0631 \u0628\u0647 \u0647\u0645\u0631\u0627\u0647 \u062A\u0645\u0627\u0645 \u0627\u06CC\u0645\u06CC\u0644\u200C\u0647\u0627\u060C \u062A\u06CC\u06A9\u062A\u200C\u0647\u0627 \u0648 \u0627\u0634\u062A\u0631\u0627\u06A9\u200C\u0647\u0627 \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u0628\u0647 \u0637\u0648\u0631 \u06A9\u0627\u0645\u0644 \u062D\u0630\u0641 \u0634\u062F."
       });
     } catch (err) {
