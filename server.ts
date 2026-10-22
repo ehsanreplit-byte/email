@@ -11,6 +11,7 @@ import { blupalStore } from './server/blupalStore';
 import { ticketStore } from './server/ticketStore';
 import { backupService, generateBackupFilename } from './server/backupService';
 import { adminAuthStore } from './server/adminAuthStore';
+import { credentialsStore } from './server/credentialsStore';
 import { analyticsStore } from './server/analyticsStore';
 import { emailSenderStore } from './server/emailSenderStore';
 import { systemStore } from './server/systemStore';
@@ -76,7 +77,7 @@ async function startServer() {
    * همگام‌سازی حافظهٔ این نمونه با MongoDB قبل از خواندن لیست‌ها.
    * منبع حقیقت فقط MongoDB است؛ هر نمونهٔ سرورلس حافظهٔ خودش را دارد و ممکن است کهنه باشد.
    */
-  const DB_LIST_KEYS = ['inboxes_store.json', 'email_registry.json', 'eitaa_users.json', 'telegram_users.json'];
+  const DB_LIST_KEYS = ['inboxes_store.json', 'email_registry.json', 'eitaa_users.json', 'telegram_users.json', 'user_credentials.json'];
   let lastDbRefreshAt = 0;
   const syncStoresFromDb = async (minIntervalMs = 1200) => {
     if (!storage.mongoEnabled) return;
@@ -92,6 +93,7 @@ async function startServer() {
       emailStore.loadFromStorage();
       eitaaBotService.loadUsers();
       telegramBotService.loadUsers();
+      credentialsStore.loadFromStorage();
     } catch (err) {
       console.error('[DbSync] Failed to refresh stores from MongoDB:', err);
     }
@@ -1882,6 +1884,8 @@ async function startServer() {
         eitaaId: normalizedId,
         name: user.firstName || 'کاربر ایتا',
         phone: user.phone || null,
+        hasCredentials: credentialsStore.hasCredentials(accountKey),
+        username: credentialsStore.getByAccount(accountKey)?.username || null,
         isAdmin: false,
         ...payload
       });
@@ -1899,6 +1903,65 @@ async function startServer() {
    * ثبت شماره موبایل برای کاربرانی که با شناسهٔ ایتا ثبت‌نام کرده‌اند
    * (پیش‌نیاز خرید اشتراک و درگاه پرداخت)
    */
+  /**
+   * ثبت نام کاربری و رمز عبور برای یک حساب (تا کاربر بتواند از سایت وارد شود)
+   */
+  app.post('/api/user/credentials', loginLimiter, async (req, res) => {
+    try {
+      res.setHeader('Cache-Control', 'no-store');
+      const { account, username, password } = req.body || {};
+      const accKey = account ? String(account).trim() : '';
+
+      if (!/^eitaa[:_]/i.test(accKey) && !/^09\d{9}$/.test(accKey)) {
+        return res.status(400).json({ success: false, error: 'حساب کاربری معتبر نیست.' });
+      }
+
+      await syncStoresFromDb(0);
+      const result = credentialsStore.setCredentials(accKey, username, password);
+      if (!result.success) {
+        return res.status(400).json({ success: false, error: result.error });
+      }
+
+      await commitToDb();
+      return res.json({ success: true, username: result.record?.username, account: accKey });
+    } catch (err: any) {
+      console.error('Set credentials error:', err);
+      res.status(500).json({ success: false, error: 'خطای سرور در ثبت نام کاربری.' });
+    }
+  });
+
+  /**
+   * ورود به سایت با نام کاربری و رمز عبور
+   */
+  app.post('/api/auth/login', loginLimiter, async (req, res) => {
+    try {
+      res.setHeader('Cache-Control', 'no-store');
+      const { username, password } = req.body || {};
+
+      if (!String(username || '').trim() || !String(password || '')) {
+        return res.status(400).json({ success: false, error: 'نام کاربری و رمز عبور الزامی است.' });
+      }
+
+      await syncStoresFromDb(0);
+      const result = credentialsStore.verify(String(username), String(password));
+      if (!result.success || !result.account) {
+        return res.status(401).json({ success: false, error: result.error || 'نام کاربری یا رمز عبور نادرست است.' });
+      }
+
+      analyticsStore.recordLogin({
+        user: result.account,
+        source: 'web',
+        ip: (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || 'client',
+        userAgent: req.headers['user-agent']
+      });
+
+      return res.json({ success: true, user: result.account });
+    } catch (err: any) {
+      console.error('Username login error:', err);
+      res.status(500).json({ success: false, error: 'خطای سرور در ورود با نام کاربری.' });
+    }
+  });
+
   app.post('/api/eitaa/set-phone', async (req, res) => {
     try {
       res.setHeader('Cache-Control', 'no-store');
