@@ -977,6 +977,40 @@ export class EitaaBotService {
     }
   }
 
+  /** پیدا کردن کاربر بر اساس آدرس ایمیل (نقشه، سپس جستجو در ایمیل‌ها/تاریخچه) */
+  public findUserByEmail(email: string): { key: string; user: EitaaRegisteredUser } | null {
+    const normalized = (email || '').toLowerCase().trim();
+    if (!normalized) return null;
+
+    const mappedKey = this.emailToPhoneMap.get(normalized);
+    if (mappedKey) {
+      const mappedUser = this.users.get(mappedKey);
+      if (mappedUser) return { key: mappedKey, user: mappedUser };
+    }
+
+    for (const [key, user] of this.users.entries()) {
+      const inEmails = (user.emails || []).some((e) => e.toLowerCase().trim() === normalized);
+      const inHistory = (user.history || []).some((h) => (h.email || '').toLowerCase().trim() === normalized);
+      if (inEmails || inHistory) {
+        this.emailToPhoneMap.set(normalized, key);
+        return { key, user };
+      }
+    }
+    return null;
+  }
+
+  /** وضعیت پیکربندی برای عیب‌یابی */
+  public getDiagnostics() {
+    return {
+      isEnabled: this.config.isEnabled,
+      tokenConfigured: Boolean(this.config.token && this.config.token.trim().length > 5),
+      tokenLength: this.config.token ? this.config.token.trim().length : 0,
+      usersCount: this.users.size,
+      mappedEmails: this.emailToPhoneMap.size,
+      userIds: Array.from(this.users.keys()).slice(0, 10)
+    };
+  }
+
   /**
    * Handles incoming email notifications and forwards them directly to the user's Eitaa account
    */
