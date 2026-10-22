@@ -1881,6 +1881,7 @@ async function startServer() {
         user: accountKey,
         eitaaId: normalizedId,
         name: user.firstName || 'کاربر ایتا',
+        phone: user.phone || null,
         isAdmin: false,
         ...payload
       });
@@ -1894,6 +1895,47 @@ async function startServer() {
    * ثبت‌نام / ورود با شناسه کاربری ایتا (به‌جای شماره موبایل)
    * اگر شناسه قبلاً ثبت شده باشد، همان حساب وارد می‌شود.
    */
+  /**
+   * ثبت شماره موبایل برای کاربرانی که با شناسهٔ ایتا ثبت‌نام کرده‌اند
+   * (پیش‌نیاز خرید اشتراک و درگاه پرداخت)
+   */
+  app.post('/api/eitaa/set-phone', async (req, res) => {
+    try {
+      res.setHeader('Cache-Control', 'no-store');
+      const { account, phone } = req.body || {};
+      const key = account ? String(account).trim() : '';
+
+      if (!/^eitaa[:_]/i.test(key)) {
+        return res.status(400).json({ success: false, error: 'حساب ایتا شناسایی نشد.' });
+      }
+
+      const cleanPhone =
+        extractValidPhoneNumber(phone) ||
+        formatIranianMobile(phone);
+
+      if (!/^09\d{9}$/.test(cleanPhone)) {
+        return res.status(400).json({ success: false, error: 'شماره موبایل معتبر نیست (مثال: 09121234567).' });
+      }
+
+      await syncStoresFromDb(0);
+
+      const user = eitaaBotService.findUser(key);
+      if (!user) {
+        return res.status(404).json({ success: false, error: 'کاربر ایتا یافت نشد.' });
+      }
+
+      // اگر همین شماره قبلاً به حساب دیگری وصل شده، جلوگیری نمی‌کنیم ولی ثبت می‌شود
+      user.phone = cleanPhone;
+      eitaaBotService.saveUsers();
+      await commitToDb();
+
+      return res.json({ success: true, phone: cleanPhone, account: key });
+    } catch (err: any) {
+      console.error('Eitaa set-phone error:', err);
+      res.status(500).json({ success: false, error: 'خطای سرور در ثبت شماره موبایل.' });
+    }
+  });
+
   app.post('/api/eitaa/register', loginLimiter, async (req, res) => {
     try {
       await syncStoresFromDb(0);
