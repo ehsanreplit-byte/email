@@ -10,6 +10,48 @@ function adminHeaders(extra: Record<string, string> = {}): Record<string, string
   };
 }
 
+// وقتی ADMIN_AUTH_ENABLED فعال است، همهٔ مسیرهای ادمین توکن می‌خواهند.
+// این وصله، توکن ذخیره‌شده را به‌صورت خودکار به تمام درخواست‌های /api اضافه می‌کند
+// تا درخواست‌هایی که adminHeaders را صریحاً استفاده نمی‌کنند هم معتبر بمانند.
+if (typeof window !== 'undefined' && !(window as any).__adminTokenFetchPatched) {
+  (window as any).__adminTokenFetchPatched = true;
+  const originalFetch = window.fetch.bind(window);
+
+  window.fetch = (input: any, init: any = {}) => {
+    let requestInit = init;
+    try {
+      const url: string =
+        typeof input === 'string' ? input : (input && typeof input.url === 'string' ? input.url : '');
+      const token = localStorage.getItem('admin_token') || sessionStorage.getItem('admin_token') || '';
+
+      if (token && url.indexOf('/api/') === 0) {
+        const headers = new Headers(
+          init.headers || (input && typeof input !== 'string' ? input.headers : undefined) || {}
+        );
+        if (!headers.has('Authorization')) {
+          headers.set('Authorization', `Bearer ${token}`);
+        }
+        requestInit = { ...init, headers };
+      }
+    } catch {
+      requestInit = init;
+    }
+
+    return originalFetch(input, requestInit).then((response) => {
+      try {
+        const url: string =
+          typeof input === 'string' ? input : (input && typeof input.url === 'string' ? input.url : '');
+        if (response.status === 401 && url.indexOf('/api/') === 0) {
+          localStorage.removeItem('admin_token');
+          sessionStorage.removeItem('admin_token');
+          window.dispatchEvent(new Event('admin-auth-expired'));
+        }
+      } catch {}
+      return response;
+    });
+  };
+}
+
 // Generates realistic fake persona directly in client if server API is unavailable
 function generateLocalFakeIdentity(): FakeIdentity {
   const firstNamesFa = ['علی', 'امیر', 'محمد', 'سارا', 'مریم', 'رضا', 'نیما', 'مهدی', 'نگین', 'پویا', 'آریا', 'یاسمن'];
