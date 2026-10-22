@@ -153,6 +153,20 @@
       </noscript>
     </div>
     <script>
+      // Surface failed script/style loads in the boot placeholder instead of a silent blank page.
+      window.addEventListener('error', function (e) {
+        try {
+          var t = e && e.target;
+          if (t && (t.tagName === 'SCRIPT' || t.tagName === 'LINK')) {
+            var hint = document.getElementById('boot-fallback-hint');
+            if (hint) {
+              hint.textContent = 'بارگذاری ناموفق: ' + (t.src || t.href || 'منبع نامشخص');
+            }
+          }
+        } catch (err) {}
+      }, true);
+    </script>
+    <script>
       // If nothing rendered after 8 seconds, tell the user what is happening
       // instead of leaving them on a blank screen.
       setTimeout(function () {
