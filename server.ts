@@ -293,6 +293,25 @@ async function startServer() {
         }
       }
 
+      // با ساخت ایمیل جدید، تمام ایمیل‌های قبلی همین حساب فوراً منقضی می‌شوند
+      // (حتی اگر زمان باقی‌مانده داشته باشند)
+      if (accountKey) {
+        try {
+          const previousUsage = getUserUnifiedUsageStats(
+            accountKey,
+            0,
+            (p) => telegramBotService.getUserByPhone(p),
+            (p) => eitaaBotService.getUserByPhone(p)
+          );
+          for (const previousEmail of previousUsage.allEmails) {
+            if (!previousEmail) continue;
+            emailStore.expireInbox(previousEmail);
+          }
+        } catch (expireErr) {
+          console.error('[InboxCreate] Failed to expire previous inboxes:', expireErr);
+        }
+      }
+
       const ttlSeconds = typeof ttl === 'number' ? ttl : 300;
       const inbox = emailStore.createInbox(username, domain, ttlSeconds);
 
