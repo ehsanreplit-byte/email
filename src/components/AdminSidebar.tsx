@@ -260,7 +260,6 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
 
         {/* Navigation list */}
         <div className={`flex-1 py-2 space-y-1 overflow-y-auto ${isCollapsed ? 'px-2 lg:px-2' : 'px-4'}`}>
-          <AdminPostsMenu currentTab={activeTab} onSelect={tab => setActiveTab(tab)} mobile collapsed={isCollapsed} />
           {menuItems.map((item) => {
             const isActive = activeTab === item.id;
             const Icon = item.icon;
@@ -306,6 +305,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
               </button>
             );
           })}
+          <AdminPostsMenu currentTab={activeTab} onSelect={tab => setActiveTab(tab)} mobile collapsed={isCollapsed} />
           <div className="pt-0.5">
             <button type="button" aria-expanded={isCollapsed || settingsOpen} aria-controls={settingsSubmenuId}
               onClick={() => {
