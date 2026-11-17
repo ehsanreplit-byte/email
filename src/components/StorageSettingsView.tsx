@@ -17,12 +17,15 @@ const cleanableGroups = [
   { id: 'mailboxes', label: 'صندوق‌ها و پیام‌ها', keys: ['inboxes_store.json', 'email_registry.json'] },
   { id: 'eitaa', label: 'سوابق ایمیل ربات ایتا', keys: ['eitaa_users.json'] },
   { id: 'telegram', label: 'سوابق ایمیل ربات تلگرام', keys: ['telegram_users.json'] },
-  { id: 'accounts', label: 'حساب‌ها و اعتبارنامه‌ها', keys: ['user_credentials.json', 'admin_users.json', 'admin_auth.json'] },
-  { id: 'analytics', label: 'آمار و گزارش‌ها', keys: ['analytics.json'] },
-  { id: 'tickets', label: 'تیکت‌ها و پشتیبانی', keys: ['tickets.json', 'support_tickets.json'] },
+  { id: 'accounts', label: 'حساب‌ها و اعتبارنامه‌های وب', keys: ['user_credentials.json', 'user_accounts.json'] },
+  { id: 'analytics', label: 'آمار و گزارش‌های ورود', keys: ['analytics_logins.json'] },
+  { id: 'tickets', label: 'تیکت‌های پشتیبانی', keys: ['telegram_tickets.json'] },
   { id: 'subscriptions', label: 'اشتراک‌ها', keys: ['subscriptions.json'] },
-  { id: 'blog', label: 'محتوای وبلاگ', keys: ['blog_posts.json', 'blog_ai_config.json'] },
-  { id: 'mailConfig', label: 'تنظیمات ایمیل و ربات‌ها', keys: ['email_senders.json', 'telegram_config.json', 'eitaa_config.json'] },
+  { id: 'transactions', label: 'تراکنش‌های بلوپال', keys: ['blupal_transactions.json'] },
+  { id: 'blog', label: 'محتوای وبلاگ و تنظیمات هوش مصنوعی', keys: ['blog.json', 'blog_ai_config.json'] },
+  { id: 'mailConfig', label: 'تنظیمات ایمیل و ربات‌ها', keys: ['email_provider_config.json', 'outbox_emails.json', 'telegram_config.json', 'eitaa_config.json'] },
+  { id: 'adminConfig', label: 'تنظیمات مدیر و پشتیبان‌گیری', keys: ['admin_auth.json', 'backup_config.json'] },
+  { id: 'systemConfig', label: 'تنظیمات وضعیت سیستم', keys: ['system_config.json'] },
 ] as const;
 const labels: Record<Provider, string> = { mongodb: 'MongoDB', postgres: 'PostgreSQL' };
 const formatBytes = (bytes: number) => bytes < 1024 ? `${bytes} بایت` : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} کیلوبایت` : `${(bytes / (1024 * 1024)).toFixed(1)} مگابایت`;
