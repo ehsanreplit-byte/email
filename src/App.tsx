@@ -82,6 +82,10 @@ export default function App() {
   const [isCopiedEmail, setIsCopiedEmail] = useState<boolean>(false);
   const [isCreatingInbox, setIsCreatingInbox] = useState<boolean>(false);
   const isCreatingInboxRef = useRef(false);
+  const [isCreateInboxModalOpen, setIsCreateInboxModalOpen] = useState(false);
+  const [availableDomains, setAvailableDomains] = useState<string[]>([]);
+  const [selectedDomain, setSelectedDomain] = useState('');
+  const [customInboxName, setCustomInboxName] = useState('');
   const [copiedOtp, setCopiedOtp] = useState<boolean>(false);
   const [emailModalViewMode, setEmailModalViewMode] = useState<'html' | 'text'>('html');
   const [autoRefreshInterval] = useState<number>(10);
@@ -618,23 +622,48 @@ export default function App() {
   const currentLimit = userQuota?.limit ?? MAX_FREE_EMAILS;
   const currentUsed = userQuota?.totalUsed ?? inboxes.length;
   const currentRemaining = userQuota?.remaining !== undefined ? userQuota.remaining : Math.max(0, currentLimit - inboxes.length);
-  const isLimitReached = currentRemaining <= 0 || inboxes.length >= currentLimit;
+  const isLimitReached = !isAdminUser && (currentRemaining <= 0 || inboxes.length >= currentLimit);
 
   const handleCreateNewEmail = async () => {
+    try {
+      setIsCreatingInbox(true);
+      const domains = await api.getDomains();
+      setAvailableDomains(domains);
+      setSelectedDomain(current => current && domains.includes(current) ? current : (domains[0] || ''));
+      setCustomInboxName('');
+      setIsCreateInboxModalOpen(true);
+    } catch {
+      showToast('دریافت فهرست دامنه‌ها ناموفق بود.', 'error');
+    } finally {
+      setIsCreatingInbox(false);
+    }
+  };
+
+  const confirmCreateNewEmail = async () => {
     if (isCreatingInboxRef.current) return;
+    const requestedName = customInboxName.trim();
+    if (requestedName && !/^[a-zA-Z0-9._-]{3,32}$/.test(requestedName)) {
+      showToast('نام ایمیل باید ۳ تا ۳۲ حرف انگلیسی، عدد یا یکی از . _ - باشد.', 'error');
+      return;
+    }
+    if (!selectedDomain || !availableDomains.includes(selectedDomain)) {
+      showToast('لطفاً یکی از دامنه‌های معتبر را انتخاب کنید.', 'error');
+      return;
+    }
     isCreatingInboxRef.current = true;
     setIsCreatingInbox(true);
     try {
       const authed = resolveAccountKey();
 
       // Apply unified emails limit for registered users
-      if (authed && isLimitReached) {
+      if (authed && !isAdminUser && isLimitReached) {
         showToast(`⚠️ سهمیه ${currentLimit} ایمیل شما تکمیل شده است. جهت ساخت ایمیل‌های بیشتر، اشتراک تهیه کنید.`, 'error');
         setIsSubscriptionModalOpen(true);
         return;
       }
 
-      const newInbox = await api.createInbox(undefined, undefined, undefined, authed);
+      const newInbox = await api.createInbox(requestedName || undefined, selectedDomain, undefined, authed);
+      setIsCreateInboxModalOpen(false);
       if (newInbox?.email) {
         sessionCreatedEmailsRef.current.add(newInbox.email.toLowerCase());
       }
@@ -676,7 +705,9 @@ export default function App() {
 
         // سهمیه از پاسخ سرور (منبع حقیقت: دیتابیس) گرفته می‌شود، نه افزایش حدسی
         const quotaFromServer = (newInbox as any)?.quota;
-        if (quotaFromServer) {
+        if (isAdminUser) {
+          setUserQuota(null);
+        } else if (quotaFromServer) {
           setUserQuota({
             limit: quotaFromServer.limit,
             totalUsed: quotaFromServer.totalUsed,
@@ -696,7 +727,9 @@ export default function App() {
         const remaining = quotaFromServer
           ? quotaFromServer.remaining
           : Math.max(0, currentRemaining - 1);
-        if (remaining > 0) {
+        if (isAdminUser) {
+          showToast('ایمیل مدیر ساخته شد.', 'success');
+        } else if (remaining > 0) {
           showToast(`ایمیل جدید فعال شد (${remaining} ایمیل دیگر باقی‌مانده)`, 'success');
         } else {
           showToast(`ایمیل جدید فعال شد. سهمیه ${currentLimit} ایمیل شما تکمیل گردید.`, 'success');
@@ -1218,15 +1251,19 @@ export default function App() {
                   className={`w-full sm:w-auto min-w-0 px-2.5 sm:px-5 py-2.5 min-h-[44px] rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-1 sm:gap-2 transition-all shadow-md disabled:opacity-50 cursor-pointer shrink-0 ${
                     !isAuthenticated
                       ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/20'
+                      : isAdminUser
+                      ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/20'
                       : isLimitReached
                       ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-amber-600/20'
                       : 'bg-indigo-600 hover:bg-indigo-700 active:scale-98 text-white shadow-indigo-600/20'
                   }`}
-                  title={!isAuthenticated ? 'جهت ساخت ایمیل‌های بیشتر ثبت‌نام کنید' : (isLimitReached ? `سهمیه ${currentLimit} ایمیل تکمیل شده است` : `امکان ساخت تا ${currentLimit} ایمیل (${currentRemaining} باقی‌مانده)`)}
+                  title={!isAuthenticated ? 'جهت ساخت ایمیل‌های بیشتر ثبت‌نام کنید' : (isAdminUser ? 'ساخت ایمیل بدون محدودیت' : (isLimitReached ? `سهمیه ${currentLimit} ایمیل تکمیل شده است` : `امکان ساخت تا ${currentLimit} ایمیل (${currentRemaining} باقی‌مانده)`))}
                 >
                   {isCreatingInbox ? <RefreshCw className="w-4 h-4 shrink-0 animate-spin" /> : <Plus className="w-4 h-4 shrink-0" />}
                   <span className="leading-4 text-center">
                     {!isAuthenticated
+                      ? 'ساخت ایمیل جدید'
+                      : isAdminUser
                       ? 'ساخت ایمیل جدید'
                       : isLimitReached
                       ? `سهمیه ${currentLimit} ایمیل تکمیل (ارتقا)`
@@ -1283,7 +1320,7 @@ export default function App() {
                           ? 'bg-amber-100 text-amber-800 border border-amber-200'
                           : 'bg-indigo-50 text-indigo-700 border border-indigo-150'
                       }`}>
-                        سهمیه: {currentUsed} از {currentLimit} ایمیل رایگان
+                        {isAdminUser ? 'بدون محدودیت ساخت' : `سهمیه: ${currentUsed} از ${currentLimit} ایمیل رایگان`}
                       </span>
                     </div>
                   </div>
@@ -1786,6 +1823,39 @@ export default function App() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {isCreateInboxModalOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/50 p-4" role="presentation">
+          <section role="dialog" aria-modal="true" aria-labelledby="create-inbox-title" dir="rtl" className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+              <h2 id="create-inbox-title" className="text-base font-extrabold text-slate-900">ساخت ایمیل جدید</h2>
+              <button type="button" onClick={() => setIsCreateInboxModalOpen(false)} aria-label="بستن" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="space-y-4 p-5">
+              <label className="block space-y-2">
+                <span className="text-sm font-bold text-slate-700">دامنه ایمیل</span>
+                <select value={selectedDomain} onChange={event => setSelectedDomain(event.target.value)} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-left font-mono text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" dir="ltr">
+                  {availableDomains.map(domain => <option key={domain} value={domain}>{domain}</option>)}
+                </select>
+              </label>
+              <label className="block space-y-2">
+                <span className="text-sm font-bold text-slate-700">نام دلخواه (اختیاری)</span>
+                <input value={customInboxName} onChange={event => setCustomInboxName(event.target.value)} placeholder="خالی بگذارید تا نام تصادفی ساخته شود" maxLength={32} autoComplete="off" className="w-full rounded-xl border border-slate-300 px-3 py-3 text-left font-mono text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" dir="ltr" />
+                <span className="block text-xs leading-5 text-slate-500">۳ تا ۳۲ حرف انگلیسی، عدد یا یکی از . _ -</span>
+              </label>
+              <div className="rounded-xl bg-slate-50 px-3 py-3 text-sm text-slate-600" dir="ltr">
+                <span className="break-all font-mono font-semibold text-slate-800">{customInboxName.trim() || 'نام-تصادفی'}@{selectedDomain || 'domain'}</span>
+              </div>
+            </div>
+            <div className="flex gap-3 border-t border-slate-100 bg-slate-50 px-5 py-4">
+              <button type="button" onClick={() => setIsCreateInboxModalOpen(false)} className="flex-1 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-100">انصراف</button>
+              <button type="button" onClick={() => void confirmCreateNewEmail()} disabled={isCreatingInbox || !availableDomains.length} className="flex-1 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50">
+                {isCreatingInbox ? 'در حال ساخت…' : 'ساخت ایمیل'}
+              </button>
+            </div>
+          </section>
         </div>
       )}
 

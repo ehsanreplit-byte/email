@@ -638,8 +638,17 @@ async function startServer() {
         ? ''
         : (extractValidPhoneNumber(rawUser) || formatIranianMobile(rawUser));
       const accountKey = eitaaAccountKey || cleanPhone;
+      const requestedName = typeof username === 'string' ? username.trim() : '';
+      if (requestedName && !/^[a-zA-Z0-9._-]{3,32}$/.test(requestedName)) {
+        return res.status(400).json({ error: 'INVALID_USERNAME', message: 'نام ایمیل باید ۳ تا ۳۲ حرف انگلیسی، عدد یا یکی از . _ - باشد.' });
+      }
+      const domains = emailStore.getDomains();
+      if (domain && !domains.includes(String(domain).trim().toLowerCase())) {
+        return res.status(400).json({ error: 'INVALID_DOMAIN', message: 'دامنهٔ انتخاب‌شده معتبر نیست.' });
+      }
+      const isManagerAccount = cleanPhone === '09134336627' || rawUserStr === 'admin';
 
-      if (accountKey) {
+      if (accountKey && !isManagerAccount) {
         const usage = getUserUnifiedUsageStats(
           accountKey,
           0,
@@ -657,7 +666,7 @@ async function startServer() {
 
       // با ساخت ایمیل جدید، تمام ایمیل‌های قبلی همین حساب فوراً منقضی می‌شوند
       // (حتی اگر زمان باقی‌مانده داشته باشند)
-      if (accountKey) {
+      if (accountKey && !isManagerAccount) {
         try {
           const previousUsage = getUserUnifiedUsageStats(
             accountKey,
@@ -993,7 +1002,10 @@ async function startServer() {
       // لیست کاربران فقط از MongoDB خوانده می‌شود (بدون کش کهنهٔ این نمونه)
       await syncStoresFromDb(0);
       const telegramUsers = telegramBotService.getRegisteredUsers() || [];
-      const eitaaUsers = eitaaBotService.getUsers() || [];
+      const eitaaUsers = (eitaaBotService.getUsers() || []).filter((user: any) => {
+        const phone = extractValidPhoneNumber(user.phone) || formatIranianMobile(user.phone);
+        return phone !== '09134336627';
+      });
       const activeInboxes = emailStore.getAllActiveInboxes() || [];
 
       // We group users by standard clean phone number (09xxxxxxxxx) or by fallback unique key
@@ -1034,6 +1046,8 @@ async function startServer() {
 
       // 1. Process Telegram Users
       for (const u of telegramUsers) {
+        const normalizedPhone = extractValidPhoneNumber(u.phone) || formatIranianMobile(u.phone);
+        if (normalizedPhone === '09134336627') continue;
         const uEntry = getOrInitUser(u.phone, `tg_${u.chatId}`, {
           source: 'telegram',
           chatId: u.chatId,
