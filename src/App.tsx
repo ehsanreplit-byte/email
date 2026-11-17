@@ -995,7 +995,7 @@ export default function App() {
   }
 
   return (
-    <div className={`min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-indigo-500 selection:text-white relative overflow-x-hidden ${isAdminUser ? 'lg:pr-80' : ''}`}>
+    <div className={`min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-indigo-500 selection:text-white relative overflow-x-hidden ${isAdminUser ? 'lg:pr-64' : ''}`}>
       {/* Subtle Background Pattern */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden opacity-40">
         <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[600px] h-[350px] bg-indigo-200/40 rounded-full blur-3xl" />
@@ -1079,10 +1079,10 @@ export default function App() {
       </header>
 
       {/* Center Box / Main Card Area */}
-      <main className="relative z-10 flex-1 flex flex-col items-center justify-center px-3 sm:px-6 py-4 sm:py-10 max-w-5xl w-full mx-auto">
+      <main className={`relative z-10 flex-1 flex flex-col w-full min-w-0 mx-auto ${isAdminUser ? 'items-stretch justify-start max-w-none px-3 sm:px-5 lg:px-6 py-3 sm:py-5' : 'items-center justify-center px-3 sm:px-6 py-4 sm:py-10 max-w-5xl'}`}>
         {isAdminUser && adminActiveTab !== 'inbox' ? (
-          <div className="w-full bg-white border border-slate-200/90 rounded-2xl sm:rounded-3xl shadow-xl shadow-slate-200/60 p-4 sm:p-7 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+          <div className="w-full min-w-0 bg-white border border-slate-200/90 rounded-2xl sm:rounded-3xl shadow-xl shadow-slate-200/60 p-3 sm:p-5 xl:p-7 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-200">
               <span className="font-bold text-sm text-slate-800">
                 {adminActiveTab === 'dashboard' && 'پیشخوان هوشمند و گزارش زنده'}
                 {adminActiveTab === 'send_email' && 'ارسال ایمیل'}
@@ -1103,7 +1103,7 @@ export default function App() {
               </button>
             </div>
 
-            <div className="pt-2">
+            <div className="pt-2 min-w-0">
               <Suspense fallback={<LazyChunkFallback label="در حال بارگذاری بخش مدیریت…" />}>
                 {adminActiveTab === 'dashboard' && <AdminDashboardView isFa={true} onNavigateTab={(t: ActiveTab) => setAdminActiveTab(t)} />}
                 {adminActiveTab === 'send_email' && <SendEmailView isFa={true} />}

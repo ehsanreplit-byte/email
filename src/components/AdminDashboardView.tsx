@@ -68,7 +68,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
         </div>
 
         {/* 4 Overview Metric Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5">
           {/* Card 1: کل ایمیل‌های ساخته شده */}
           <div className="p-4 rounded-2xl bg-gradient-to-br from-indigo-50/80 via-white to-indigo-50/30 border border-indigo-200/80 shadow-xs flex flex-col justify-between space-y-2.5">
             <div className="flex items-center justify-between">

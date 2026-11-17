@@ -244,7 +244,7 @@ export const BackupView: React.FC<BackupViewProps> = ({ isFa }) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {/* Left Card: Schedule Auto Backup */}
         <div className="bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-5 sm:p-6 space-y-5">
           <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800/60">

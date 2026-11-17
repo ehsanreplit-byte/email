@@ -19,7 +19,7 @@ export function BlogTaxonomies({ kind, state, busy, run, confirm }: ManagerProps
   const [slugEdited, setSlugEdited] = useState(false);
   const list = state[kind]; const title = kind === 'categories' ? 'دسته‌بندی' : 'برچسب';
   const reset = () => { setForm({ name: '', slug: '', description: '', parentId: '' }); setSlugEdited(false); };
-  return <div className="grid lg:grid-cols-[340px_minmax(0,1fr)] gap-6">
+  return <div className="grid xl:grid-cols-[340px_minmax(0,1fr)] gap-6">
     <form className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4 self-start" onSubmit={async e => { e.preventDefault(); const saved = await run(() => blogRequest(`/${kind}${form.id ? `/${form.id}` : ''}`, form.id ? 'PUT' : 'POST', form)); if (saved) reset(); }}>
       <h2 className="font-black">{form.id ? 'ویرایش' : 'افزودن'} {title}</h2>
       <BlogField label="نام"><input required maxLength={100} value={form.name} className={blogInput} onChange={e => setForm({ ...form, name: e.target.value, ...(!slugEdited && !form.id ? { slug: blogSlug(e.target.value) } : {}) })} /></BlogField>
