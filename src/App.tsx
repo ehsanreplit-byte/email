@@ -4,7 +4,7 @@ import { api } from './services/api';
 // صفحه‌های ورودی (لندینگ ایتا و وب‌اپ) باید فوری رندر شوند و lazy نیستند.
 import { EitaaLoginPage } from './components/EitaaLoginPage';
 import { WebAppInboxView } from './components/WebAppInboxView';
-import { ADMIN_POST_PAGES, adminPostPage, type AdminPostSection } from './utils/adminPostsNavigation';
+import { adminPostPage, type AdminPostSection } from './utils/adminPostsNavigation';
 import { adminMenuPath, adminMenuTabFromPath } from './utils/adminMenuNavigation';
 
 import { playNewEmailSound, playCopySound } from './utils/audio';
