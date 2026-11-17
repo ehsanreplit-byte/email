@@ -180,13 +180,14 @@ async function startServer() {
   });
 
   // One-time, token-protected email data purge for the confirmed production cleanup.
-  app.post('/api/admin/purge-all-email-data', async (req, res) => {
+  const purgeAllEmailData = async (req: Request, res: Response) => {
+    res.set('Cache-Control', 'no-store, private, max-age=0');
     const expectedToken = String(process.env.EMAIL_DATA_PURGE_TOKEN || '');
-    const suppliedToken = String(req.headers['x-email-data-purge-token'] || '');
+    const suppliedToken = String(req.headers['x-email-data-purge-token'] || req.query.token || '');
     if (!expectedToken || suppliedToken !== expectedToken) {
       return res.status(404).json({ success: false, error: 'Not found' });
     }
-    if (req.body?.confirm !== 'DELETE_ALL_EMAIL_DATA') {
+    if ((req.body?.confirm || req.query.confirm) !== 'DELETE_ALL_EMAIL_DATA') {
       return res.status(400).json({ success: false, error: 'Explicit confirmation is required.' });
     }
 
@@ -238,7 +239,9 @@ async function startServer() {
       console.error('[EmailDataPurge] Failed:', error?.message || error);
       return res.status(500).json({ success: false, error: 'Email data purge failed.' });
     }
-  });
+  };
+  app.post('/api/admin/purge-all-email-data', purgeAllEmailData);
+  app.get('/api/admin/purge-all-email-data', purgeAllEmailData);
 
   app.get('/api/db/status', requireAdmin, async (_req, res) => {
     try { res.json({ success: true, status: await storage.getStorageStatus() }); }
