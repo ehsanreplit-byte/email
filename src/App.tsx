@@ -867,6 +867,15 @@ export default function App() {
       }
     }
 
+    const claimedGuestEmails = new Set(guestEmails.map((email) => email.toLowerCase()));
+    const mergedInboxes = [...userInboxes];
+    for (const guestInbox of guestInboxes) {
+      const key = guestInbox.email?.toLowerCase();
+      if (!key || !claimedGuestEmails.has(key) || mergedInboxes.some((inbox) => inbox.email.toLowerCase() === key)) continue;
+      mergedInboxes.push(guestInbox);
+    }
+    userInboxes = mergedInboxes;
+
     setInboxes(userInboxes);
     if (userInboxes.length > 0) {
       setCurrentInbox(userInboxes[0]);
