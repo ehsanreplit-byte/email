@@ -179,6 +179,21 @@ export const api = {
    * ترتیب کار: (۱) بررسی سهمیه در سرور، (۲) ساخت در دیتابیس، (۳) برگشت ایمیل ساخته‌شده.
    * هیچ‌گاه ایمیل «محلی» بدون ثبت در دیتابیس ساخته نمی‌شود.
    */
+  async claimGuestInboxes(emails: string[], account: string): Promise<{ success: boolean; inboxes?: TempInbox[]; remainingEmails?: number; limit?: number; totalUsed?: number }> {
+    const res = await fetch('/api/inbox/claim-guest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emails, account }),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.success) {
+      const err: any = new Error(data?.message || data?.error || 'انتقال صندوق مهمان ناموفق بود.');
+      err.code = data?.error || 'GUEST_CLAIM_FAILED';
+      throw err;
+    }
+    return data;
+  },
+
   async createInbox(username?: string, domain?: string, ttl: number = 300, userPhone?: string): Promise<TempInbox & { quota?: { limit: number; totalUsed: number; remaining: number } }> {
     const activeUser = userPhone || this.getActiveAccount();
 
