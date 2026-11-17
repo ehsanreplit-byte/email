@@ -5,6 +5,7 @@ import { api } from './services/api';
 import { EitaaLoginPage } from './components/EitaaLoginPage';
 import { WebAppInboxView } from './components/WebAppInboxView';
 import { ADMIN_POST_PAGES, adminPostPage, type AdminPostSection } from './utils/adminPostsNavigation';
+import { adminMenuPath, adminMenuTabFromPath } from './utils/adminMenuNavigation';
 
 import { playNewEmailSound, playCopySound } from './utils/audio';
 import { extractValidPhoneNumber } from './utils/phone';
@@ -103,7 +104,7 @@ export default function App() {
   const [isAdminSidebarOpen, setIsAdminSidebarOpen] = useState<boolean>(false);
   const [isAdminSidebarCollapsed, setIsAdminSidebarCollapsed] = useState<boolean>(false);
   const [adminActiveTab, setAdminActiveTab] = useState<ActiveTab>(() =>
-    ADMIN_POST_PAGES.find(page => window.location.pathname === page.path)?.tab || 'inbox'
+    adminMenuTabFromPath(window.location.pathname) || 'inbox'
   );
   const adminPostNavigationGuardRef = useRef<null | (() => boolean)>(null);
   const [unreadTicketsCount, setUnreadTicketsCount] = useState<number>(0);
@@ -242,12 +243,14 @@ export default function App() {
     const handleUrlChange = () => {
       const isEitaa = checkIsEitaaUrl();
       setIsEitaaPage(isEitaa);
-      const postPage = ADMIN_POST_PAGES.find(page => window.location.pathname === page.path);
-      if (postPage) setAdminActiveTab(postPage.tab);
+      const isWebApp = !isEitaa && checkIsWebAppUrl();
+      const menuTab = !isEitaa && !isWebApp ? adminMenuTabFromPath(window.location.pathname) : null;
+      if (menuTab) setAdminActiveTab(menuTab);
+      else if (!isEitaa && !isWebApp) setAdminActiveTab('inbox');
       if (isEitaa) {
         setIsWebAppPage(false);
       } else {
-        setIsWebAppPage(checkIsWebAppUrl());
+        setIsWebAppPage(isWebApp);
       }
     };
     window.addEventListener('popstate', handleUrlChange);
@@ -1510,9 +1513,8 @@ export default function App() {
             setActiveTab={(tab: ActiveTab) => {
               if (tab !== adminActiveTab && adminPostNavigationGuardRef.current && !adminPostNavigationGuardRef.current()) return;
               setAdminActiveTab(tab);
-              const page = adminPostPage(tab);
-              if (page) window.history.pushState({}, '', page.path);
-              else if (window.location.pathname.startsWith('/admin/posts')) window.history.pushState({}, '', '/');
+              const path = adminMenuPath(tab);
+              if (path && window.location.pathname !== path) window.history.pushState({}, '', path);
               setIsAdminSidebarOpen(false);
             }}
             unreadTicketsCount={unreadTicketsCount}
