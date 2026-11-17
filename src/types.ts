@@ -71,7 +71,7 @@ export interface FakeIdentity {
 }
 
 export type Language = 'fa' | 'en';
-export type ActiveTab = 'dashboard' | 'inbox' | 'telegram' | 'eitaa' | 'user_emails' | 'subscriptions' | 'blupal' | 'tickets' | 'backup' | 'send_email' | 'posts' | 'posts_write' | 'posts_categories' | 'posts_tags' | 'posts_comments' | 'posts_media' | 'posts_settings' | 'posts_trash';
+export type ActiveTab = 'dashboard' | 'inbox' | 'telegram' | 'eitaa' | 'user_emails' | 'subscriptions' | 'blupal' | 'tickets' | 'backup' | 'storage' | 'send_email' | 'posts' | 'posts_write' | 'posts_categories' | 'posts_tags' | 'posts_comments' | 'posts_media' | 'posts_settings' | 'posts_trash';
 
 export interface DashboardStats {
   todayDepositsCount: number;

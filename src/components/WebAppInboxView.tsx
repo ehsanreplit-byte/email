@@ -18,9 +18,10 @@ export const WebAppInboxView: React.FC<WebAppInboxViewProps> = ({ onBack }) => {
   const [selectedMessage, setSelectedMessage] = useState<EmailMessage | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const refreshInFlightRef = useRef(false);
   const [copiedOtp, setCopiedOtp] = useState<boolean>(false);
   const [currentUser, setCurrentUser] = useState<string>('');
-  const [autoRefreshInterval] = useState<number>(5);
+  const [autoRefreshInterval] = useState<number>(10);
   const prevMessageCountRef = useRef<number>(0);
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
 
@@ -143,7 +144,9 @@ export const WebAppInboxView: React.FC<WebAppInboxViewProps> = ({ onBack }) => {
 
   // Fetch all user messages across all inboxes in one unified feed
   const fetchMessages = useCallback(async (isManual = false) => {
+    if (refreshInFlightRef.current) return;
     if (!currentUser && inboxes.length === 0) return;
+    refreshInFlightRef.current = true;
     if (isManual) setIsRefreshing(true);
 
     try {
@@ -158,7 +161,14 @@ export const WebAppInboxView: React.FC<WebAppInboxViewProps> = ({ onBack }) => {
         showToast('📩 پیام جدید دریافت شد!', 'success');
       }
       prevMessageCountRef.current = sorted.length;
-      setMessages(sorted);
+      // Background polling only merges changed messages into the current view.
+      setMessages((previous) => {
+        const previousById = new Map(previous.map((message) => [message.id, message]));
+        const merged = sorted.map((message) => ({ ...previousById.get(message.id), ...message }));
+        const fetchedIds = new Set(sorted.map((message) => message.id));
+        for (const message of previous) if (!fetchedIds.has(message.id)) merged.push(message);
+        return merged.sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
+      });
 
       // Keep selected message updated if it still exists
       setSelectedMessage((prev) => {
@@ -168,6 +178,7 @@ export const WebAppInboxView: React.FC<WebAppInboxViewProps> = ({ onBack }) => {
     } catch (err) {
       console.warn('Failed to fetch user messages:', err);
     } finally {
+      refreshInFlightRef.current = false;
       if (isManual) setIsRefreshing(false);
     }
   }, [inboxes, currentUser, showToast]);

@@ -31,6 +31,7 @@ const TicketsView = lazy(() => import('./components/TicketsView').then((m) => ({
 const AdminDashboardView = lazy(() => import('./components/AdminDashboardView').then((m) => ({ default: m.AdminDashboardView })));
 const BluPalView = lazy(() => import('./components/BluPalView').then((m) => ({ default: m.BluPalView })));
 const BackupView = lazy(() => import('./components/BackupView').then((m) => ({ default: m.BackupView })));
+const StorageSettingsView = lazy(() => import('./components/StorageSettingsView').then((m) => ({ default: m.StorageSettingsView })));
 const EitaaView = lazy(() => import('./components/EitaaView').then((m) => ({ default: m.EitaaView })));
 const AdminBlog = lazy(() => import('./components/admin/AdminBlog'));
 
@@ -88,10 +89,12 @@ export default function App() {
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState<boolean>(false);
   const [isCopiedEmail, setIsCopiedEmail] = useState<boolean>(false);
+  const [isCreatingInbox, setIsCreatingInbox] = useState<boolean>(false);
+  const isCreatingInboxRef = useRef(false);
   const [copiedOtp, setCopiedOtp] = useState<boolean>(false);
   const [emailModalViewMode, setEmailModalViewMode] = useState<'html' | 'text'>('html');
-  const [autoRefreshInterval] = useState<number>(5);
-  const [secondsUntilRefresh, setSecondsUntilRefresh] = useState<number>(5);
+  const [autoRefreshInterval] = useState<number>(10);
+  const [secondsUntilRefresh, setSecondsUntilRefresh] = useState<number>(10);
 
   // Tab within the Central Card
   const [activeCardTab, setActiveCardTab] = useState<'messages' | 'emails'>('messages');
@@ -436,12 +439,15 @@ export default function App() {
 
   // تا پایان بارگذاری اولیه (رفرش/باز شدن مجدد صفحه) هیچ پیامی «جدید» اعلام نمی‌شود
   const bootstrappedRef = useRef(false);
+  const inboxRefreshInFlightRef = useRef(false);
 
   // ایمیل‌هایی که در همین نشست ساخته شده‌اند (تنها موردی که مجاز است موقتاً از لیست محلی محافظت شود)
   const sessionCreatedEmailsRef = useRef<Set<string>>(new Set());
 
   // syncList=false یعنی فقط پیام‌ها را بگیر و لیست ایمیل‌ها را دست نزن (جلوگیری از پرش لیست)
   const fetchInboxMessages = useCallback(async (isManual = false, syncList = true) => {
+    if (!isManual && inboxRefreshInFlightRef.current) return;
+    inboxRefreshInFlightRef.current = true;
     const authed = resolveAccountKey();
     const seq = ++fetchSeqRef.current;
     const isStale = () => seq !== fetchSeqRef.current;
@@ -578,6 +584,7 @@ export default function App() {
         // اولین بارگذاری (رفرش یا باز شدن مجدد) اعلان «پیام جدید» تولید نمی‌کند
         bootstrappedRef.current = true;
       }
+      inboxRefreshInFlightRef.current = false;
     }
   }, [resolveAccountKey, showToast]);
 
@@ -629,8 +636,10 @@ export default function App() {
   const isLimitReached = currentRemaining <= 0 || inboxes.length >= currentLimit;
 
   const handleCreateNewEmail = async () => {
+    if (isCreatingInboxRef.current) return;
+    isCreatingInboxRef.current = true;
+    setIsCreatingInbox(true);
     try {
-      setIsRefreshing(true);
       const authed = resolveAccountKey();
 
       // Apply unified emails limit for registered users
@@ -721,7 +730,8 @@ export default function App() {
         showToast(err?.message || 'خطا در ایجاد ایمیل جدید', 'error');
       }
     } finally {
-      setIsRefreshing(false);
+      isCreatingInboxRef.current = false;
+      setIsCreatingInbox(false);
     }
   };
 
@@ -1094,6 +1104,7 @@ export default function App() {
                 {adminActiveTab === 'tickets' && 'سیستم پشتیبانی و تیکت‌ها'}
                 {adminActiveTab === 'blupal' && 'تنظیمات درگاه بانکی بلوپال'}
                 {adminActiveTab === 'backup' && 'پشتیبان‌گیری و بازگردانی'}
+                {adminActiveTab === 'storage' && 'مدیریت ذخیره‌سازی دیتابیس'}
                 {adminPostPage(adminActiveTab)?.label}
               </span>
               <button
@@ -1115,6 +1126,7 @@ export default function App() {
                 {adminActiveTab === 'tickets' && <TicketsView isFa={true} />}
                 {adminActiveTab === 'blupal' && <BluPalView lang="fa" />}
                 {adminActiveTab === 'backup' && <BackupView isFa={true} />}
+                {adminActiveTab === 'storage' && <StorageSettingsView />}
                 {adminPostPage(adminActiveTab) && <AdminBlog
                   section={adminPostPage(adminActiveTab)!.section as AdminPostSection}
                   onNavigate={(section, postId) => {
@@ -1145,16 +1157,16 @@ export default function App() {
 
 
               {/* Email Address Container */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-1.5 bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl">
+              <div className="flex flex-row items-stretch sm:items-center gap-2 p-1.5 bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl">
                 {/* Address Display & Click to Copy */}
                 <div 
                   onClick={handleCopyEmail}
-                  className="flex-1 flex items-center justify-between px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-lg sm:rounded-xl hover:bg-white bg-white sm:bg-transparent border border-slate-200/70 sm:border-0 transition-colors cursor-pointer group min-w-0"
+                  className="flex-1 flex items-center justify-between gap-2 px-2 sm:px-3.5 py-2 sm:py-2.5 rounded-lg sm:rounded-xl hover:bg-white bg-white sm:bg-transparent border border-slate-200/70 sm:border-0 transition-colors cursor-pointer group min-w-0"
                   title="کلیک برای کپی آدرس ایمیل"
                 >
                   <div className="flex items-center gap-2 min-w-0 flex-1 mr-1">
                     <Mail className="w-4 h-4 text-indigo-600 shrink-0" />
-                    <span className="font-mono text-xs sm:text-sm font-bold text-slate-900 truncate tracking-tight sm:tracking-wide select-all" dir="ltr">
+                    <span className="min-w-0 break-all text-left font-mono text-[10px] sm:text-sm font-bold text-slate-900 tracking-tight sm:tracking-wide select-all" dir="ltr">
                       {currentInbox?.email || 'در حال آماده‌سازی ایمیل...'}
                     </span>
                   </div>
@@ -1165,7 +1177,7 @@ export default function App() {
                       e.stopPropagation();
                       handleCopyEmail();
                     }}
-                    className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-all cursor-pointer min-h-[34px] sm:min-h-auto ${
+                    className={`px-2 sm:px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-all cursor-pointer min-h-[34px] sm:min-h-auto ${
                       isCopiedEmail
                         ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                         : 'bg-slate-100 sm:bg-white hover:bg-slate-200 sm:hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs'
@@ -1189,8 +1201,8 @@ export default function App() {
                 <button
                   id="btn-create-new-email"
                   onClick={handleCreateNewEmail}
-                  disabled={isRefreshing}
-                  className={`w-full sm:w-auto px-4 sm:px-5 py-2.5 min-h-[44px] rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-md disabled:opacity-50 cursor-pointer shrink-0 ${
+                  disabled={isCreatingInbox}
+                  className={`w-auto px-2.5 sm:px-5 py-2.5 min-h-[44px] rounded-xl font-bold text-[10px] sm:text-sm flex items-center justify-center gap-1 sm:gap-2 transition-all shadow-md disabled:opacity-50 cursor-pointer shrink-0 ${
                     !isAuthenticated
                       ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/20'
                       : isLimitReached
@@ -1199,8 +1211,8 @@ export default function App() {
                   }`}
                   title={!isAuthenticated ? 'جهت ساخت ایمیل‌های بیشتر ثبت‌نام کنید' : (isLimitReached ? `سهمیه ${currentLimit} ایمیل تکمیل شده است` : `امکان ساخت تا ${currentLimit} ایمیل (${currentRemaining} باقی‌مانده)`)}
                 >
-                  <Plus className="w-4 h-4 shrink-0" />
-                  <span>
+                  {isCreatingInbox ? <RefreshCw className="w-4 h-4 shrink-0 animate-spin" /> : <Plus className="w-4 h-4 shrink-0" />}
+                  <span className="leading-4 text-center">
                     {!isAuthenticated
                       ? 'ساخت ایمیل جدید (ثبت‌نام)'
                       : isLimitReached

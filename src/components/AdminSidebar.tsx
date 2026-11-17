@@ -211,6 +211,12 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       icon: Database,
       activeColor: 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30',
     },
+    {
+      id: 'storage' as ActiveTab,
+      label: isFa ? 'ذخیره‌سازی دیتابیس' : 'Database Storage',
+      icon: Database,
+      activeColor: 'bg-cyan-50 dark:bg-cyan-950/30 text-cyan-700 dark:text-cyan-300 border-cyan-100 dark:border-cyan-900/30',
+    },
   ];
 
   return (
