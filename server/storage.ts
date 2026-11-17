@@ -470,6 +470,44 @@ class Storage {
     }
   }
 
+  public async deleteJsonDocuments(keys: string[]): Promise<{ deleted: string[]; missing: string[] }> {
+    const allowedKeys = new Set([
+      'inboxes_store.json', 'email_registry.json', 'eitaa_users.json', 'telegram_users.json',
+      'user_credentials.json', 'analytics_logins.json', 'system_config.json', 'subscriptions.json',
+      'telegram_tickets.json', 'blupal_config.json', 'blupal_transactions.json',
+      'backup_config.json', 'blog.json', 'blog_ai_config.json', 'telegram_config.json',
+      'eitaa_config.json', 'admin_auth.json', 'email_provider_config.json', 'outbox_emails.json',
+      'user_accounts.json',
+    ]);
+    const requested = keys.map((key) => String(key || '').trim());
+    const selected = Array.from(new Set(requested)).filter((key) => allowedKeys.has(key));
+    if (!selected.length || selected.length !== requested.length) {
+      throw new Error('انتخاب کلیدهای اسناد معتبر نیست.');
+    }
+    await this.flush();
+    return this.withExclusiveStorageLock(async (provider, client) => {
+      if (provider === 'local') throw new Error('پاک‌سازی فقط در دیتابیس متصل پشتیبانی می‌شود.');
+      const existing = await this.readDocuments(provider, provider === 'postgres' ? client : undefined);
+      const existingSet = new Set(existing.map((item) => item.key));
+      const deleted = selected.filter((key) => existingSet.has(key));
+      const missing = selected.filter((key) => !existingSet.has(key));
+
+      if (provider === 'postgres') {
+        await client.query(`DELETE FROM ${JSON_TABLE} WHERE id = ANY($1::text[])`, [deleted]);
+      } else {
+        await this.ensureMongoConnection();
+        await this.mongoJsonCollection().deleteMany({ _id: { $in: deleted } } as any);
+      }
+
+      const documents = await this.readDocuments(provider, provider === 'postgres' ? client : undefined);
+      this.cache.clear();
+      for (const item of documents) this.cache.set(item.key, item.data);
+      this.activeProvider = provider;
+      this.activeProviderError = undefined;
+      return { deleted, missing };
+    });
+  }
+
   public async refreshProviderIfChanged(): Promise<boolean> {
     if (!this.postgresConfigured()) return false;
     return this.withSharedStorageLock(async (provider, client) => {

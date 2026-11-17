@@ -399,6 +399,38 @@ async function startServer() {
     catch (error: any) { res.status(500).json({ success: false, error: error?.message || 'خواندن وضعیت ذخیره‌سازی ناموفق بود.' }); }
   });
 
+  app.post('/api/db/documents/delete', requireAdmin, async (req, res) => {
+    const { keys, confirm } = req.body || {};
+    if (confirm !== 'DELETE_SELECTED_DOCUMENTS' || !Array.isArray(keys) || keys.length === 0) {
+      return res.status(400).json({ success: false, error: 'انتخاب سندها و تأیید صریح پاک‌سازی الزامی است.' });
+    }
+    try {
+      await storage.refreshProviderIfChanged();
+      if (!['postgres', 'mongodb'].includes(storage.provider)) {
+        return res.status(409).json({ success: false, error: 'برای پاک‌سازی، ابتدا یک دیتابیس متصل را فعال کنید.' });
+      }
+      const normalizedKeys = new Set((keys as unknown[]).map((key) => String(key || '').trim()));
+      const result = await storage.deleteJsonDocuments(keys);
+      if (normalizedKeys.has('inboxes_store.json') || normalizedKeys.has('email_registry.json')) emailStore.loadFromStorage();
+      if (normalizedKeys.has('eitaa_users.json')) eitaaBotService.loadUsers();
+      if (normalizedKeys.has('telegram_users.json')) telegramBotService.loadUsers();
+      if (normalizedKeys.has('user_credentials.json')) credentialsStore.loadFromStorage();
+      if (normalizedKeys.has('analytics_logins.json')) analyticsStore.loadFromStorage();
+      if (normalizedKeys.has('system_config.json')) systemStore.loadFromStorage();
+      if (normalizedKeys.has('subscriptions.json')) subscriptionStore.loadFromStorage();
+      if (normalizedKeys.has('telegram_tickets.json')) ticketStore.loadFromStorage();
+      if (normalizedKeys.has('blupal_config.json') || normalizedKeys.has('blupal_transactions.json')) blupalStore.loadFromStorage();
+      if (normalizedKeys.has('email_provider_config.json') || normalizedKeys.has('outbox_emails.json')) emailSenderStore.loadFromStorage();
+      if (normalizedKeys.has('backup_config.json')) backupService.loadFromStorage();
+      if (normalizedKeys.has('telegram_config.json')) telegramBotService.loadConfig();
+      if (normalizedKeys.has('eitaa_config.json')) eitaaBotService.loadConfig();
+      const status = await storage.getStorageStatus();
+      return res.json({ success: true, result, status });
+    } catch (error: any) {
+      return res.status(400).json({ success: false, error: error?.message || 'پاک‌سازی اسناد ناموفق بود.' });
+    }
+  });
+
   app.post('/api/db/postgres/test', requireAdmin, async (_req, res) => {
     const status = await storage.testPostgresConnection();
     res.status(status.connected || !status.configured ? 200 : 503).json({ success: status.connected, status });
