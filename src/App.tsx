@@ -1177,7 +1177,7 @@ export default function App() {
                   <div className="flex items-start sm:items-center gap-2 min-w-0 flex-1">
                     <Mail className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5 sm:mt-0" />
                     <span className="min-w-0 flex-1 whitespace-normal break-words text-left font-mono text-xs sm:text-sm font-bold text-slate-900 tracking-tight sm:tracking-wide select-all" dir="ltr">
-                      {currentInbox ? (isAuthenticated ? currentInbox.email : '••••••••••••••••••••••••••') : 'برای شروع، «ساخت ایمیل جدید» را بزنید'}
+                      {currentInbox ? (isAuthenticated ? currentInbox.email : currentInbox.email) : 'برای شروع، «ساخت ایمیل جدید» را بزنید'}
                     </span>
                   </div>
                 </div>
@@ -1431,9 +1431,9 @@ export default function App() {
                           <div className="text-xs sm:text-sm text-slate-800 font-bold truncate">
                             {isAuthenticated ? (msg.subject || '(بدون عنوان)') : 'پیام جدید دریافت شد'}
                           </div>
-                          <p className="text-[11px] text-slate-500 line-clamp-1 sm:line-clamp-2 leading-relaxed font-mono tracking-wider">
+                          <p className={`leading-relaxed ${!isAuthenticated ? "text-sm sm:text-base font-bold text-indigo-800 bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-3 line-clamp-2" : "text-[11px] sm:text-xs text-slate-500 line-clamp-1 sm:line-clamp-2 font-mono tracking-wider"}`}>
                             {!isAuthenticated
-                              ? '🔒 جهت مشاهده متن کامل پیام و کد تایید، وارد شوید یا ثبت‌نام کنید.'
+                              ? '🔒 جهت مشاهده متن کامل پیام و کد تأیید، وارد شوید یا ثبت‌نام کنید.'
                               : (msg.bodyText || 'برای مشاهده متن کامل کلیک کنید.')}
                           </p>
                         </div>
@@ -1708,9 +1708,9 @@ export default function App() {
                       <Key className="w-6 h-6 animate-pulse" />
                     </div>
                     <div className="space-y-1">
-                      <h4 className="font-extrabold text-sm sm:text-base text-white">🔒 محتوای ایمیل و کد تایید قفل گردیده است</h4>
-                      <p className="text-xs text-slate-300 max-w-md mx-auto leading-relaxed">
-                        جهت حفظ امنیت و جلوگیری از سوءاستفاده، متن این ایمیل با ستاره پوشانده شده است. برای مشاهده متن کامل پیام و کدهای فعال‌سازی، ثبت‌نام کنید یا وارد حساب خود شوید.
+                      <h4 className="font-extrabold text-base sm:text-lg leading-8 text-white">🔒 جهت مشاهده متن کامل پیام و کد تأیید، وارد شوید یا ثبت‌نام کنید</h4>
+                      <p className="text-sm sm:text-base text-slate-200 max-w-md mx-auto leading-8">
+                        متن ایمیل و کد تأیید بعد از ورود یا ثبت‌نام نمایش داده می‌شود.
                       </p>
                     </div>
                     <button
@@ -1721,7 +1721,7 @@ export default function App() {
                       className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-extrabold text-xs sm:text-sm shadow-lg shadow-indigo-600/30 transition-all cursor-pointer inline-flex items-center gap-2"
                     >
                       <User className="w-4 h-4" />
-                      <span>ورود / ثبت‌نام در سایت</span>
+                      <span>ورود یا ثبت‌نام برای مشاهده پیام</span>
                     </button>
                   </div>
                 </div>
