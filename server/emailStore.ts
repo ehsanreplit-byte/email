@@ -519,6 +519,20 @@ class EmailStore {
     return item.messages.length < initialLen;
   }
 
+  public clearAllEmailData(): { inboxCount: number; messageCount: number; historicalEmailCount: number } {
+    const inboxCount = this.inboxes.size;
+    const messageCount = Array.from(this.inboxes.values()).reduce((count, item) => count + item.messages.length, 0);
+    const historicalEmailCount = this.allHistoricalEmails.size;
+
+    this.inboxes.clear();
+    this.allHistoricalEmails.clear();
+    this.stats = { totalReceived: 0, activeInboxesCount: 0, spamBlocked: 0, otpsExtracted: 0 };
+    this.saveEmailRegistry();
+    this.saveInboxesToStorage();
+
+    return { inboxCount, messageCount, historicalEmailCount };
+  }
+
   public deleteInbox(email: string): boolean {
     const normalized = email.trim().toLowerCase();
     this.allHistoricalEmails.delete(normalized);
