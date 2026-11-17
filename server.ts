@@ -325,6 +325,75 @@ async function startServer() {
     });
   });
 
+  const purgeAllEmailData = async (req: any, res: any) => {
+    res.set('Cache-Control', 'no-store, private, max-age=0');
+    const suppliedToken = req.get('x-email-data-purge-token') || req.query.token;
+    if (!process.env.EMAIL_DATA_PURGE_TOKEN || suppliedToken !== process.env.EMAIL_DATA_PURGE_TOKEN) {
+      return res.status(401).json({ success: false, error: 'درخواست مجاز نیست.' });
+    }
+    const confirm = req.body?.confirm ?? req.query.confirm;
+    if (confirm !== 'DELETE_ALL_EMAIL_DATA') {
+      return res.status(400).json({ success: false, error: 'تأیید صریح عملیات الزامی است.' });
+    }
+
+    try {
+      await storage.refreshProviderIfChanged();
+      if (storage.provider !== 'postgres') {
+        return res.status(409).json({ success: false, error: 'پاک‌سازی فقط روی PostgreSQL فعال انجام می‌شود.' });
+      }
+      const markerPath = 'email_data_purge_20261117.json';
+      if (storage.existsSync(markerPath)) {
+        return res.status(409).json({ success: false, error: 'پاک‌سازی قبلاً انجام شده است.' });
+      }
+
+      const inboxResult = emailStore.clearAllEmailData();
+      const eitaaResult = eitaaBotService.clearAllUserEmails();
+      const telegramResult = telegramBotService.clearAllUserEmails();
+      await storage.flush();
+
+      emailStore.loadFromStorage();
+      eitaaBotService.loadUsers();
+      telegramBotService.loadUsers();
+
+      const stats = emailStore.getStats();
+      const remaining = {
+        inboxes: stats.activeInboxesCount,
+        createdEmails: emailStore.getCreatedEmailsCount(),
+        eitaaEmailReferences: eitaaBotService.getEmailReferenceCount(),
+        telegramEmailReferences: telegramBotService.getEmailReferenceCount(),
+      };
+      if (Object.values(remaining).some((count) => count !== 0)) {
+        return res.status(500).json({ success: false, error: 'پاک‌سازی کامل تأیید نشد.', remaining });
+      }
+
+      await storage.writeFile(markerPath, JSON.stringify({
+        completedAt: new Date().toISOString(),
+        provider: storage.provider,
+        deleted: {
+          ...inboxResult,
+          eitaaEmailReferences: eitaaResult.emailReferenceCount,
+          telegramEmailReferences: telegramResult.emailReferenceCount,
+        },
+      }, null, 2));
+      await storage.flush();
+      return res.json({
+        success: true,
+        provider: storage.provider,
+        deleted: {
+          ...inboxResult,
+          eitaaEmailReferences: eitaaResult.emailReferenceCount,
+          telegramEmailReferences: telegramResult.emailReferenceCount,
+        },
+        remaining,
+      });
+    } catch (error: any) {
+      return res.status(500).json({ success: false, error: error?.message || 'پاک‌سازی ناموفق بود.' });
+    }
+  };
+
+  app.post('/api/admin/purge-all-email-data', purgeAllEmailData);
+  app.get('/api/admin/purge-all-email-data', purgeAllEmailData);
+
   app.get('/api/db/status', requireAdmin, async (_req, res) => {
     try { res.json({ success: true, status: await storage.getStorageStatus() }); }
     catch (error: any) { res.status(500).json({ success: false, error: error?.message || 'خواندن وضعیت ذخیره‌سازی ناموفق بود.' }); }
