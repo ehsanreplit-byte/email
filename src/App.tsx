@@ -666,8 +666,7 @@ export default function App() {
 
       if (!authed) {
         localStorage.setItem('tempmail_inboxes', JSON.stringify([newInbox]));
-        showToast('ایمیل جدید با موفقیت ایجاد شد! برای بازگشایی قفل صندوق ابتدا ثبت‌نام کنید.', 'success');
-        setIsAuthModalOpen(true);
+        showToast('ایمیل جدید ساخته شد. صندوق را بررسی کنید؛ برای مشاهده متن پیام وارد حساب شوید.', 'success');
       } else {
         localStorage.setItem('tempmail_inboxes', JSON.stringify(updated));
         localStorage.setItem(`tempmail_inboxes_${authed}`, JSON.stringify(updated));
@@ -831,13 +830,29 @@ export default function App() {
     sessionStorage.setItem('admin_auth_user', cleanUser);
     sessionStorage.setItem('admin_is_authenticated', 'true');
 
+    const guestInboxes: TempInbox[] = (() => {
+      try { return JSON.parse(localStorage.getItem('tempmail_inboxes') || '[]'); } catch { return []; }
+    })();
+    const guestEmails = guestInboxes.map((inbox) => inbox?.email).filter(Boolean);
     const userInboxesKey = `tempmail_inboxes_${cleanUser}`;
     let userInboxes: TempInbox[] = [];
     let fetchedRemainingEmails = remainingEmails;
 
-    if (Array.isArray(serverInboxes)) {
+    if (guestEmails.length > 0) {
+      try {
+        const claim = await api.claimGuestInboxes(guestEmails, cleanUser);
+        if (claim.success) {
+          userInboxes = claim.inboxes || [];
+          fetchedRemainingEmails = claim.remainingEmails;
+        }
+      } catch (error) {
+        console.error('Failed to transfer guest inbox to account:', error);
+      }
+    }
+
+    if (userInboxes.length === 0 && Array.isArray(serverInboxes)) {
       userInboxes = serverInboxes;
-    } else {
+    } else if (userInboxes.length === 0) {
       // Sync directly with server database
       try {
         const syncRes = await api.syncUserInboxes(cleanUser);
@@ -872,6 +887,10 @@ export default function App() {
 
     // Inform the user about synced emails and remaining quota count
     if (fetchedRemainingEmails !== undefined) {
+      const limit = Math.max(10, fetchedRemainingEmails, userInboxes.length);
+      setUserQuota({ limit, totalUsed: Math.max(0, limit - fetchedRemainingEmails), remaining: fetchedRemainingEmails });
+    }
+    if (fetchedRemainingEmails !== undefined) {
       if (syncedTelegramCount && syncedTelegramCount > 0) {
         showToast(
           `خوش آمدید! ${syncedTelegramCount} ایمیل ایجاد شده در تلگرام با موفقیت همگام‌سازی شد. تعداد ایمیل‌های باقیمانده شما: ${fetchedRemainingEmails} عدد`, 
@@ -905,8 +924,7 @@ export default function App() {
 
   const handleMessageClick = async (msg: EmailMessage) => {
     if (!isAuthenticated) {
-      showToast('⚠️ جهت دیدن و خواندن متن کامل پیام، ثبت‌نام کنید یا وارد شوید!', 'info');
-      setIsAuthModalOpen(true);
+      setSelectedMessage(msg);
       return;
     }
 
@@ -1199,7 +1217,7 @@ export default function App() {
                   {isCreatingInbox ? <RefreshCw className="w-4 h-4 shrink-0 animate-spin" /> : <Plus className="w-4 h-4 shrink-0" />}
                   <span className="leading-4 text-center">
                     {!isAuthenticated
-                      ? 'ساخت ایمیل جدید (ثبت‌نام)'
+                      ? 'ساخت ایمیل جدید'
                       : isLimitReached
                       ? `سهمیه ${currentLimit} ایمیل تکمیل (ارتقا)`
                       : `ساخت ایمیل جدید (${currentRemaining} باقی‌مانده)`}
@@ -1503,7 +1521,7 @@ export default function App() {
       )}
 
       {/* Message Details Modal */}
-      {selectedMessage && (
+      {selectedMessage && isAuthenticated && (
         <div
           className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-5 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200"
           onClick={() => setSelectedMessage(null)}
