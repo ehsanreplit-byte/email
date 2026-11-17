@@ -409,7 +409,21 @@ async function startServer() {
       if (!['postgres', 'mongodb'].includes(storage.provider)) {
         return res.status(409).json({ success: false, error: 'برای پاک‌سازی، ابتدا یک دیتابیس متصل را فعال کنید.' });
       }
+      const normalizedKeys = new Set((keys as unknown[]).map((key) => String(key || '').trim()));
       const result = await storage.deleteJsonDocuments(keys);
+      if (normalizedKeys.has('inboxes_store.json') || normalizedKeys.has('email_registry.json')) emailStore.loadFromStorage();
+      if (normalizedKeys.has('eitaa_users.json')) eitaaBotService.loadUsers();
+      if (normalizedKeys.has('telegram_users.json')) telegramBotService.loadUsers();
+      if (normalizedKeys.has('user_credentials.json')) credentialsStore.loadFromStorage();
+      if (normalizedKeys.has('analytics.json')) analyticsStore.loadFromStorage();
+      if (normalizedKeys.has('system_config.json')) systemStore.loadFromStorage();
+      if (normalizedKeys.has('subscriptions.json')) subscriptionStore.loadFromStorage();
+      if (normalizedKeys.has('tickets.json') || normalizedKeys.has('support_tickets.json')) ticketStore.loadFromStorage();
+      if (normalizedKeys.has('blupal_config.json')) blupalStore.loadFromStorage();
+      if (normalizedKeys.has('email_senders.json')) emailSenderStore.loadFromStorage();
+      if (normalizedKeys.has('backups.json')) backupService.loadFromStorage();
+      if (normalizedKeys.has('telegram_config.json')) telegramBotService.loadConfig();
+      if (normalizedKeys.has('eitaa_config.json')) eitaaBotService.loadConfig();
       const status = await storage.getStorageStatus();
       return res.json({ success: true, result, status });
     } catch (error: any) {
