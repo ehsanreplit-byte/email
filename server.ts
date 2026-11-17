@@ -502,6 +502,72 @@ async function startServer() {
   });
 
   // 4. Inboxes
+  app.post('/api/inbox/claim-guest', async (req, res) => {
+    try {
+      await syncStoresFromDb(0);
+      const rawAccount = String(req.body?.account || '').trim();
+      const emails: string[] = Array.from(new Set(
+        (Array.isArray(req.body?.emails) ? req.body.emails : [])
+          .map((value: unknown) => String(value || '').trim().toLowerCase())
+          .filter((email: string) => /^[^@\\s]+@[^@\\s]+$/.test(email))
+      )).slice(0, 10);
+      if (!rawAccount || emails.length === 0) {
+        return res.status(400).json({ success: false, error: 'حساب کاربری و ایمیل مهمان الزامی است.' });
+      }
+
+      const accountKey = isEitaaAccountKey(rawAccount)
+        ? rawAccount
+        : (extractValidPhoneNumber(rawAccount) || formatIranianMobile(rawAccount));
+      if (!accountKey) return res.status(400).json({ success: false, error: 'حساب کاربری معتبر نیست.' });
+
+      const eitaaUser = eitaaBotService.findUser(accountKey);
+      const telegramUser = telegramBotService.getUserByPhone(accountKey);
+      const hasWebCredentials = credentialsStore.hasCredentials(accountKey);
+      if (!eitaaUser && !telegramUser && !hasWebCredentials) {
+        return res.status(403).json({ success: false, error: 'ابتدا در سایت ثبت‌نام یا وارد حساب شوید.' });
+      }
+
+      const eligibleEmails = emails.filter((email) => emailStore.isEmailInDatabase(email));
+      if (eligibleEmails.length !== emails.length) {
+        return res.status(404).json({ success: false, error: 'یکی از صندوق‌های مهمان برای انتقال پیدا نشد.' });
+      }
+
+      const usage = getUserUnifiedUsageStats(
+        accountKey, 0,
+        (phone) => telegramBotService.getUserByPhone(phone),
+        (phone) => eitaaBotService.getUserByPhone(phone)
+      );
+      const newlyClaimed = eligibleEmails.filter((email) => !usage.allEmails.includes(email));
+      if (newlyClaimed.length > usage.remaining) {
+        return res.status(403).json({
+          success: false, error: 'QUOTA_EXCEEDED',
+          message: `برای انتقال صندوق مهمان فقط ${usage.remaining} سهمیه باقی مانده است.`
+        });
+      }
+
+      for (const email of newlyClaimed) {
+        if (eitaaUser || hasWebCredentials) eitaaBotService.linkEmailToUser(accountKey, email);
+        if (telegramUser) telegramBotService.linkEmailToUser(accountKey, email);
+      }
+      await commitToDb();
+
+      const updatedUsage = getUserUnifiedUsageStats(
+        accountKey, 0,
+        (phone) => telegramBotService.getUserByPhone(phone),
+        (phone) => eitaaBotService.getUserByPhone(phone)
+      );
+      const claimedInboxes = eligibleEmails.map((email) => emailStore.getInbox(email)).filter(Boolean);
+      return res.json({
+        success: true, user: accountKey, inboxes: claimedInboxes,
+        remainingEmails: updatedUsage.remaining, limit: updatedUsage.limit,
+        totalUsed: updatedUsage.totalUsed, claimedCount: newlyClaimed.length
+      });
+    } catch (err: any) {
+      console.error('[GuestInboxClaim] Failed to claim guest inbox:', err);
+      return res.status(500).json({ success: false, error: 'انتقال صندوق مهمان به حساب ناموفق بود.' });
+    }
+  });
+
   app.post('/api/inbox/create', async (req, res) => {
     try {
       await syncStoresFromDb(0);
