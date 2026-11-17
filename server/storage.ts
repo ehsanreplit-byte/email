@@ -511,13 +511,32 @@ class Storage {
   public async refreshProviderIfChanged(): Promise<boolean> {
     if (!this.postgresConfigured()) return false;
     return this.withSharedStorageLock(async (provider, client) => {
-      if (provider === this.activeProvider) return false;
       const documents = await this.readDocuments(provider, provider === 'postgres' ? client : undefined);
-      this.cache.clear();
-      for (const record of documents) this.cache.set(record.key, record.data);
+      const nextCache = new Map<string, string>();
+      for (const record of documents) nextCache.set(record.key, record.data);
+      const changed = provider !== this.activeProvider ||
+        nextCache.size !== this.cache.size ||
+        Array.from(nextCache).some(([key, value]) => this.cache.get(key) !== value);
+      this.cache = nextCache;
       this.activeProvider = provider;
       this.activeProviderError = undefined;
-      return true;
+      return changed;
+    });
+  }
+
+  /** Refresh cache from the centrally selected provider before serving a request. */
+  public async refreshSelectedProvider(): Promise<void> {
+    if (!this.postgresConfigured()) {
+      if (this.activeProvider === 'local') return;
+      throw new Error('تنظیمات دیتابیس فعال در دسترس نیست.');
+    }
+    await this.withSharedStorageLock(async (provider, client) => {
+      const documents = await this.readDocuments(provider, provider === 'postgres' ? client : undefined);
+      const nextCache = new Map<string, string>();
+      for (const record of documents) nextCache.set(record.key, record.data);
+      this.cache = nextCache;
+      this.activeProvider = provider;
+      this.activeProviderError = undefined;
     });
   }
 
