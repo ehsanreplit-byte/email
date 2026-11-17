@@ -322,7 +322,7 @@ export default function App() {
     document.documentElement.lang = 'fa';
   }, []);
 
-  // 1. Initial Load: Load saved inbox or create a new random one
+  // 1. Initial Load: Restore saved inboxes without creating a new one
   useEffect(() => {
     async function init() {
       try {
@@ -379,19 +379,6 @@ export default function App() {
             }
           } catch (e) {
             console.error('Failed to parse saved inboxes:', e);
-          }
-        }
-
-        // If no inbox was restored and we are not logged in, create a fresh guest inbox automatically from free domains
-        if (!initialInbox && !isAuthed) {
-          try {
-            const guestInbox = await api.createInbox();
-            guestInbox.isPermanent = true;
-            setInboxes([guestInbox]);
-            setCurrentInbox(guestInbox);
-            localStorage.setItem('tempmail_inboxes', JSON.stringify([guestInbox]));
-          } catch (err) {
-            console.error('Failed to create automatic guest inbox:', err);
           }
         }
 
@@ -749,11 +736,9 @@ export default function App() {
         if (updated.length > 0) {
           setCurrentInbox(updated[0]);
         } else {
-          const fresh = await api.createInbox(undefined, undefined, undefined, authed);
-          setInboxes([fresh]);
-          setCurrentInbox(fresh);
-          localStorage.setItem(userInboxesKey, JSON.stringify([fresh]));
-          localStorage.setItem('tempmail_inboxes', JSON.stringify([fresh]));
+          setCurrentInbox(null);
+          setMessages([]);
+          setSelectedMessage(null);
         }
       }
       showToast(`ایمیل ${emailToDelete} با موفقیت حذف گردید.`, 'info');
@@ -815,17 +800,13 @@ export default function App() {
     setAdminActiveTab('inbox');
     setActiveCardTab('messages');
 
-    // Reset inboxes for fresh guest session
-    try {
-      const guestInbox = await api.createInbox();
-      guestInbox.isPermanent = true;
-      setInboxes([guestInbox]);
-      setCurrentInbox(guestInbox);
-      setMessages([]);
-      setSelectedMessage(null);
-      knownMessageIdsRef.current = new Set();
-      localStorage.setItem('tempmail_inboxes', JSON.stringify([guestInbox]));
-    } catch {}
+    // Return to an empty guest state; create a new inbox only on explicit user action.
+    setInboxes([]);
+    setCurrentInbox(null);
+    setMessages([]);
+    setSelectedMessage(null);
+    knownMessageIdsRef.current = new Set();
+    localStorage.setItem('tempmail_inboxes', JSON.stringify([]));
 
     showToast('از حساب کاربری خارج شدید.', 'info');
   };
@@ -1161,14 +1142,14 @@ export default function App() {
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 p-1.5 bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl">
                 {/* Address Display & Click to Copy */}
                 <div 
-                  onClick={handleCopyEmail}
-                  className="w-full sm:flex-1 flex items-center gap-2 px-2 sm:px-3.5 py-2 sm:py-2.5 rounded-lg sm:rounded-xl hover:bg-white bg-white sm:bg-transparent border border-slate-200/70 sm:border-0 transition-colors cursor-pointer group min-w-0"
-                  title="کلیک برای کپی آدرس ایمیل"
+                  onClick={currentInbox ? handleCopyEmail : undefined}
+                  className={`w-full sm:flex-1 flex items-center gap-2 px-2 sm:px-3.5 py-2 sm:py-2.5 rounded-lg sm:rounded-xl bg-white sm:bg-transparent border border-slate-200/70 sm:border-0 transition-colors group min-w-0 ${currentInbox ? 'hover:bg-white cursor-pointer' : 'cursor-default'}`}
+                  title={currentInbox ? 'کلیک برای کپی آدرس ایمیل' : undefined}
                 >
                   <div className="flex items-start sm:items-center gap-2 min-w-0 flex-1">
                     <Mail className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5 sm:mt-0" />
                     <span className="min-w-0 flex-1 whitespace-normal break-words text-left font-mono text-xs sm:text-sm font-bold text-slate-900 tracking-tight sm:tracking-wide select-all" dir="ltr">
-                      {currentInbox?.email || 'در حال آماده‌سازی ایمیل...'}
+                      {currentInbox?.email || 'برای شروع، «ساخت ایمیل جدید» را بزنید'}
                     </span>
                   </div>
                 </div>
@@ -1177,11 +1158,12 @@ export default function App() {
                 <div className="grid grid-cols-[auto_minmax(0,1fr)] sm:flex sm:shrink-0 items-stretch gap-2 w-full sm:w-auto">
                   <button
                     id="btn-copy-email"
+                    disabled={!currentInbox}
                     onClick={(e) => {
                       e.stopPropagation();
                       handleCopyEmail();
                     }}
-                    className={`px-3 sm:px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 shrink-0 transition-all cursor-pointer min-h-[44px] sm:min-h-[40px] ${
+                    className={`px-3 sm:px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 shrink-0 transition-all cursor-pointer min-h-[44px] sm:min-h-[40px] disabled:opacity-50 disabled:cursor-not-allowed ${
                       isCopiedEmail
                         ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                         : 'bg-slate-100 sm:bg-white hover:bg-slate-200 sm:hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs'
