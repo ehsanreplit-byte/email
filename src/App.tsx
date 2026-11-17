@@ -887,7 +887,6 @@ export default function App() {
     localStorage.setItem(userInboxesKey, JSON.stringify(userInboxes));
     localStorage.setItem('tempmail_inboxes', JSON.stringify(userInboxes));
     localStorage.removeItem('guest_created_emails');
-    localStorage.setItem('tempmail_inboxes', JSON.stringify([]));
 
     // Register active inboxes with Eitaa bot
     for (const inb of userInboxes) {
