@@ -1178,7 +1178,7 @@ export default function App() {
                   <div className="flex items-start sm:items-center gap-2 min-w-0 flex-1">
                     <Mail className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5 sm:mt-0" />
                     <span className="min-w-0 flex-1 whitespace-normal break-words text-left font-mono text-xs sm:text-sm font-bold text-slate-900 tracking-tight sm:tracking-wide select-all" dir="ltr">
-                      {currentInbox?.email || 'برای شروع، «ساخت ایمیل جدید» را بزنید'}
+                      {currentInbox ? (isAuthenticated ? currentInbox.email : '••••••••••••••••••••••••••') : 'برای شروع، «ساخت ایمیل جدید» را بزنید'}
                     </span>
                   </div>
                 </div>
@@ -1430,7 +1430,7 @@ export default function App() {
                         {/* Subject & snippet preview */}
                         <div className="space-y-0.5 min-w-0">
                           <div className="text-xs sm:text-sm text-slate-800 font-bold truncate">
-                            {msg.subject || '(بدون عنوان)'}
+                            {isAuthenticated ? (msg.subject || '(بدون عنوان)') : 'پیام جدید دریافت شد'}
                           </div>
                           <p className="text-[11px] text-slate-500 line-clamp-1 sm:line-clamp-2 leading-relaxed font-mono tracking-wider">
                             {!isAuthenticated
