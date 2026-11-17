@@ -473,13 +473,15 @@ class Storage {
   public async deleteJsonDocuments(keys: string[]): Promise<{ deleted: string[]; missing: string[] }> {
     const allowedKeys = new Set([
       'inboxes_store.json', 'email_registry.json', 'eitaa_users.json', 'telegram_users.json',
-      'user_credentials.json', 'analytics.json', 'system_config.json', 'subscriptions.json',
-      'tickets.json', 'blupal_config.json', 'email_senders.json', 'backups.json',
-      'blog_posts.json', 'blog_ai_config.json', 'telegram_config.json', 'eitaa_config.json',
-      'admin_users.json', 'admin_auth.json', 'support_tickets.json',
+      'user_credentials.json', 'analytics_logins.json', 'system_config.json', 'subscriptions.json',
+      'telegram_tickets.json', 'blupal_config.json', 'blupal_transactions.json',
+      'backup_config.json', 'blog.json', 'blog_ai_config.json', 'telegram_config.json',
+      'eitaa_config.json', 'admin_auth.json', 'email_provider_config.json', 'outbox_emails.json',
+      'user_accounts.json',
     ]);
-    const selected = Array.from(new Set(keys.map((key) => String(key || '').trim()))).filter((key) => allowedKeys.has(key));
-    if (!selected.length || selected.length !== new Set(keys).size) {
+    const requested = keys.map((key) => String(key || '').trim());
+    const selected = Array.from(new Set(requested)).filter((key) => allowedKeys.has(key));
+    if (!selected.length || selected.length !== requested.length) {
       throw new Error('انتخاب کلیدهای اسناد معتبر نیست.');
     }
     await this.flush();
