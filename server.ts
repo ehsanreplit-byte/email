@@ -359,8 +359,8 @@ async function startServer() {
       const remaining = {
         inboxes: stats.activeInboxesCount,
         createdEmails: emailStore.getCreatedEmailsCount(),
-        eitaaEmailReferences: eitaaBotService.getEmailReferenceCount(),
-        telegramEmailReferences: telegramBotService.getEmailReferenceCount(),
+        eitaaEmailReferences: eitaaBotService.getUsers().reduce((total, user) => total + (user.emails || []).length + (user.history || []).length, 0),
+        telegramEmailReferences: (telegramBotService as any).registeredUsers ? Array.from((telegramBotService as any).registeredUsers.values()).reduce((total: number, user: any) => total + (user.history || []).length + (user.permanentEmail ? 1 : 0), 0) : -1,
       };
       if (Object.values(remaining).some((count) => count !== 0)) {
         return res.status(500).json({ success: false, error: 'پاک‌سازی کامل تأیید نشد.', remaining });
