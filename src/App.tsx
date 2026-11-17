@@ -93,7 +93,7 @@ export default function App() {
   const [isAdminSidebarOpen, setIsAdminSidebarOpen] = useState<boolean>(false);
   const [isAdminSidebarCollapsed, setIsAdminSidebarCollapsed] = useState<boolean>(false);
   const [adminActiveTab, setAdminActiveTab] = useState<ActiveTab>(() =>
-    adminMenuTabFromPath(window.location.pathname) || 'inbox'
+    adminMenuTabFromPath(window.location.pathname) || 'dashboard'
   );
   const adminPostNavigationGuardRef = useRef<null | (() => boolean)>(null);
   const [unreadTicketsCount, setUnreadTicketsCount] = useState<number>(0);
@@ -249,7 +249,7 @@ export default function App() {
       const isWebApp = !isEitaa && checkIsWebAppUrl();
       const menuTab = !isEitaa && !isWebApp ? adminMenuTabFromPath(window.location.pathname) : null;
       if (menuTab) setAdminActiveTab(menuTab);
-      else if (!isEitaa && !isWebApp) setAdminActiveTab('inbox');
+      else if (!isEitaa && !isWebApp) setAdminActiveTab('dashboard');
       if (isEitaa) {
         setIsWebAppPage(false);
       } else {
@@ -840,6 +840,9 @@ export default function App() {
       ? 'admin'
       : (/^eitaa[:_]/i.test(user) ? user : (extractValidPhoneNumber(user) || user));
     setIsAuthenticated(true);
+    if (cleanUser === 'admin' || cleanUser === '09134336627' || cleanUser.endsWith('9134336627')) {
+      setAdminActiveTab('dashboard');
+    }
     setCurrentUser(cleanUser);
     api.setActiveAccount(cleanUser);
     localStorage.setItem('admin_auth_user', cleanUser);
