@@ -84,35 +84,46 @@ async function startServer() {
    * همگام‌سازی حافظهٔ این نمونه با MongoDB قبل از خواندن لیست‌ها.
    * منبع حقیقت فقط MongoDB است؛ هر نمونهٔ سرورلس حافظهٔ خودش را دارد و ممکن است کهنه باشد.
    */
-  const DB_LIST_KEYS = ['inboxes_store.json', 'email_registry.json', 'eitaa_users.json', 'telegram_users.json', 'user_credentials.json'];
+  const DB_LIST_KEYS = [
+    'inboxes_store.json', 'email_registry.json', 'eitaa_users.json', 'telegram_users.json',
+    'user_credentials.json', 'admin_auth.json', 'analytics_logins.json', 'system_config.json',
+    'subscriptions.json', 'telegram_tickets.json', 'blupal_config.json', 'blupal_transactions.json',
+    'backup_config.json', 'blog.json', 'blog_ai_config.json', 'telegram_config.json', 'eitaa_config.json',
+    'email_provider_config.json', 'outbox_emails.json', 'user_accounts.json',
+  ];
   let lastDbRefreshAt = 0;
-  const syncStoresFromDb = async (minIntervalMs = 1200) => {
-    if (!storage.mongoEnabled) return;
+  const syncStoresFromDb = async (minIntervalMs = 0) => {
     const now = Date.now();
-    if (now - lastDbRefreshAt < minIntervalMs) return;
+    if (minIntervalMs > 0 && now - lastDbRefreshAt < minIntervalMs) return;
     lastDbRefreshAt = now;
 
     try {
-      // اول نوشتن‌های در صف را پایین بریز، بعد از دیتابیس بخوان
       await storage.flush();
-      await storage.refreshFromDb(DB_LIST_KEYS);
-
+      await storage.refreshSelectedProvider();
       emailStore.loadFromStorage();
       eitaaBotService.loadUsers();
       telegramBotService.loadUsers();
       credentialsStore.loadFromStorage();
+      adminAuthStore.loadFromStorage();
+      analyticsStore.loadFromStorage();
+      systemStore.loadFromStorage();
+      subscriptionStore.loadFromStorage();
+      ticketStore.loadFromStorage();
+      blupalStore.loadFromStorage();
+      backupService.loadFromStorage();
+      emailSenderStore.loadFromStorage();
+      telegramBotService.loadConfig();
+      eitaaBotService.loadConfig();
     } catch (err) {
-      console.error('[DbSync] Failed to refresh stores from MongoDB:', err);
+      lastDbRefreshAt = 0;
+      console.error('[DbSync] Failed to refresh stores from selected provider:', err);
+      throw err;
     }
   };
 
-  /** بعد از هر تغییر: نوشتن‌ها را در MongoDB پایدار کن و حافظه را از دیتابیس بازخوانی کن */
+  /** بعد از هر تغییر، داده‌ها را از Provider انتخاب‌شده دوباره بارگذاری کن. */
   const commitToDb = async () => {
-    try {
-      await storage.flush();
-    } catch (e) {
-      console.error('[DbSync] flush failed:', e);
-    }
+    await storage.flush();
     lastDbRefreshAt = 0;
     await syncStoresFromDb(0);
   };
