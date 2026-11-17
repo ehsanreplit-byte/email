@@ -372,17 +372,31 @@ class Storage {
 
   public async readDocument(key: string): Promise<string | null> {
     await this.pending.get(key)?.catch(() => undefined);
+    if (this.postgresConfigured()) {
+      return this.withSharedStorageLock(async (provider, client) => {
+        let value: string | null = null;
+        if (provider === 'mongodb') {
+          await this.ensureMongoConnection();
+          const doc = await this.mongoJsonCollection().findOne({ _id: key as any });
+          value = typeof doc?.data === 'string' ? doc.data : null;
+        } else if (provider === 'postgres') {
+          const result = await client.query(`SELECT data FROM ${JSON_TABLE} WHERE id = $1 LIMIT 1`, [key]);
+          value = typeof result.rows[0]?.data === 'string' ? result.rows[0].data : null;
+        } else {
+          value = this.cache.get(key) ?? null;
+        }
+        if (value === null) this.cache.delete(key);
+        else this.cache.set(key, value);
+        this.activeProvider = provider;
+        return value;
+      });
+    }
+
     if (this.activeProvider === 'mongodb' && this.db) {
       const doc = await this.mongoJsonCollection().findOne({ _id: key as any });
-      if (!doc || typeof doc.data !== 'string') { this.cache.delete(key); return null; }
-      this.cache.set(key, doc.data);
-      return doc.data;
-    }
-    if (this.activeProvider === 'postgres' && this.postgresConfigured()) {
-      const result = await this.getPool().query(`SELECT data FROM ${JSON_TABLE} WHERE id = $1 LIMIT 1`, [key]);
-      const value = result.rows[0]?.data;
-      if (typeof value !== 'string') { this.cache.delete(key); return null; }
-      this.cache.set(key, value);
+      const value = typeof doc?.data === 'string' ? doc.data : null;
+      if (value === null) this.cache.delete(key);
+      else this.cache.set(key, value);
       return value;
     }
     const cached = this.cache.get(key);
@@ -511,13 +525,32 @@ class Storage {
   public async refreshProviderIfChanged(): Promise<boolean> {
     if (!this.postgresConfigured()) return false;
     return this.withSharedStorageLock(async (provider, client) => {
-      if (provider === this.activeProvider) return false;
       const documents = await this.readDocuments(provider, provider === 'postgres' ? client : undefined);
-      this.cache.clear();
-      for (const record of documents) this.cache.set(record.key, record.data);
+      const nextCache = new Map<string, string>();
+      for (const record of documents) nextCache.set(record.key, record.data);
+      const changed = provider !== this.activeProvider ||
+        nextCache.size !== this.cache.size ||
+        Array.from(nextCache).some(([key, value]) => this.cache.get(key) !== value);
+      this.cache = nextCache;
       this.activeProvider = provider;
       this.activeProviderError = undefined;
-      return true;
+      return changed;
+    });
+  }
+
+  /** Refresh cache from the centrally selected provider before serving a request. */
+  public async refreshSelectedProvider(): Promise<void> {
+    if (!this.postgresConfigured()) {
+      if (this.activeProvider === 'local') return;
+      throw new Error('تنظیمات دیتابیس فعال در دسترس نیست.');
+    }
+    await this.withSharedStorageLock(async (provider, client) => {
+      const documents = await this.readDocuments(provider, provider === 'postgres' ? client : undefined);
+      const nextCache = new Map<string, string>();
+      for (const record of documents) nextCache.set(record.key, record.data);
+      this.cache = nextCache;
+      this.activeProvider = provider;
+      this.activeProviderError = undefined;
     });
   }
 
