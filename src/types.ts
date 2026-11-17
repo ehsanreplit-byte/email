@@ -87,6 +87,7 @@ export interface DashboardStats {
   todayWebUsers: number;
   totalUsersCount: number;
   activeInboxesCount: number;
+  expiringInboxesCount?: number;
   createdEmailsCount?: number;
   telegramEmailsCount?: number;
   eitaaEmailsCount?: number;
