@@ -399,6 +399,24 @@ async function startServer() {
     catch (error: any) { res.status(500).json({ success: false, error: error?.message || 'خواندن وضعیت ذخیره‌سازی ناموفق بود.' }); }
   });
 
+  app.post('/api/db/documents/delete', requireAdmin, async (req, res) => {
+    const { keys, confirm } = req.body || {};
+    if (confirm !== 'DELETE_SELECTED_DOCUMENTS' || !Array.isArray(keys) || keys.length === 0) {
+      return res.status(400).json({ success: false, error: 'انتخاب سندها و تأیید صریح پاک‌سازی الزامی است.' });
+    }
+    try {
+      await storage.refreshProviderIfChanged();
+      if (!['postgres', 'mongodb'].includes(storage.provider)) {
+        return res.status(409).json({ success: false, error: 'برای پاک‌سازی، ابتدا یک دیتابیس متصل را فعال کنید.' });
+      }
+      const result = await storage.deleteJsonDocuments(keys);
+      const status = await storage.getStorageStatus();
+      return res.json({ success: true, result, status });
+    } catch (error: any) {
+      return res.status(400).json({ success: false, error: error?.message || 'پاک‌سازی اسناد ناموفق بود.' });
+    }
+  });
+
   app.post('/api/db/postgres/test', requireAdmin, async (_req, res) => {
     const status = await storage.testPostgresConnection();
     res.status(status.connected || !status.configured ? 200 : 503).json({ success: status.connected, status });
