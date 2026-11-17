@@ -122,7 +122,21 @@ export default function App() {
     try {
       const stats = await api.getStats();
       if (stats) {
-        setAdminStats(stats);
+        setAdminStats((previous) => {
+          if (
+            previous &&
+            previous.totalReceived === stats.totalReceived &&
+            previous.activeInboxesCount === stats.activeInboxesCount &&
+            previous.createdEmailsCount === stats.createdEmailsCount &&
+            previous.telegramEmailsCount === stats.telegramEmailsCount &&
+            previous.eitaaEmailsCount === stats.eitaaEmailsCount &&
+            previous.webEmailsCount === stats.webEmailsCount &&
+            previous.totalUsersCount === stats.totalUsersCount
+          ) {
+            return previous;
+          }
+          return stats;
+        });
       }
     } catch {
       // ignore
@@ -1364,8 +1378,8 @@ export default function App() {
                       </p>
                     </div>
                     <div className="pt-1 flex items-center gap-1.5 text-[10px] sm:text-[11px] text-indigo-600 font-mono font-semibold">
-                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-ping shrink-0" />
-                      <span>بروزرسانی خودکار هر ۵ ثانیه</span>
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 shrink-0" />
+                      <span>دریافت خودکار پیام‌های جدید در پس‌زمینه</span>
                     </div>
                   </div>
                 ) : (
