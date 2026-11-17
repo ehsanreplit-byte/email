@@ -325,6 +325,52 @@ async function startServer() {
     });
   });
 
+  app.get('/api/db/status', requireAdmin, async (_req, res) => {
+    try { res.json({ success: true, status: await storage.getStorageStatus() }); }
+    catch (error: any) { res.status(500).json({ success: false, error: error?.message || 'خواندن وضعیت ذخیره‌سازی ناموفق بود.' }); }
+  });
+
+  app.post('/api/db/postgres/test', requireAdmin, async (_req, res) => {
+    const status = await storage.testPostgresConnection();
+    res.status(status.connected || !status.configured ? 200 : 503).json({ success: status.connected, status });
+  });
+
+  app.post('/api/db/copy', requireAdmin, async (req, res) => {
+    const { source, target, confirm } = req.body || {};
+    if (confirm !== true || !['mongodb', 'postgres'].includes(source) || !['mongodb', 'postgres'].includes(target)) {
+      return res.status(400).json({ success: false, error: 'مبدأ، مقصد و تأیید صریح عملیات الزامی است.' });
+    }
+    try {
+      const result = await storage.copyStorageProviderData(source, target);
+      res.json({ success: true, result, status: await storage.getStorageStatus() });
+    } catch (error: any) { res.status(400).json({ success: false, error: error?.message || 'کپی اطلاعات ناموفق بود.' }); }
+  });
+
+  app.post('/api/db/switch', requireAdmin, async (req, res) => {
+    const { provider, confirm } = req.body || {};
+    if (confirm !== true || !['mongodb', 'postgres'].includes(provider)) {
+      return res.status(400).json({ success: false, error: 'دیتابیس مقصد و تأیید صریح عملیات الزامی است.' });
+    }
+    try {
+      const result = await storage.switchStorageProvider(provider);
+      if (result.changed) {
+        systemStore.loadFromStorage();
+        adminAuthStore.loadFromStorage();
+        analyticsStore.loadFromStorage();
+        emailStore.loadFromStorage();
+        emailSenderStore.loadFromStorage();
+        subscriptionStore.loadFromStorage();
+        blupalStore.loadFromStorage();
+        ticketStore.loadFromStorage();
+        credentialsStore.loadFromStorage();
+        backupService.loadFromStorage();
+        telegramBotService.loadUsers(); telegramBotService.loadConfig();
+        eitaaBotService.loadUsers(); eitaaBotService.loadConfig();
+      }
+      res.json({ success: true, result, status: await storage.getStorageStatus() });
+    } catch (error: any) { res.status(400).json({ success: false, error: error?.message || 'تغییر دیتابیس فعال ناموفق بود.' }); }
+  });
+
   app.get('/api/domains', (req, res) => {
     res.json({ domains: emailStore.getDomains() });
   });
