@@ -131,10 +131,10 @@ export const EitaaLoginPage: React.FC<EitaaLoginPageProps> = ({
     window.addEventListener('system_maintenance_changed', handleMaintenanceEvent);
     window.addEventListener('storage', handleStorage);
 
-    // Poll status periodically (every 5 seconds)
+    // Refresh page status in the background every 10 seconds.
     const timer = setInterval(() => {
       checkMaintenanceStatus();
-    }, 5000);
+    }, 10_000);
 
     return () => {
       window.removeEventListener('system_maintenance_changed', handleMaintenanceEvent);

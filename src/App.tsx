@@ -45,28 +45,18 @@ const LazyChunkFallback = ({ label = 'در حال بارگذاری…' }: { labe
 );
 
 /**
- * پیام‌های دریافتی را با لیست فعلی ادغام می‌کند (بر اساس شناسه).
- * هیچ پیام قبلی حذف نمی‌شود؛ فقط پیام‌های جدید اضافه یا وضعیت‌ها به‌روز می‌شوند.
+ * پیام‌های تازه را به ابتدای فهرست اضافه می‌کند.
+ * در نظرسنجی پس‌زمینه، اگر پیام جدیدی نباشد همان آرایه را نگه می‌دارد تا صندوق بی‌دلیل رندر نشود.
  */
 function mergeMessagesById(prev: EmailMessage[], incoming: EmailMessage[]): EmailMessage[] {
   if (!incoming || incoming.length === 0) return prev;
 
-  const byId = new Map<string, EmailMessage>();
-  for (const m of prev) byId.set(m.id, m);
+  const knownIds = new Set(prev.map(message => message.id));
+  const additions = incoming.filter(message => !knownIds.has(message.id));
+  if (additions.length === 0) return prev;
 
-  for (const m of incoming) {
-    const existing = byId.get(m.id);
-    if (existing) {
-      // وضعیت خوانده‌شدن محلی را از دست نمی‌دهیم
-      byId.set(m.id, { ...existing, ...m, isRead: Boolean(existing.isRead || m.isRead) });
-    } else {
-      byId.set(m.id, m);
-    }
-  }
-
-  return Array.from(byId.values()).sort(
-    (a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime()
-  );
+  additions.sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
+  return [...additions, ...prev];
 }
 
 export default function App() {
@@ -95,7 +85,6 @@ export default function App() {
   const [copiedOtp, setCopiedOtp] = useState<boolean>(false);
   const [emailModalViewMode, setEmailModalViewMode] = useState<'html' | 'text'>('html');
   const [autoRefreshInterval] = useState<number>(10);
-  const [secondsUntilRefresh, setSecondsUntilRefresh] = useState<number>(10);
 
   // Tab within the Central Card
   const [activeCardTab, setActiveCardTab] = useState<'messages' | 'emails'>('messages');
@@ -600,23 +589,15 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentInbox?.email, fetchInboxMessages]);
 
-  // 3. Auto Refresh Timer Countdown
+  // دریافت پیام‌ها هر ۱۰ ثانیه در پس‌زمینه انجام می‌شود؛ شمارش معکوس باعث رندر هرثانیه‌ای صندوق نمی‌شود.
   const pollTickRef = useRef(0);
   useEffect(() => {
-    setSecondsUntilRefresh(autoRefreshInterval);
     const interval = setInterval(() => {
-      setSecondsUntilRefresh((prev) => {
-        if (prev <= 1) {
-          pollTickRef.current += 1;
-          // هر ۳ بار (۱۵ ثانیه) لیست ایمیل‌ها هم از سرور همگام می‌شود؛
-          // بقیهٔ تیک‌ها فقط پیام‌های صندوق را تازه می‌کنند تا لیست/تعداد پرش نکند.
-          const shouldSyncList = pollTickRef.current % 3 === 0;
-          fetchInboxMessages(false, shouldSyncList);
-          return autoRefreshInterval;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+      pollTickRef.current += 1;
+      // هر سومین نوبت، فهرست صندوق‌ها همگام می‌شود؛ بقیهٔ نوبت‌ها فقط پیام‌ها را می‌گیرند.
+      const shouldSyncList = pollTickRef.current % 3 === 0;
+      fetchInboxMessages(false, shouldSyncList);
+    }, autoRefreshInterval * 1000);
 
     return () => clearInterval(interval);
   }, [autoRefreshInterval, fetchInboxMessages]);

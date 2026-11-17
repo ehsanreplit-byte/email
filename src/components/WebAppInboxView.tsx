@@ -22,7 +22,8 @@ export const WebAppInboxView: React.FC<WebAppInboxViewProps> = ({ onBack }) => {
   const [copiedOtp, setCopiedOtp] = useState<boolean>(false);
   const [currentUser, setCurrentUser] = useState<string>('');
   const [autoRefreshInterval] = useState<number>(10);
-  const prevMessageCountRef = useRef<number>(0);
+  const knownMessageIdsRef = useRef<Set<string>>(new Set());
+  const hasLoadedMessagesRef = useRef(false);
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
 
   const showToast = useCallback((text: string, type: 'success' | 'error' | 'info' = 'success') => {
@@ -156,24 +157,21 @@ export const WebAppInboxView: React.FC<WebAppInboxViewProps> = ({ onBack }) => {
       // Sort newest messages first
       const sorted = [...msgs].sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
 
-      if (prevMessageCountRef.current > 0 && sorted.length > prevMessageCountRef.current) {
+      const isInitialLoad = !hasLoadedMessagesRef.current;
+      const newMessages = sorted.filter((message) => !knownMessageIdsRef.current.has(message.id));
+      for (const message of sorted) knownMessageIdsRef.current.add(message.id);
+      hasLoadedMessagesRef.current = true;
+
+      if (!isInitialLoad && newMessages.length > 0) {
         try { playNewEmailSound(); } catch {}
         showToast('📩 پیام جدید دریافت شد!', 'success');
       }
-      prevMessageCountRef.current = sorted.length;
-      // Background polling only merges changed messages into the current view.
-      setMessages((previous) => {
-        const previousById = new Map(previous.map((message) => [message.id, message]));
-        const merged = sorted.map((message) => ({ ...previousById.get(message.id), ...message }));
-        const fetchedIds = new Set(sorted.map((message) => message.id));
-        for (const message of previous) if (!fetchedIds.has(message.id)) merged.push(message);
-        return merged.sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
-      });
 
-      // Keep selected message updated if it still exists
-      setSelectedMessage((prev) => {
-        if (!prev) return null;
-        return sorted.find(m => m.id === prev.id) || null;
+      // Background polling leaves the existing inbox items untouched and adds only new messages.
+      setMessages((previous) => {
+        if (isInitialLoad) return sorted;
+        if (newMessages.length === 0) return previous;
+        return [...newMessages, ...previous];
       });
     } catch (err) {
       console.warn('Failed to fetch user messages:', err);
@@ -213,7 +211,7 @@ export const WebAppInboxView: React.FC<WebAppInboxViewProps> = ({ onBack }) => {
     }
   }, [currentUser, inboxes, fetchMessages]);
 
-  // Auto-refresh timer every 5 seconds
+  // Auto-refresh the inbox in the background every 10 seconds
   useEffect(() => {
     const interval = setInterval(() => {
       fetchMessages(false);
