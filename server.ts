@@ -415,13 +415,13 @@ async function startServer() {
       if (normalizedKeys.has('eitaa_users.json')) eitaaBotService.loadUsers();
       if (normalizedKeys.has('telegram_users.json')) telegramBotService.loadUsers();
       if (normalizedKeys.has('user_credentials.json')) credentialsStore.loadFromStorage();
-      if (normalizedKeys.has('analytics.json')) analyticsStore.loadFromStorage();
+      if (normalizedKeys.has('analytics_logins.json')) analyticsStore.loadFromStorage();
       if (normalizedKeys.has('system_config.json')) systemStore.loadFromStorage();
       if (normalizedKeys.has('subscriptions.json')) subscriptionStore.loadFromStorage();
-      if (normalizedKeys.has('tickets.json') || normalizedKeys.has('support_tickets.json')) ticketStore.loadFromStorage();
-      if (normalizedKeys.has('blupal_config.json')) blupalStore.loadFromStorage();
-      if (normalizedKeys.has('email_senders.json')) emailSenderStore.loadFromStorage();
-      if (normalizedKeys.has('backups.json')) backupService.loadFromStorage();
+      if (normalizedKeys.has('telegram_tickets.json')) ticketStore.loadFromStorage();
+      if (normalizedKeys.has('blupal_config.json') || normalizedKeys.has('blupal_transactions.json')) blupalStore.loadFromStorage();
+      if (normalizedKeys.has('email_provider_config.json') || normalizedKeys.has('outbox_emails.json')) emailSenderStore.loadFromStorage();
+      if (normalizedKeys.has('backup_config.json')) backupService.loadFromStorage();
       if (normalizedKeys.has('telegram_config.json')) telegramBotService.loadConfig();
       if (normalizedKeys.has('eitaa_config.json')) eitaaBotService.loadConfig();
       const status = await storage.getStorageStatus();
