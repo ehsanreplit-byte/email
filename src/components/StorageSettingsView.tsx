@@ -66,7 +66,7 @@ export const StorageSettingsView: React.FC = () => {
 
   const deleteSelectedDocuments = async () => {
     if (!selectedCleanupGroups.length) { setError('ابتدا بخش‌های موردنظر را انتخاب کنید.'); return; }
-    if (cleanupPhrase !== 'حذف اطلاعات انتخاب‌شده') { setError('عبارت تأیید را دقیقاً وارد کنید.'); return; }
+    if (cleanupPhrase !== 'Delete') { setError('عبارت تأیید را دقیقاً وارد کنید.'); return; }
     setCleanupModalOpen(false);
     const keys = Array.from(new Set(cleanableGroups.filter(group => selectedCleanupGroups.includes(group.id)).flatMap(group => [...group.keys])));
     setBusy(true); setError(''); setNotice('');
@@ -155,19 +155,19 @@ export const StorageSettingsView: React.FC = () => {
           ))}
         </div>
         <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-          <input value={cleanupPhrase} onChange={event => setCleanupPhrase(event.target.value)} disabled={busy} placeholder="برای تأیید بنویسید: حذف اطلاعات انتخاب‌شده" className="min-h-10 rounded-xl border border-slate-200 px-3 text-xs outline-none focus:border-rose-400" />
-          <button onClick={() => setCleanupModalOpen(true)} disabled={busy || !selectedCleanupGroups.length || cleanupPhrase !== 'حذف اطلاعات انتخاب‌شده'} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 text-xs font-black text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"><Trash2 size={15} />حذف بخش‌های انتخاب‌شده</button>
+          <input value={cleanupPhrase} onChange={event => setCleanupPhrase(event.target.value)} disabled={busy} placeholder="برای تأیید بنویسید: Delete" className="min-h-10 rounded-xl border border-slate-200 px-3 text-xs outline-none focus:border-rose-400" />
+          <button onClick={() => setCleanupModalOpen(true)} disabled={busy || !selectedCleanupGroups.length || cleanupPhrase !== 'Delete'} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 text-xs font-black text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"><Trash2 size={15} />حذف بخش‌های انتخاب‌شده</button>
         </div>
       </section>
     {cleanupModalOpen && <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/60 p-4" role="dialog" aria-modal="true">
       <div className="w-full max-w-md space-y-4 rounded-2xl bg-white p-5 shadow-2xl" dir="rtl">
         <h3 className="text-base font-black text-rose-700">تأیید نهایی پاک‌سازی</h3>
         <p className="text-sm leading-7 text-slate-600">اطلاعات بخش‌های انتخاب‌شده برای همیشه حذف می‌شوند. برای ادامه، عبارت زیر را در کادر تأیید وارد کنید.</p>
-        <p className="rounded-lg bg-rose-50 p-3 text-center font-bold text-rose-700">حذف اطلاعات انتخاب‌شده</p>
+        <p className="rounded-lg bg-rose-50 p-3 text-center font-bold text-rose-700">Delete</p>
         <input autoFocus value={cleanupPhrase} onChange={event => setCleanupPhrase(event.target.value)} disabled={busy} placeholder="عبارت تأیید را وارد کنید" className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-rose-400" />
         <div className="flex justify-end gap-2">
           <button onClick={() => setCleanupModalOpen(false)} disabled={busy} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-600">انصراف</button>
-          <button onClick={() => void deleteSelectedDocuments()} disabled={busy || cleanupPhrase !== 'حذف اطلاعات انتخاب‌شده'} className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"><Trash2 size={15} />تأیید و حذف</button>
+          <button onClick={() => void deleteSelectedDocuments()} disabled={busy || cleanupPhrase !== 'Delete'} className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"><Trash2 size={15} />تأیید و حذف</button>
         </div>
       </div>
     </div>}
