@@ -524,7 +524,8 @@ async function startServer() {
 
       const eitaaUser = eitaaBotService.findUser(accountKey);
       const telegramUser = telegramBotService.getUserByPhone(accountKey);
-      if (!eitaaUser && !telegramUser) {
+      const hasWebCredentials = credentialsStore.hasCredentials(accountKey);
+      if (!eitaaUser && !telegramUser && !hasWebCredentials) {
         return res.status(403).json({ success: false, error: 'ابتدا در سایت ثبت‌نام یا وارد حساب شوید.' });
       }
 
@@ -549,9 +550,8 @@ async function startServer() {
       }
 
       for (const email of eligibleEmails) {
-        if (eitaaUser) eitaaBotService.linkEmailToUser(accountKey, email);
+        if (eitaaUser || hasWebCredentials) eitaaBotService.linkEmailToUser(accountKey, email);
         if (telegramUser) telegramBotService.linkEmailToUser(accountKey, email);
-        emailStore.extendInbox(email, 300);
       }
       await commitToDb();
 
