@@ -1,329 +1,26 @@
-import React, { useState } from 'react';
-import { TempInbox } from '../types';
-import { RefreshCw, Plus, QrCode, Clock, Trash2, Copy, Check, Sparkles } from 'lucide-react';
-import { playCopySound } from '../utils/audio';
+YªçŠx-®éÜj×¢ëiºÚ+Š§j[h‘éÜ¢éíçİ´N‹Z–‹­¦ëeŠw¬Õ¥µÁ½ÉĞI•…Ğ°ìÕÍ•MÑ…Ñ”ô™É½´€É•…Ğœì4)¥µÁ½ÉĞìQ•µÁ%¹‰½àô™É½´€œ¸¸½ÑåÁ•Ìœì4)¥µÁ½ÉĞìI•™É•Í¡Ü°A±ÕÌ°EÉ½‘”°±½¬°QÉ…Í È°½Áä°¡•¬°MÁ…É­±•Ìô™É½´€±Õ¥‘”µÉ•…Ğœì4)¥µÁ½ÉĞìÁ±…å½ÁåM½Õ¹ô™É½´€œ¸¸½ÕÑ¥±Ì½…Õ‘¥¼œì4(4)¥¹Ñ•É™…”µ…¥±	…ÉAÉ½ÁÌì4(€ÕÉÉ•¹Ñ%¹‰½àèQ•µÁ%¹‰½àğ¹Õ±°ì4(€…Ñ¥Ù•%¹‰½á•ÌèQ•µÁ%¹‰½ámtì4(€½¹M•±•Ñ%¹‰½àè€¡¥¹‰½àèQ•µÁ%¹‰½à¤€ôøÙ½¥ì4(€½¹•¹•É…Ñ•9•Üè€¡ÕÍÑ½µUÍ•É¹…µ”üèÍÑÉ¥¹œ°‘½µ…¥¸üèÍÑÉ¥¹œ¤€ôøÙ½¥ì4(€½¹•±•Ñ”è€ ¤€ôøÙ½¥ì4(€½¹áÑ•¹è€¡Í•½¹‘Ìè¹Õµ‰•È¤€ôøÙ½¥ì4(€½¹½Áäè€ ¤€ôøÙ½¥ì4(€¥Í½Á¥•è‰½½±•…¸ì4(€½¹=Á•¹EÈè€ ¤€ôøÙ½¥ì4(€‘½µ…¥¹ÌèÍÑÉ¥¹mtì4(€¥Í„è‰½½±•…¸ì4)ô4(4)•áÁ½ÉĞ½¹ÍĞµ…¥±	…ÈèI•…Ğ¹ñµ…¥±	…ÉAÉ½ÁÌø€ô€¡ì4(€ÕÉÉ•¹Ñ%¹‰½à°4(€…Ñ¥Ù•%¹‰½á•Ì°4(€½¹M•±•Ñ%¹‰½à°4(€½¹•¹•É…Ñ•9•Ü°4(€½¹•±•Ñ”°4(€½¹áÑ•¹°4(€½¹½Áä°4(€¥Í½Á¥•°4(€½¹=Á•¹EÈ°4(€‘½µ…¥¹Ì°4(€¥Í„°4)ô¤€ôøì4(€½¹ÍĞmÍ¡½İÕÍÑ½µ5½‘…°°Í•ÑM¡½İÕÍÑ½µ5½‘…±t€ôÕÍ•MÑ…Ñ”¡™…±Í”¤ì4(€½¹ÍĞmÕÍÑ½µUÍ•È°Í•ÑÕÍÑ½µUÍ•Ét€ôÕÍ•MÑ…Ñ” œœ¤ì4(€½¹ÍĞmÕÍÑ½µ½µ…¥¸°Í•ÑÕÍÑ½µ½µ…¥¹t€ôÕÍ•MÑ…Ñ”¡‘½µ…¥¹ÍlÁtñğ€©„µ‰”µ©„¹¥Èœ¤ì4(€½¹ÍĞmÑ¥µ•1•™ÑMÑÈ°Í•ÑQ¥µ•1•™ÑMÑÉt€ôÕÍ•MÑ…Ñ” œÀÔèÀÀœ¤ì4(€½¹ÍĞmÁ•É•¹Ñ…•1•™Ğ°Í•ÑA•É•¹Ñ…•1•™Ñt€ôÕÍ•MÑ…Ñ” ÄÀÀ¤ì4(4(€€¼¼Må¹ŒÕÍÑ½´‘½µ…¥¸‘•™…Õ±Ğİ¡•¸‘½µ…¥¹Ì¡…¹”4(€I•…Ğ¹ÕÍ•™™•Ğ  ¤€ôøì4(€€€¥˜€¡‘½µ…¥¹Ì¹±•¹Ñ €ø€À€˜˜€ …ÕÍÑ½µ½µ…¥¸ñğ€…‘½µ…¥¹Ì¹¥¹±Õ‘•Ì¡ÕÍÑ½µ½µ…¥¸¤¤¤ì4(€€€€€Í•ÑÕÍÑ½µ½µ…¥¸¡‘½µ…¥¹ÍlÁt¤ì4(€€€ô4(€ô°m‘½µ…¥¹Ì°ÕÍÑ½µ½µ…¥¹t¤ì4(4(€€¼¼áÁ¥É…Ñ¥½¸½Õ¹Ñ‘½İ¸4(€I•…Ğ¹ÕÍ•™™•Ğ  ¤€ôøì4(€€€¥˜€ …ÕÉÉ•¹Ñ%¹‰½à¤É•ÑÕÉ¸ì4(4(€€€½¹ÍĞÕÁ‘…Ñ•Q¥µ•È€ô€ ¤€ôøì4(€€€€€½¹ÍĞ¹½Ü€ô…Ñ”¹¹½Ü ¤ì4(€€€€€½¹ÍĞÉ•…Ñ•€ô¹•Ü…Ñ”¡ÕÉÉ•¹Ñ%¹‰½à¹É•…Ñ•‘Ğ¤¹•ÑQ¥µ” ¤ì4(€€€€€½¹ÍĞ•áÁ¥É•Ì€ô¹•Ü…Ñ”¡ÕÉÉ•¹Ñ%¹‰½à¹•áÁ¥É•ÍĞ¤¹•ÑQ¥µ” ¤ì4(€€€€€½¹ÍĞÑ½Ñ…±ÕÉ…Ñ¥½¸€ô5…Ñ ¹µ…à¡•áÁ¥É•Ì€´É•…Ñ•°€ÄÀÀÀ¤ì4(€€€€€½¹ÍĞÉ•µ…¥¹¥¹5Ì€ô5…Ñ ¹µ…à¡•áÁ¥É•Ì€´¹½Ü°€À¤ì4(4(€€€€€½¹ÍĞµ¥¹ÕÑ•Ì€ô5…Ñ ¹™±½½È¡É•µ…¥¹¥¹5Ì€¼€ØÀÀÀÀ¤ì4(€€€€€½¹ÍĞÍ•½¹‘Ì€ô5…Ñ ¹™±½½È ¡É•µ…¥¹¥¹5Ì€”€ØÀÀÀÀ¤€¼€ÄÀÀÀ¤ì4(€€€€€Í•ÑQ¥µ•1•™ÑMÑÈ¡€‘íµ¥¹ÕÑ•Ì¹Ñ½MÑÉ¥¹œ ¤¹Á…‘MÑ…ÉĞ È°€œÀœ¥ôè‘íÍ•½¹‘Ì¹Ñ½MÑÉ¥¹œ ¤¹Á…‘MÑ…ÉĞ È°€œÀœ¥õ€¤ì4(4(€€€€€½¹ÍĞÁ•É•¹Ğ€ô5…Ñ ¹µ¥¸¡5…Ñ ¹µ…à ¡É•µ…¥¹¥¹5Ì€¼Ñ½Ñ…±ÕÉ…Ñ¥½¸¤€¨€ÄÀÀ°€À¤°€ÄÀÀ¤ì4(€€€€€Í•ÑA•É•¹Ñ…•1•™Ğ¡Á•É•¹Ğ¤ì4(€€€ôì4(4(€€€ÕÁ‘…Ñ•Q¥µ•È ¤ì4(€€€½¹ÍĞ¥¹Ñ•ÉÙ…°€ôÍ•Ñ%¹Ñ•ÉÙ…°¡ÕÁ‘…Ñ•Q¥µ•È°€ÄÀÀÀ¤ì4(€€€É•ÑÕÉ¸€ ¤€ôø±•…É%¹Ñ•ÉÙ…°¡¥¹Ñ•ÉÙ…°¤ì4(€ô°mÕÉÉ•¹Ñ%¹‰½át¤ì4(4(€½¹ÍĞ¡…¹‘±•½Áä€ô€ ¤€ôøì4(€€€½¹½Áä ¤ì4(€€€Á±…å½ÁåM½Õ¹ ¤ì4(€ôì4(4(€½¹ÍĞ¡…¹‘±•É•…Ñ•ÕÍÑ½´€ô€¡”èI•…Ğ¹½ÉµÙ•¹Ğ¤€ôøì4(€€€”¹ÁÉ•Ù•¹Ñ•™…Õ±Ğ ¤ì4(€€€½¹•¹•É…Ñ•9•Ü¡ÕÍÑ½µUÍ•È¹ÑÉ¥´ ¤°ÕÍÑ½µ½µ…¥¸¤ì4(€€€Í•ÑM¡½İÕÍÑ½µ5½‘…°¡™…±Í”¤ì4(€€€Í•ÑÕÍÑ½µUÍ•È œœ¤ì4(€ôì4(4(€É•ÑÕÉ¸€ 4(€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰Üµ™Õ±°ÍÁ…”µä´Ìˆø4(€€€€€ì¼¨5Õ±Ñ¤µ¥¹‰½àÍİ¥Ñ Ñ…‰Ì€¨½ô4(€€€€€í…Ñ¥Ù•%¹‰½á•Ì¹±•¹Ñ €ø€Ä€˜˜€ 4(€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰™±•à¥Ñ•µÌµ•¹Ñ•È…À´È½Ù•É™±½Üµàµ…ÕÑ¼Áˆ´ÄÑ•áĞµáÌˆø4(€€€€€€€€€€ñÍÁ…¸±…ÍÍ9…µ”ô‰Ñ•áĞµÍ±…Ñ”´ÔÀÀ‘…É¬éÑ•áĞµÍ±…Ñ”´ĞÀÀ™½¹Ğµµ•‘¥Õ´İ¡¥Ñ•ÍÁ…”µ¹½İÉ…ÀÁ°´Äˆø4(€€€€€€€€€€€í¥Í„€ü€Ÿb×fb¿f#fŠ3fbŸn0ƒfbçbŸfèœ€è€Ñ¥Ù”%¹‰½á•Ìèô4(€€€€€€€€€€ğ½ÍÁ…¸ø4(€€€€€€€€€í…Ñ¥Ù•%¹‰½á•Ì¹µ…À ¡¥¹‰½à¤€ôøì4(€€€€€€€€€€€½¹ÍĞ¥ÍM•±•Ñ•€ôÕÉÉ•¹Ñ%¹‰½àü¹•µ…¥°€ôôô¥¹‰½à¹•µ…¥°ì4(€€€€€€€€€€€É•ÑÕÉ¸€ 4(€€€€€€€€€€€€€€ñ‰ÕÑÑ½¸4(€€€€€€€€€€€€€€€­•äõí¥¹‰½à¹¥‘ô4(€€€€€€€€€€€€€€€½¹±¥¬õì ¤€ôø½¹M•±•Ñ%¹‰½à¡¥¹‰½à¥ô4(€€€€€€€€€€€€€€€±…ÍÍ9…µ”õí™±•à¥Ñ•µÌµ•¹Ñ•È…À´Ä¸ÔÁà´ÌÁä´Ä¸ÔÉ½Õ¹‘•µ±œ‰½É‘•È™½¹Ğµµ½¹¼ÑÉ…¹Í¥Ñ¥½¸µ…±°İ¡¥Ñ•ÍÁ…”µ¹½İÉ…À€‘ì4(€€€€€€€€€€€€€€€€€¥ÍM•±•Ñ•4(€€€€€€€€€€€€€€€€€€€€ü€‰œµ¥¹‘¥¼´ÔÀ‰½É‘•Èµ¥¹‘¥¼´ÌÀÀÑ•áĞµ¥¹‘¥¼´ÜÀÀ‘…É¬é‰œµ¥¹‘¥¼´ØÀÀ¼ÌÀ‘…É¬é‰½É‘•Èµ¥¹‘¥¼´ÔÀÀ‘…É¬éÑ•áĞµİ¡¥Ñ”™½¹Ğµ‰½±Í¡…‘½ÜµáÌœ4(€€€€€€€€€€€€€€€€€€€€è€‰œµİ¡¥Ñ”‰½É‘•ÈµÍ±…Ñ”´ÈÀÀÑ•áĞµÍ±…Ñ”´ØÀÀ¡½Ù•ÈéÑ•áĞµÍ±…Ñ”´äÀÀ¡½Ù•Èé‰½É‘•ÈµÍ±…Ñ”´ÌÀÀ‘…É¬é‰œµÍ±…Ñ”´äÀÀ¼àÀ‘…É¬é‰½É‘•ÈµÍ±…Ñ”´àÀÀ‘…É¬éÑ•áĞµÍ±…Ñ”´ĞÀÀ‘…É¬é¡½Ù•ÈéÑ•áĞµÍ±…Ñ”´ÈÀÀœ4(€€€€€€€€€€€€€€€õô4(€€€€€€€€€€€€€€ø4(€€€€€€€€€€€€€€€€ñÍÁ…¸ùí¥¹‰½à¹•µ…¥±ôğ½ÍÁ…¸ø4(€€€€€€€€€€€€€€€í¥¹‰½à¹Õ¹É•…‘½Õ¹Ğ€„ôôÕ¹‘•™¥¹•€˜˜¥¹‰½à¹Õ¹É•…‘½Õ¹Ğ€ø€À€˜˜€ 4(€€€€€€€€€€€€€€€€€€ñÍÁ…¸±…ÍÍ9…µ”ô‰‰œµ¥¹‘¥¼´ØÀÀÑ•áĞµİ¡¥Ñ”Ñ•áĞµlÄÁÁátÁà´Ä¸ÔÁä´À¸ÈÉ½Õ¹‘•µ™Õ±°™½¹ĞµÍ…¹Ì™½¹Ğµ‰½±ˆø4(€€€€€€€€€€€€€€€€€€€í¥¹‰½à¹Õ¹É•…‘½Õ¹Ñô4(€€€€€€€€€€€€€€€€€€ğ½ÍÁ…¸ø4(€€€€€€€€€€€€€€€€¥ô4(€€€€€€€€€€€€€€ğ½‰ÕÑÑ½¸ø4(€€€€€€€€€€€€¤ì4(€€€€€€€€€ô¥ô4(€€€€€€€€ğ½‘¥Øø4(€€€€€€¥ô4(4(€€€€€ì¼¨5…¥¸µ…¥°!•É¼…É€¨½ô4(€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰É•±…Ñ¥Ù”½Ù•É™±½Üµ¡¥‘‘•¸É½Õ¹‘•´Éá°‰œµİ¡¥Ñ”‘…É¬é‰œµÉ…‘¥•¹ĞµÑ¼µˆ‘…É¬é™É½´µÍ±…Ñ”´äÀÀ‘…É¬éÙ¥„µÍ±…Ñ”´äÀÀ¼äÀ‘…É¬éÑ¼µÍ±…Ñ”´äÔÀ‰½É‘•È‰½É‘•ÈµÍ±…Ñ”´ÈÀÀ¼äÀ‘…É¬é‰½É‘•ÈµÍ±…Ñ”´àÀÀ¼äÀÀ´Ì¸ÔÍ´éÀ´Ğ±œéÀ´Ğ¸ÔÍ¡…‘½ÜµáÌ‘…É¬éÍ¡…‘½Üµ±œÑÉ…¹Í¥Ñ¥½¸µ½±½ÉÌˆø4(€€€€€€€ì¼¨±½Ü…•¹Ğ€¨½ô4(€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰…‰Í½±ÕÑ”Ñ½À´ÀÉ¥¡Ğ´Ä¼ĞÜ´ÜÈ ´ÈÀ‰œµ¥¹‘¥¼´ÔÀÀ¼Ô‘…É¬é‰œµ¥¹‘¥¼´ÔÀÀ¼ÄÀÉ½Õ¹‘•µ™Õ±°‰±ÕÈ´Éá°Á½¥¹Ñ•Èµ•Ù•¹ÑÌµ¹½¹”ˆ€¼ø4(4(€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰É•±…Ñ¥Ù”è´ÄÀ™±•à™±•àµ½°±œé™±•àµÉ½Ü±œé¥Ñ•µÌµ•¹Ñ•È©ÕÍÑ¥™äµ‰•Ñİ••¸…À´Ì¸Ô±œé…À´Ğˆø4(€€€€€€€€€ì¼¨µ…¥°‘‘É•ÍÌ€˜½Áä‰±½¬€¨½ô4(€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰ÍÁ…”µä´Ä¸Ô™±•à´Äµ¥¸µÜ´À½É‘•È´Ä±œé½É‘•Èµ¹½¹”ˆø4(€€€€€€€€€€€ì  ¤€ôøì4(€€€€€€€€€€€€€½¹ÍĞ¥ÍáÁ¥É•€ôÁ•É•¹Ñ…•1•™Ğ€ğô€Àñğ€¡ÕÉÉ•¹Ñ%¹‰½à€˜˜€…ÕÉÉ•¹Ñ%¹‰½à¹¥ÍA•Éµ…¹•¹Ğ€˜˜¹•Ü…Ñ”¡ÕÉÉ•¹Ñ%¹‰½à¹•áÁ¥É•ÍĞ¤¹•ÑQ¥µ” ¤€ğô…Ñ”¹¹½Ü ¤¤ì4(€€€€€€€€€€€€€É•ÑÕÉ¸€ 4(€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰™±•à¥Ñ•µÌµ•¹Ñ•È©ÕÍÑ¥™äµ‰•Ñİ••¸Í´é©ÕÍÑ¥™äµÍÑ…ÉĞ…À´Èˆø4(€€€€€€€€€€€€€€€€€€ñÍÁ…¸±…ÍÍ9…µ”õí¥¹±¥¹”µ™±•à¥Ñ•µÌµ•¹Ñ•È…À´ÄÁà´ÈÁä´À¸ÔÉ½Õ¹‘•µ™Õ±°Ñ•áĞµlÄÅÁát™½¹ĞµÍ•µ¥‰½±Í¡É¥¹¬´À€‘ì4(€€€€€€€€€€€€€€€€€€€¥ÍáÁ¥É•4(€€€€€€€€€€€€€€€€€€€€€€ü€‰œµÉ½Í”´ÔÀÑ•áĞµÉ½Í”´ÜÀÀ‰½É‘•È‰½É‘•ÈµÉ½Í”´ÈÀÀ‘…É¬é‰œµÉ½Í”´ÔÀÀ¼ÄÀ‘…É¬éÑ•áĞµÉ½Í”´ĞÀÀ‘…É¬é‰½É‘•ÈµÉ½Í”´ÔÀÀ¼ÈÀœ4(€€€€€€€€€€€€€€€€€€€€€€è€‰œµ•µ•É…±´ÔÀÑ•áĞµ•µ•É…±´ÜÀÀ‰½É‘•È‰½É‘•Èµ•µ•É…±´ÈÀÀ‘…É¬é‰œµ•µ•É…±´ÔÀÀ¼ÄÀ‘…É¬éÑ•áĞµ•µ•É…±´ĞÀÀ‘…É¬é‰½É‘•Èµ•µ•É…±´ÔÀÀ¼ÈÀœ4(€€€€€€€€€€€€€€€€€õôø4(€€€€€€€€€€€€€€€€€€€€ñÍÁ…¸±…ÍÍ9…µ”õíÜ´Ä¸Ô ´Ä¸ÔÉ½Õ¹‘•µ™Õ±°€‘í¥ÍáÁ¥É•€ü€‰œµÉ½Í”´ÔÀÀœ€è€‰œµ•µ•É…±´ÔÀÀ‘…É¬é‰œµ•µ•É…±´ĞÀÀ…¹¥µ…Ñ”µÁ¥¹œõô€¼ø4(€€€€€€€€€€€€€€€€€€€í¥ÍáÁ¥É•€ü€¡¥Í„€ü€ŸfffbÛn0ƒbÓb¿fœ€è€áÁ¥É•œ¤€è€¡¥Í„€ü€ŸbŸn3fn3fƒfbçbŸf€£nÔƒb¿fn3ffŠ3bŸn0¤œ€è€Ñ¥Ù”€ Ôµ¥¸¤œ¥ô4(€€€€€€€€€€€€€€€€€€ğ½ÍÁ…¸ø4(€€€€€€€€€€€€€€€€€€ñÍÁ…¸±…ÍÍ9…µ”ô‰Ñ•áĞµlÄÅÁátÑ•áĞµÍ±…Ñ”´ÔÀÀ‘…É¬éÑ•áĞµÍ±…Ñ”´ĞÀÀ™±•à¥Ñ•µÌµ•¹Ñ•È…À´Äˆø4(€€€€€€€€€€€€€€€€€€€€ñÍÁ…¸ùí¥Í„€ü€ŸbŸffbÛbœèœ€è€áÁ¥É•Ìèôğ½ÍÁ…¸ø4(€€€€€€€€€€€€€€€€€€€€ñÍÁ…¸±…ÍÍ9…µ”õí™½¹Ğµµ½¹¼™½¹Ğµ‰½±€‘í¥ÍáÁ¥É•€ü€Ñ•áĞµÉ½Í”´ØÀÀ‘…É¬éÑ•áĞµÉ½Í”´ĞÀÀœ€è€Ñ•áĞµ¥¹‘¥¼´ØÀÀ‘…É¬éÑ•áĞµ¥¹‘¥¼´ÌÀÀõôùíÑ¥µ•1•™ÑMÑÉôğ½ÍÁ…¸ø4(€€€€€€€€€€€€€€€€€€ğ½ÍÁ…¸ø4(€€€€€€€€€€€€€€€€ğ½‘¥Øø4(€€€€€€€€€€€€€€¤ì4(€€€€€€€€€€€ô¤ ¥ô4(4(€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰™±•à¥Ñ•µÌµ•¹Ñ•È…À´Èµ…àµÜµ™Õ±°ˆø4(€€€€€€€€€€€€€€ñ‘¥Ø€4(€€€€€€€€€€€€€€€½¹±¥¬õí¡…¹‘±•½Áåô4(€€€€€€€€€€€€€€€Ñ¥Ñ±”õí¥Í„€ü€Ÿb£bÇbŸn0ƒj§fûn0ƒj§fn3j¤ƒj§fn3b¼œ€è€±¥¬Ñ¼½Áäô4(€€€€€€€€€€€€€€€±…ÍÍ9…µ”ô‰É½ÕÀ™±•à´Äµ¥¸µÜ´À™±•à¥Ñ•µÌµÍÑ…ÉĞÍ´é¥Ñ•µÌµ•¹Ñ•È©ÕÍÑ¥™äµ‰•Ñİ••¸…À´È‰œµÍ±…Ñ”´ÔÀ‘…É¬é‰œµÍ±…Ñ”´äÔÀ‰½É‘•È‰½É‘•ÈµÍ±…Ñ”´ÈÀÀ‘…É¬é‰½É‘•ÈµÍ±…Ñ”´àÀÀ¡½Ù•Èé‰½É‘•Èµ¥¹‘¥¼´ĞÀÀ‘…É¬é¡½Ù•Èé‰½É‘•Èµ¥¹‘¥¼´ÔÀÀ¼ÔÀÉ½Õ¹‘•µá°Áà´ÌÁä´ÈÕÉÍ½ÈµÁ½¥¹Ñ•ÈÑÉ…¹Í¥Ñ¥½¸µ…±°Í¡…‘½Ü´ÉáÌˆ4(€€€€€€€€€€€€€€ø4(€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰™±•à¥Ñ•µÌµ•¹Ñ•È…À´Èµ¥¸µÜ´À™±•à´Äˆø4(€€€€€€€€€€€€€€€€€€ñÍÁ…¸±…ÍÍ9…µ”ô‰Ñ•áĞµÍ´Í´éÑ•áĞµ‰…Í”±œéÑ•áĞµ±œ™½¹Ğµµ½¹¼™½¹Ğµ‰½±Ñ•áĞµÍ±…Ñ”´äÀÀ‘…É¬éÑ•áĞµİ¡¥Ñ”ÑÉ…­¥¹œµİ¥‘”‰É•…¬µ…±°Í´é‰É•…¬µ¹½Éµ…°Í´éÑÉÕ¹…Ñ”É½ÕÀµ¡½Ù•ÈéÑ•áĞµ¥¹‘¥¼´ØÀÀ‘…É¬éÉ½ÕÀµ¡½Ù•ÈéÑ•áĞµ¥¹‘¥¼´ÈÀÀÍ•±•Ğµ…±°ˆø4(€€€€€€€€€€€€€€€€€€€íÕÉÉ•¹Ñ%¹‰½à€üÕÉÉ•¹Ñ%¹‰½à¹•µ…¥°€è€¡¥Í„€ü€Ÿb¿bÄƒb·bŸfƒbŸn3b³bŸb¼ƒbŸn3fn3f¸¸¸œ€è€•¹•É…Ñ¥¹œ•µ…¥°¸¸¸œ¥ô4(€€€€€€€€€€€€€€€€€€ğ½ÍÁ…¸ø4(€€€€€€€€€€€€€€€€ğ½‘¥Øø4(€€€€ƒİ´¶‰Ëkºwµç\šÎ˜™Ë\Û]KN\šÎšİ™\˜™Ë\Û]KMÌ\šÎ^\Û]KLŒ^^È›Û\Ù[ZX›Û›Ü™\ˆ›Ü™\‹\Û]KLŒ\šÎ˜›Ü™\‹\Û]KMÌ˜[œÚ][Û‹XÛÛÜœÈİ\œÛÜ‹\Ú[\ˆƒBˆƒBˆ\ÈÛ\ÜÓ˜[YOHËLËHLËH^Z[™YÛËMŒ\šÎ^Z[™YÛËMÚš[šËLˆÏƒBˆÜ[ˆÛ\ÜÓ˜[YOH[˜Ø]HÚ\Ñ˜HÈ	ö)öã6avã6a6,ö`v)ö,v-6ã	Èˆ	Ğİ\İÛH[X\ÉßOÜÜ[ƒBˆØ]ÛƒBƒBˆËÊˆİX‹YÜ›İ\Ûˆ[Øš[H›Üˆ]^[X\HÛÛÎˆT‹^[™[]H
+‹ßCBˆ]ˆÛ\ÜÓ˜[YOH˜ÛÛ\Ü[‹LˆÛN˜ÛÛX]]È›^][\ËXÙ[\ˆØ\LKHËY[ÛNËX]]ÈƒBˆËÊˆTˆÛÙH]Ûˆ
+‹ßCBˆ]ÛƒBˆYH˜‹\\‹[[Ù[ƒBˆÛÛXÚÏ^ÛÛ“Ü[”\ŸCBˆ]O^Ú\Ñ˜HÈ	öav-6)öaö+öaÈTˆ6ªv+È6*6,v)öã6avb6*6)öã6a	Èˆ	ÕšY]ÈTˆÛÙIßCBˆÛ\ÜÓ˜[YOH™›^LHÛN™›^Z[š]X[›^][\ËXÙ[\ˆ\İYKXÙ[\ˆØ\LKHLˆ›İ[™Y^™Ë\Û]KLLİ™\˜™Ë\Û]KLŒ^\Û]KMÌ\šÎ˜™Ë\Û]KN\šÎšİ™\˜™Ë\Û]KMÌ\šÎ^\Û]KLÌ›Ü™\ˆ›Ü™\‹\Û]KLŒ\šÎ˜›Ü™\‹\Û]KMÌ˜[œÚ][Û‹XÛÛÜœÈİ\œÛÜ‹\Ú[\ˆƒBˆƒBˆ\ÛÙHÛ\ÜÓ˜[YOHËLËHLËHˆÏƒBˆÜ[ˆÛ\ÜÓ˜[YOHœÛNšY[ˆ^^È›Û[YY][HÚ\Ñ˜HÈ	ÔTˆ6ªv+ÉÈˆ	ÔT‰ßOÜÜ[ƒBˆØ]ÛƒBƒBˆËÊˆ^[™[YH]Ûˆ
 
-interface EmailBarProps {
-  currentInbox: TempInbox | null;
-  activeInboxes: TempInbox[];
-  onSelectInbox: (inbox: TempInbox) => void;
-  onGenerateNew: (customUsername?: string, domain?: string) => void;
-  onDelete: () => void;
-  onExtend: (seconds: number) => void;
-  onCopy: () => void;
-  isCopied: boolean;
-  onOpenQr: () => void;
-  domains: string[];
-  isFa: boolean;
-}
+ÌÌZ[ŠH
+‹ßCBˆ]ÛƒBˆYH˜‹Y^[™][YHƒBˆÛÛXÚÏ^Ê
+HOˆÛ‘^[™
+N
+_CBˆ]O^Ú\Ñ˜HÈ	ö*¶av+öã6+È6,¶av)öaˆ6ìöì6+ö`¶ã6`¶aÉÈˆ	Ñ^[™
+ÌÌZ[‰ßCBˆÛ\ÜÓ˜[YOH™›^LHÛN™›^Z[š]X[›^][\ËXÙ[\ˆ\İYKXÙ[\ˆØ\LHL‹HKLˆ›İ[™Y^™Ë\Û]KLLİ™\˜™Ë\Û]KLŒ^\Û]KMÌ\šÎ˜™Ë\Û]KNÎ\šÎšİ™\˜™Ë\Û]KMÌ\šÎ^\Û]KLÌ^^È›Û[YY][H›Ü™\ˆ›Ü™\‹\Û]KLŒ\šÎ˜›Ü™\‹\Û]KMÌÎ˜[œÚ][Û‹XÛÛÜœÈİ\œÛÜ‹\Ú[\ˆƒBˆƒBˆÛØÚÈÛ\ÜÓ˜[YOHËLËHLËH^XŞX[‹MŒ\šÎ^XŞX[‹MˆÏƒBˆÜ[Ú\Ñ˜HÈ	ÊöìöìIÈˆ	ÊÌÌIßOÜÜ[ƒBˆØ]ÛƒBƒBˆËÊˆ[]KÑ\İ›ŞHİ\œ™[[˜›Ş
+‹ßCBˆ]ÛƒBˆYH˜‹Y[]KZ[˜›ŞƒBˆÛÛXÚÏ^ÛÛ‘[]_CBˆ]O^Ú\Ñ˜HÈ	ö+v,6`H6b6o¶)öªv,ö)ö,¶ã6)öã6aˆ6)öã6avã6a	Èˆ	Ñ[]H[˜›Ş	ßCBˆÛ\ÜÓ˜[YOH™›^Z[š]X[Lˆ›İ[™Y^™Ë\›ÜÙKMLİ™\˜™Ë\›ÜÙKLL^\›ÜÙKMŒ›Ü™\ˆ›Ü™\‹\›ÜÙKLŒ\šÎ˜™Ë\›ÜÙKMLÌL\šÎšİ™\˜™Ë\›ÜÙKMLÌŒ\šÎ^\›ÜÙKM\šÎ˜›Ü™\‹\›ÜÙKMLÌÌ˜[œÚ][Û‹XÛÛÜœÈİ\œÛÜ‹\Ú[\ˆƒBˆƒBˆ˜\ÚˆÛ\ÜÓ˜[YOHËLËHLËHˆÏƒBˆØ]ÛƒBˆÙ]ƒBˆÙ]ƒBˆÙ]ƒBˆÙ]ƒBƒBˆËÊˆİ\İÛH[XZ[[Ù[X[ÙÈ
+‹ßCBˆÜÚİĞİ\İÛS[Ù[	‰ˆ
+Bˆ]ˆÛ\ÜÓ˜[YOH™š^Y[œÙ]L‹ML›^][\ËXÙ[\ˆ\İYKXÙ[\ˆM™Ë\Û]KNLÍŒ\šÎ˜™ËX›XÚËÍÍH˜XÚÙ›ÜX›\‹\ÛH[š[X]KZ[ˆ˜YKZ[ˆ\˜][Û‹LMLˆ\^Ú\Ñ˜HÈ	Ü	Èˆ	Û‰ßOƒBˆ]ˆÛ\ÜÓ˜[YOHËY[X^]Ë[Y™Ë]Ú]H\šÎ˜™Ë\Û]KNL›Ü™\ˆ›Ü™\‹\Û]KLŒ\šÎ˜›Ü™\‹\Û]KN›İ[™YLMˆÚYİËLÜXÙK^KM^\šYÚƒBˆ]ˆÛ\ÜÓ˜[YOH™›^][\ËXÙ[\ˆ\İYKX™]ÙY[ˆ›Ü™\‹Xˆ›Ü™\‹\Û]KLŒ\šÎ˜›Ü™\‹\Û]KN‹LÈƒBˆÈÛ\ÜÓ˜[YOH^X˜\ÙH›ÛX›Û^\Û]KNL\šÎ^]Ú]H›^][\ËXÙ[\ˆØ\LˆƒBˆÜ\šÛ\ÈÛ\ÜÓ˜[YOHËMM^Z[™YÛËMŒ\šÎ^Z[™YÛËMˆÏƒBˆÜ[Ú\Ñ˜HÈ	ö,ö)ö+¶*ˆ6)öã6avã6a6*6)È6a¶)öaH6b6+ö)öava¶aÈ6+öa6+¶b6)öaÉÈˆ	ĞÜ™X]Hİ\İÛH\ÜÜØX›H[XZ[	ßOÜÜ[ƒBˆÚÏƒBˆ]ÛƒBˆÛÛXÚÏ^Ê
+HOˆÙ]ÚİĞİ\İÛS[Ù[
+˜[ÙJ_CBˆÛ\ÜÓ˜[YOH^\Û]KMİ™\^\Û]KMÌ\šÎšİ™\^]Ú]HLHİ\œÛÜ‹\Ú[\ˆƒBˆƒBˆ8§%CBˆØ]ÛƒBˆÙ]ƒBƒBˆ›Ü›HÛ”İX›Z]^Ú[™PÜ™X]Pİ\İÛ_HÛ\ÜÓ˜[YOHœÜXÙK^KMƒBˆ]ƒBˆX™[Û\ÜÓ˜[YOH˜›ØÚÈ^^È›Û\Ù[ZX›Û^\Û]KMÌ\šÎ^\Û]KLÌX‹LKHƒBˆÚ\Ñ˜HÈ	öa¶)öaH6ªv)ö,v*6,vã6+öa6+¶b6)öaÈ
+\Ù\ˆ[X\ÊN‰Èˆ	Ñ\Ú\™Y\Ù\›˜[YN‰ßCBˆÛX™[ƒBˆ]ˆÛ\ÜÓ˜[YOHœ™[]]™HƒBˆ[œ]Bˆ\OH^ƒBˆ˜[YO^Øİ\İÛU\Ù\ŸCBˆÛÚ[™ÙO^ÊJHOˆÙ]İ\İÛU\Ù\ŠK\™Ù]˜[YKÓİÙ\Ø\ÙJ
+Kœ™\XÙJÖ×˜K^ŒNK—ËWKÙË	ÉÊJ_CBˆXÙZÛ\H™K™Ëˆ[^˜Ü\ÎNHƒBˆÛ\ÜÓ˜[YOHËY[™Ë\Û]KML\šÎ˜™Ë\Û]KNML›Ü™\ˆ›Ü™\‹\Û]KLÌ\šÎ˜›Ü™\‹\Û]KN›İ[™Y^LËHKL‹H^\ÛH^\Û]KNL\šÎ^]Ú]H›Û[[Û›È›Øİ\Î›İ][™K[›Û™H›Øİ\Î˜›Ü™\‹Z[™YÛËMLƒBˆ™\]Z\™YBˆÏƒBˆÙ]ƒBˆÛ\ÜÓ˜[YOH^VÌL\H^\Û]KML]LHƒBˆÚ\Ñ˜HÈ	ö`v`¶-È6)ö,ˆ6+v,vb6`H6)öa¶«öa6ã6,öã6#6)ö.v+ö)ö+È6b6a¶`¶-öaÈ6)ö,ö*¶`v)ö+öaÈ6ªva¶ã6+ÉÈˆ	ÓÛ›HİÙ\˜Ø\ÙH]\œË[X™\œËİË[™\[œÉßCBˆÜƒBˆÙ]ƒBƒBˆ]ƒBˆX™[Û\ÜÓ˜[YOH˜›ØÚÈ^^È›Û\Ù[ZX›Û^\Û]KMÌ\šÎ^\Û]KLÌX‹LKHƒBˆÚ\Ñ˜HÈ	ö)öa¶*¶+¶)ö*6o¶,öb6a¶+È6+ö)öava¶aÎ‰Èˆ	ÔÙ[XİÛXZ[‰ßCBˆÛX™[ƒBˆÙ[XİBˆ\šXK[X™[H‘ÛXZ[ˆÙ[XİÜˆƒBˆ˜[YO^Øİ\İÛQÛXZ[ŸCBˆÛÚ[™ÙO^ÊJHOˆÙ]İ\İÛQÛXZ[ŠK\™Ù]˜[YJ_CBˆÛ\ÜÓ˜[YOHËY[™Ë\Û]KML\šÎ˜™Ë\Û]KNML›Ü™\ˆ›Ü™\‹\Û]KLÌ\šÎ˜›Ü™\‹\Û]KN›İ[™Y^LËHKL‹H^\ÛH^\Û]KN\šÎ^\Û]KLŒ›Û[[Û›È›Øİ\Î›İ][™K[›Û™H›Øİ\Î˜›Ü™\‹Z[™YÛËMLİ\œÛÜ‹\Ú[\ˆƒBˆƒBˆÙÛXZ[œË›X\
 
-export const EmailBar: React.FC<EmailBarProps> = ({
-  currentInbox,
-  activeInboxes,
-  onSelectInbox,
-  onGenerateNew,
-  onDelete,
-  onExtend,
-  onCopy,
-  isCopied,
-  onOpenQr,
-  domains,
-  isFa,
-}) => {
-  const [showCustomModal, setShowCustomModal] = useState(false);
-  const [customUser, setCustomUser] = useState('');
-  const [customDomain, setCustomDomain] = useState(domains[0] || 'ja-be-ja.ir');
-  const [timeLeftStr, setTimeLeftStr] = useState('05:00');
-  const [percentageLeft, setPercentageLeft] = useState(100);
-
-  // Sync custom domain default when domains change
-  React.useEffect(() => {
-    if (domains.length > 0 && (!customDomain || !domains.includes(customDomain))) {
-      setCustomDomain(domains[0]);
-    }
-  }, [domains, customDomain]);
-
-  // Expiration countdown
-  React.useEffect(() => {
-    if (!currentInbox) return;
-
-    const updateTimer = () => {
-      const now = Date.now();
-      const created = new Date(currentInbox.createdAt).getTime();
-      const expires = new Date(currentInbox.expiresAt).getTime();
-      const totalDuration = Math.max(expires - created, 1000);
-      const remainingMs = Math.max(expires - now, 0);
-
-      const minutes = Math.floor(remainingMs / 60000);
-      const seconds = Math.floor((remainingMs % 60000) / 1000);
-      setTimeLeftStr(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
-
-      const percent = Math.min(Math.max((remainingMs / totalDuration) * 100, 0), 100);
-      setPercentageLeft(percent);
-    };
-
-    updateTimer();
-    const interval = setInterval(updateTimer, 1000);
-    return () => clearInterval(interval);
-  }, [currentInbox]);
-
-  const handleCopy = () => {
-    onCopy();
-    playCopySound();
-  };
-
-  const handleCreateCustom = (e: React.FormEvent) => {
-    e.preventDefault();
-    onGenerateNew(customUser.trim(), customDomain);
-    setShowCustomModal(false);
-    setCustomUser('');
-  };
-
-  return (
-    <div className="w-full space-y-3">
-      {/* Multi-inbox switch tabs */}
-      {activeInboxes.length > 1 && (
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
-          <span className="text-slate-500 dark:text-slate-400 font-medium whitespace-nowrap pl-1">
-            {isFa ? 'ØµÙ†Ø¯ÙˆÙ‚â€ŒÙ‡Ø§ÛŒ ÙØ¹Ø§Ù„:' : 'Active Inboxes:'}
-          </span>
-          {activeInboxes.map((inbox) => {
-            const isSelected = currentInbox?.email === inbox.email;
-            return (
-              <button
-                key={inbox.id}
-                onClick={() => onSelectInbox(inbox)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-mono transition-all whitespace-nowrap ${
-                  isSelected
-                    ? 'bg-indigo-50 border-indigo-300 text-indigo-700 dark:bg-indigo-600/30 dark:border-indigo-500 dark:text-white font-bold shadow-xs'
-                    : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300 dark:bg-slate-900/80 dark:border-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
-                }`}
-              >
-                <span>{inbox.email}</span>
-                {inbox.unreadCount !== undefined && inbox.unreadCount > 0 && (
-                  <span className="bg-indigo-600 text-white text-[10px] px-1.5 py-0.2 rounded-full font-sans font-bold">
-                    {inbox.unreadCount}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Main Email Hero Card */}
-      <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-gradient-to-b dark:from-slate-900 dark:via-slate-900/90 dark:to-slate-950 border border-slate-200/90 dark:border-slate-800/90 p-3.5 sm:p-4 lg:p-4.5 shadow-xs dark:shadow-lg transition-colors">
-        {/* Glow accent */}
-        <div className="absolute top-0 right-1/4 w-72 h-20 bg-indigo-500/5 dark:bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
-
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 lg:gap-4">
-          {/* Email Address & Copy block */}
-          <div className="space-y-1.5 flex-1 min-w-0">
-            {(() => {
-              const isExpired = percentageLeft <= 0 || (currentInbox && !currentInbox.isPermanent && new Date(currentInbox.expiresAt).getTime() <= Date.now());
-              return (
-                <div className="flex items-center justify-between sm:justify-start gap-2">
-                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold shrink-0 ${
-                    isExpired
-                      ? 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20'
-                      : 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20'
-                  }`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${isExpired ? 'bg-rose-500' : 'bg-emerald-500 dark:bg-emerald-400 animate-ping'}`} />
-                    {isExpired ? (isFa ? 'Ù…Ù†Ù‚Ø¶ÛŒ Ø´Ø¯Ù‡' : 'Expired') : (isFa ? 'Ø§ÛŒÙ…ÛŒÙ„ ÙØ¹Ø§Ù„ (Ûµ Ø¯Ù‚ÛŒÙ‚Ù‡â€ŒØ§ÛŒ)' : 'Active (5 min)')}
-                  </span>
-                  <span className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                    <span>{isFa ? 'Ø§Ù†Ù‚Ø¶Ø§:' : 'Expires:'}</span>
-                    <span className={`font-mono font-bold ${isExpired ? 'text-rose-600 dark:text-rose-400' : 'text-indigo-600 dark:text-indigo-300'}`}>{timeLeftStr}</span>
-                  </span>
-                </div>
-              );
-            })()}
-
-            <div className="flex items-center gap-2 max-w-full">
-              <div 
-                onClick={handleCopy}
-                title={isFa ? 'Ø¨Ø±Ø§ÛŒ Ú©Ù¾ÛŒ Ú©Ù„ÛŒÚ© Ú©Ù†ÛŒØ¯' : 'Click to copy'}
-                className="group flex-1 min-w-0 flex items-center justify-between bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500/50 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs"
-              >
-                <div className="flex items-center gap-2 min-w-0 overflow-hidden">
-                  <span className="text-sm sm:text-base lg:text-lg font-mono font-bold text-slate-900 dark:text-white tracking-wide truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-200 select-all">
-                    {currentInbox ? currentInbox.email : (isFa ? 'Ø¯Ø± Ø­Ø§Ù„ Ø§ÛŒØ¬Ø§Ø¯ Ø§ÛŒÙ…ÛŒÙ„...' : 'Generating email...')}
-                  </span>
-                </div>
-                <div className="shrink-0 flex items-center gap-1.5 pl-2 rtl:pl-0 rtl:pr-2">
-                  <span className={`text-[11px] sm:text-xs px-2 py-1 rounded-md transition-colors flex items-center gap-1 font-medium ${
-                    isCopied
-                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300 font-semibold'
-                      : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-600/20 dark:text-indigo-300 dark:group-hover:bg-indigo-600 dark:group-hover:text-white'
-                  }`}>
-                    {isCopied ? (
-                      <>
-                        <Check className="w-3.5 h-3.5" />
-                        <span>{isFa ? 'Ú©Ù¾ÛŒ Ø´Ø¯!' : 'Copied!'}</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3.5 h-3.5" />
-                        <span className="hidden sm:inline">{isFa ? 'Ú©Ù¾ÛŒ' : 'Copy'}</span>
-                      </>
-                    )}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Expiration Progress Bar */}
-            <div className="w-full bg-slate-100 dark:bg-slate-950 rounded-full h-1 overflow-hidden border border-slate-200/60 dark:border-slate-800/60">
-              <div
-                className={`h-full transition-all duration-1000 ${
-                  percentageLeft < 20 ? 'bg-rose-500' : percentageLeft < 50 ? 'bg-amber-500' : 'bg-gradient-to-r from-indigo-500 to-cyan-500'
-                }`}
-                style={{ width: `${percentageLeft}%` }}
-              />
-            </div>
-          </div>
-
-          {/* Action Buttons Toolbar */}
-          <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full lg:w-auto shrink-0">
-            {/* New Random Button */}
-            <button
-              id="btn-random-email"
-              onClick={() => onGenerateNew()}
-              className="col-span-1 sm:col-auto flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-all shadow-xs shadow-indigo-600/20 cursor-pointer"
-            >
-              <RefreshCw className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate">{isFa ? 'Ø§ÛŒÙ…ÛŒÙ„ ØªØµØ§Ø¯ÙÛŒ' : 'New Random'}</span>
-            </button>
-
-            {/* Custom Alias Button */}
-            <button
-              id="btn-custom-email"
-              onClick={() => setShowCustomModal(true)}
-              className="col-span-1 sm:col-auto flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 text-xs font-semibold border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
-              <span className="truncate">{isFa ? 'Ø§ÛŒÙ…ÛŒÙ„ Ø³ÙØ§Ø±Ø´ÛŒ' : 'Custom Alias'}</span>
-            </button>
-
-            {/* Sub-group on mobile for auxiliary tools: QR, Extend, Delete */}
-            <div className="col-span-2 sm:col-auto flex items-center gap-1.5 w-full sm:w-auto">
-              {/* QR Code Button */}
-              <button
-                id="btn-qr-modal"
-                onClick={onOpenQr}
-                title={isFa ? 'Ù…Ø´Ø§Ù‡Ø¯Ù‡ QR Ú©Ø¯ Ø¨Ø±Ø§ÛŒ Ù…ÙˆØ¨Ø§ÛŒÙ„' : 'View QR Code'}
-                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
-              >
-                <QrCode className="w-3.5 h-3.5" />
-                <span className="sm:hidden text-xs font-medium">{isFa ? 'QR Ú©Ø¯' : 'QR'}</span>
-              </button>
-
-              {/* Extend Time Button (+30 Min) */}
-              <button
-                id="btn-extend-time"
-                onClick={() => onExtend(1800)}
-                title={isFa ? 'ØªÙ…Ø¯ÛŒØ¯ Ø²Ù…Ø§Ù† Û³Û° Ø¯Ù‚ÛŒÙ‚Ù‡' : 'Extend +30 Min'}
-                className="flex-1 sm:flex-initial flex items-center justify-center gap-1 px-2.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:text-slate-300 text-xs font-medium border border-slate-200 dark:border-slate-700/80 transition-colors cursor-pointer"
-              >
-                <Clock className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
-                <span>{isFa ? '+Û³Û°m' : '+30m'}</span>
-              </button>
-
-              {/* Delete/Destroy current inbox */}
-              <button
-                id="btn-delete-inbox"
-                onClick={onDelete}
-                title={isFa ? 'Ø­Ø°Ù Ùˆ Ù¾Ø§Ú©Ø³Ø§Ø²ÛŒ Ø§ÛŒÙ† Ø§ÛŒÙ…ÛŒÙ„' : 'Delete Inbox'}
-                className="flex-initial p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 dark:text-rose-400 dark:border-rose-500/30 transition-colors cursor-pointer"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Custom Email Modal Dialog */}
-      {showCustomModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 dark:bg-black/75 backdrop-blur-sm animate-in fade-in duration-150" dir={isFa ? 'rtl' : 'ltr'}>
-          <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-2xl space-y-4 text-right">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                <span>{isFa ? 'Ø³Ø§Ø®Øª Ø§ÛŒÙ…ÛŒÙ„ Ø¨Ø§ Ù†Ø§Ù… Ùˆ Ø¯Ø§Ù…Ù†Ù‡ Ø¯Ù„Ø®ÙˆØ§Ù‡' : 'Create Custom Disposable Email'}</span>
-              </h3>
-              <button
-                onClick={() => setShowCustomModal(false)}
-                className="text-slate-400 hover:text-slate-700 dark:hover:text-white p-1 cursor-pointer"
-              >
-                âœ•
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateCustom} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                  {isFa ? 'Ù†Ø§Ù… Ú©Ø§Ø±Ø¨Ø±ÛŒ Ø¯Ù„Ø®ÙˆØ§Ù‡ (User Alias):' : 'Desired Username:'}
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={customUser}
-                    onChange={(e) => setCustomUser(e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, ''))}
-                    placeholder="e.g. alex.crypto99"
-                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-white font-mono focus:outline-none focus:border-indigo-500"
-                    required
-                  />
-                </div>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  {isFa ? 'ÙÙ‚Ø· Ø§Ø² Ø­Ø±ÙˆÙ Ø§Ù†Ú¯Ù„ÛŒØ³ÛŒØŒ Ø§Ø¹Ø¯Ø§Ø¯ Ùˆ Ù†Ù‚Ø·Ù‡ Ø§Ø³ØªÙØ§Ø¯Ù‡ Ú©Ù†ÛŒØ¯' : 'Only lowercase letters, numbers, dots, and hyphens'}
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                  {isFa ? 'Ø§Ù†ØªØ®Ø§Ø¨ Ù¾Ø³ÙˆÙ†Ø¯ Ø¯Ø§Ù…Ù†Ù‡:' : 'Select Domain:'}
-                </label>
-                <select
-                  aria-label="Domain Selector"
-                  value={customDomain}
-                  onChange={(e) => setCustomDomain(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 dark:text-slate-200 font-mono focus:outline-none focus:border-indigo-500 cursor-pointer"
-                >
-                  {domains.map((dom) => (
-                    <option key={dom} value={dom} className="bg-white text-slate-900 dark:bg-slate-900 dark:text-white">
-                      @{dom}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-500/20 rounded-xl p-3 text-xs text-indigo-900 dark:text-indigo-300 font-mono truncate">
-                {isFa ? 'Ù¾ÛŒØ´â€ŒÙ†Ù…Ø§ÛŒØ´ Ø§ÛŒÙ…ÛŒÙ„:' : 'Preview:'}{' '}
-                <span className="font-bold text-indigo-700 dark:text-white">
-                  {customUser.trim() || 'yourname'}@{customDomain}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2 pt-2">
-                <button
-                  type="submit"
-                  className="flex-1 py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition-colors shadow-sm"
-                >
-                  {isFa ? 'Ø§ÛŒØ¬Ø§Ø¯ Ùˆ ÙØ¹Ø§Ù„â€ŒØ³Ø§Ø²ÛŒ' : 'Create & Activate'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowCustomModal(false)}
-                  className="py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 text-sm font-medium transition-colors"
-                >
-                  {isFa ? 'Ø§Ù†ØµØ±Ø§Ù' : 'Cancel'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
+ÛJHOˆ
+BˆÜ[ÛˆÙ^O^ÙÛ_H˜[YO^ÙÛ_HÛ\ÜÓ˜[YOH˜™Ë]Ú]H^\Û]KNL\šÎ˜™Ë\Û]KNL\šÎ^]Ú]HƒBˆÙÛ_CBˆÛÜ[ÛƒBˆ
+J_CBˆÜÙ[XİƒBˆÙ]ƒBƒBˆ]ˆÛ\ÜÓ˜[YOH˜™ËZ[™YÛËML\šÎ˜™ËZ[™YÛËNMLÍ›Ü™\ˆ›Ü™\‹Z[™YÛËLŒ\šÎ˜›Ü™\‹Z[™YÛËMLÌŒ›İ[™Y^LÈ^^È^Z[™YÛËNL\šÎ^Z[™YÛËLÌ›Û[[Û›È[˜Ø]HƒBˆÚ\Ñ˜HÈ	öo¶ã6-8 #6a¶av)öã6-6)öã6avã6a‰Èˆ	Ô™]šY]Î‰ß^ÉÈ	ßCBˆÜ[ˆÛ\ÜÓ˜[YOH™›ÛX›Û^Z[™YÛËMÌ\šÎ^]Ú]HƒBˆØİ\İÛU\Ù\‹š[J
+H	Ş[İ\›˜[YIßPØİ\İÛQÛXZ[ŸCBˆÜÜ[ƒBˆÙ]ƒBƒBˆ]ˆÛ\ÜÓ˜[YOH™›^][\ËXÙ[\ˆØ\LˆLˆƒBˆ]ÛƒBˆ\OHœİX›Z]ƒBˆÛ\ÜÓ˜[YOH™›^LHKL‹HM›İ[™Y^™ËZ[™YÛËMŒİ™\˜™ËZ[™YÛËML^]Ú]H^\ÛH›Û\Ù[ZX›Û˜[œÚ][Û‹XÛÛÜœÈÚYİË\ÛHƒBˆƒBˆÚ\Ñ˜HÈ	ö)öã6+6)ö+È6b6`v.v)öa8 #6,ö)ö,¶ã	Èˆ	ĞÜ™X]H	ˆXİ]˜]IßCBˆØ]ÛƒBˆ]ÛƒBˆ\OH˜]ÛˆƒBˆÛÛXÚÏ^Ê
+HOˆÙ]ÚİĞİ\İÛS[Ù[
+˜[ÙJ_CBˆÛ\ÜÓ˜[YOHœKL‹HM›İ[™Y^™Ë\Û]KLLİ™\˜™Ë\Û]KLŒ^\Û]KMÌ\šÎ˜™Ë\Û]KN\šÎšİ™\˜™Ë\Û]KMÌ\šÎ^\Û]KLÌ^\ÛH›Û[YY][H˜[œÚ][Û‹XÛÛÜœÈƒBˆƒBˆÚ\Ñ˜HÈ	ö)öa¶-v,v)ö`IÈˆ	ĞØ[˜Ù[	ßCBˆØ]ÛƒBˆÙ]ƒBˆÙ›Ü›OƒBˆÙ]ƒBˆÙ]ƒBˆ
+_CBˆÙ]ƒBˆ
+NÃBŸNÃB
