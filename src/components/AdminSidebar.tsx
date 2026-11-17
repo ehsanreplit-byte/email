@@ -150,7 +150,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   const menuItems = [
     {
       id: 'dashboard' as ActiveTab,
-      label: isFa ? 'کارت پیشخوان هوشمند' : 'Smart Dashboard',
+      label: isFa ? 'پیشخوان' : 'Dashboard',
       icon: LayoutDashboard,
       activeColor: 'bg-indigo-50/90 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 shadow-2xs',
     },
@@ -197,9 +197,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
     { id: 'telegram' as ActiveTab, label: isFa ? 'ربات تلگرام' : 'Telegram Bot', icon: Bot, activeColor: 'bg-sky-50 dark:bg-sky-950/30 text-sky-600 dark:text-sky-400 border-sky-100 dark:border-sky-900/30' },
   ];
   const settingsActive = settingsItems.some(item => activeTab === item.id);
-  const [settingsOpen, setSettingsOpen] = useState(settingsActive);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsSubmenuId = useId();
-  useEffect(() => { if (settingsActive) setSettingsOpen(true); }, [settingsActive, activeTab]);
 
   return (
     <>
