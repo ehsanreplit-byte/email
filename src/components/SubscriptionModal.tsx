@@ -23,63 +23,13 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
   const [selectedPlanForPayment, setSelectedPlanForPayment] = useState<SubscriptionPlan | null>(null);
   const [expandedPlanId, setExpandedPlanId] = useState<string | null>(null);
 
-  // مرحلهٔ دریافت «شماره موبایل + رمز عبور» برای کاربرانی که با شناسهٔ ایتا ثبت‌نام کرده‌اند
-  // یک فرم واحد برای همهٔ این کاربران؛ فقط اگر هر دو مورد قبلاً ثبت شده باشد مستقیم به لیست اشتراک‌ها می‌رویم.
-  const [step, setStep] = useState<'plans' | 'loading' | 'credentials'>('plans');
-  const [hasCredentials, setHasCredentials] = useState<boolean>(false);
-  const [credPhone, setCredPhone] = useState<string>('');
-  const [credPassword, setCredPassword] = useState<string>('');
-  const [credConfirm, setCredConfirm] = useState<string>('');
-  const [credError, setCredError] = useState<string | null>(null);
-  const [isSavingCred, setIsSavingCred] = useState<boolean>(false);
-  const [resolvedPhone, setResolvedPhone] = useState<string>('');
-
-  const isEitaaAccount = Boolean(currentUser && /^eitaa[:_]/i.test(currentUser));
-
   useEffect(() => {
     if (isOpen) {
+      fetchPlans();
+      // Reset payment state when modal opens
       setPaymentUrl(null);
       setSelectedPlanForPayment(null);
-      setCredError(null);
-      setCredPassword('');
-      setCredConfirm('');
-
-      if (isEitaaAccount && currentUser) {
-        // تا زمان رسیدن پاسخ سرور، فرمی نمایش نمی‌دهیم تا فرم اشتباه «پرش» نکند
-        setStep('loading');
-        const cached = (() => {
-          try { return localStorage.getItem(`eitaa_phone_${currentUser}`) || ''; } catch { return ''; }
-        })();
-
-        const eitaaId = currentUser.replace(/^eitaa[:_]/i, '');
-        api.eitaaSession(eitaaId).then((res) => {
-          const phone = (res.success && res.found && res.phone) ? res.phone : cached;
-          const creds = Boolean(res.success && res.hasCredentials);
-
-          setHasCredentials(creds);
-          setCredPhone(phone || (res.success && res.username) || '');
-
-          if (phone) {
-            setResolvedPhone(phone);
-            try { localStorage.setItem(`eitaa_phone_${currentUser}`, phone); } catch {}
-          } else {
-            setResolvedPhone('');
-          }
-
-          // فرم واحد: فقط وقتی شماره و رمز هر دو ثبت شده باشند از آن رد می‌شویم
-          setStep(phone && creds ? 'plans' : 'credentials');
-        }).catch(() => {
-          if (cached) { setResolvedPhone(cached); setCredPhone(cached); }
-          setStep('credentials');
-        });
-      } else {
-        setStep('plans');
-        setResolvedPhone(currentUser || '');
-      }
-
-      fetchPlans();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   const fetchPlans = async () => {
@@ -102,48 +52,6 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
     }
   };
 
-  const handleSaveCredentials = async () => {
-    if (!currentUser) return;
-    setCredError(null);
-
-    const clean = credPhone.replace(/[^0-9]/g, '');
-    const loginPhone = clean.startsWith('98') && clean.length === 12
-      ? '0' + clean.slice(2)
-      : (clean.length === 10 && clean.startsWith('9') ? '0' + clean : clean);
-    const pass = credPassword;
-
-    if (!/^09\d{9}$/.test(loginPhone)) {
-      setCredError('شماره موبایل معتبر نیست. مثال: 09121234567');
-      return;
-    }
-    if (pass.length < 6) {
-      setCredError('رمز عبور باید حداقل ۶ کاراکتر باشد.');
-      return;
-    }
-    if (pass !== credConfirm) {
-      setCredError('تکرار رمز عبور مطابقت ندارد.');
-      return;
-    }
-
-    setIsSavingCred(true);
-    try {
-      const res = await api.setUserCredentials(currentUser, loginPhone, pass);
-      if (res.success) {
-        setHasCredentials(true);
-        setResolvedPhone(res.phone || loginPhone);
-        try { localStorage.setItem(`eitaa_phone_${currentUser}`, res.phone || loginPhone); } catch {}
-        setStep('plans');
-        showToast('شماره موبایل و رمز عبور ثبت شد؛ از این پس می‌توانید از سایت وارد شوید.', 'success');
-      } else {
-        setCredError(res.error || 'خطا در ثبت شماره موبایل و رمز عبور.');
-      }
-    } catch {
-      setCredError('خطا در ارتباط با سرور.');
-    } finally {
-      setIsSavingCred(false);
-    }
-  };
-
   const handleBuy = async (plan: SubscriptionPlan) => {
     if (!currentUser) {
       showToast('لطفاً ابتدا وارد حساب کاربری خود شوید.', 'error');
@@ -153,8 +61,8 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
     setIsBuying(plan.id);
     try {
       const res = await api.buySubscriptionPlan(plan.id, {
-        phone: resolvedPhone || currentUser,
-        userName: `کاربر سایت (${resolvedPhone || currentUser})`,
+        phone: currentUser,
+        userName: `کاربر سایت (${currentUser})`,
       });
 
       if (res.success && res.paymentUrl) {
@@ -179,20 +87,20 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="subscription-sheet bg-white border-t sm:border border-slate-200 rounded-t-3xl sm:rounded-3xl w-full max-w-4xl flex flex-col shadow-2xl overflow-hidden animate-in slide-in-from-bottom-6 sm:zoom-in-95 duration-200">
+      <div className="bg-white border-t sm:border border-slate-200 rounded-t-3xl sm:rounded-3xl w-full max-w-4xl max-h-[92vh] sm:max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in slide-in-from-bottom-6 sm:zoom-in-95 duration-200">
         
         {/* Mobile Drag Indicator */}
         <div className="w-12 h-1.5 bg-slate-300 rounded-full mx-auto my-2.5 sm:hidden shrink-0" />
 
         {/* Modal Header */}
-        <div className="p-3.5 sm:p-5 border-b border-slate-100 flex items-center justify-between gap-2 bg-slate-50/80 shrink-0">
-          <div className="flex items-center gap-2.5 min-w-0">
+        <div className="p-3.5 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
+          <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-md shadow-amber-500/20 shrink-0">
               <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div className="min-w-0">
-              <h3 className="font-extrabold text-slate-950 text-xs sm:text-base leading-snug break-words">تهیه اشتراک ویژه جا به جا</h3>
-              <p className="text-slate-500 text-[10px] sm:text-xs leading-relaxed break-words">با خرید اشتراک ظرفیت صندوق ایمیل‌های خود را ارتقا دهید</p>
+            <div>
+              <h3 className="font-extrabold text-slate-950 text-xs sm:text-base">تهیه اشتراک ویژه جا به جا</h3>
+              <p className="text-slate-500 text-[10px] sm:text-xs">با خرید اشتراک ظرفیت صندوق ایمیل‌های خود را ارتقا دهید</p>
             </div>
           </div>
           <button
@@ -204,78 +112,8 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-4 sm:space-y-6">
-          {step === 'loading' ? (
-            <div className="py-16 flex flex-col items-center justify-center gap-3">
-              <RefreshCw className="w-8 h-8 text-emerald-600 animate-spin" />
-              <p className="text-xs font-semibold text-slate-600">در حال بررسی وضعیت حساب...</p>
-            </div>
-          ) : step === 'credentials' ? (
-            /* فرم واحد: شماره موبایل + رمز عبور (برای ورود از سایت و صدور فاکتور) */
-            <div className="max-w-md mx-auto py-6 sm:py-10 space-y-5 text-center">
-              <div className="space-y-1.5">
-                <h4 className="font-extrabold text-slate-900 text-sm sm:text-base">شماره موبایل و رمز عبور</h4>
-                <p className="text-slate-500 text-xs leading-relaxed">
-                  برای صدور فاکتور و اتصال اشتراک به حساب شما، شماره موبایل لازم است. با همین شماره و رمز عبور می‌توانید از طریق سایت هم وارد حساب خود شوید.
-                </p>
-              </div>
-
-              <div className="space-y-2.5 text-right">
-                <input
-                  type="tel"
-                  inputMode="numeric"
-                  dir="ltr"
-                  autoComplete="tel"
-                  value={credPhone}
-                  onChange={(e) => { setCredPhone(e.target.value); setCredError(null); }}
-                  placeholder="09121234567"
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none text-sm font-mono text-center tracking-widest min-h-[48px]"
-                />
-
-                <input
-                  type="password"
-                  dir="ltr"
-                  autoComplete="new-password"
-                  value={credPassword}
-                  onChange={(e) => { setCredPassword(e.target.value); setCredError(null); }}
-                  placeholder="رمز عبور (حداقل ۶ کاراکتر)"
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none text-sm text-center min-h-[48px]"
-                />
-
-                <input
-                  type="password"
-                  dir="ltr"
-                  autoComplete="new-password"
-                  value={credConfirm}
-                  onChange={(e) => { setCredConfirm(e.target.value); setCredError(null); }}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleSaveCredentials(); }}
-                  placeholder="تکرار رمز عبور"
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none text-sm text-center min-h-[48px]"
-                />
-
-                {credError && (
-                  <p className="text-[11px] font-bold text-rose-600 text-center">{credError}</p>
-                )}
-              </div>
-
-              <button
-                onClick={handleSaveCredentials}
-                disabled={isSavingCred}
-                className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-extrabold text-sm shadow-md shadow-emerald-600/20 transition-all disabled:opacity-60 cursor-pointer min-h-[48px] flex items-center justify-center gap-2"
-              >
-                {isSavingCred ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>در حال ذخیره...</span>
-                  </>
-                ) : (
-                  <span>ذخیره و نمایش اشتراک‌ها</span>
-                )}
-              </button>
-
-              <p className="text-[10px] text-slate-400">شماره شما فقط برای صدور فاکتور و پشتیبانی استفاده می‌شود.</p>
-            </div>
-          ) : isLoading ? (
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
+          {isLoading ? (
             <div className="py-20 flex flex-col items-center justify-center gap-3">
               <RefreshCw className="w-8 h-8 text-indigo-600 animate-spin" />
               <p className="text-xs font-semibold text-slate-600">در حال استخراج طرح‌های اشتراک از دیتابیس...</p>
@@ -292,24 +130,24 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
               </div>
 
               <div className="p-4 sm:p-5 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-3 text-right">
-                <div className="flex justify-between items-start gap-3 text-xs text-slate-600">
-                  <span className="shrink-0">نام طرح خریداری شده:</span>
-                  <span className="font-bold text-slate-900 text-left break-words min-w-0">{selectedPlanForPayment.title}</span>
+                <div className="flex justify-between items-center text-xs text-slate-600">
+                  <span>نام طرح خریداری شده:</span>
+                  <span className="font-bold text-slate-900">{selectedPlanForPayment.title}</span>
                 </div>
-                <div className="flex justify-between items-center gap-3 text-xs text-slate-600">
-                  <span className="shrink-0">مدت زمان اعتبار:</span>
-                  <span className="font-bold text-slate-900 text-left whitespace-nowrap">{selectedPlanForPayment.durationDays} روز</span>
+                <div className="flex justify-between items-center text-xs text-slate-600">
+                  <span>مدت زمان اعتبار:</span>
+                  <span className="font-bold text-slate-900">{selectedPlanForPayment.durationDays} روز</span>
                 </div>
-                <div className="flex justify-between items-center gap-3 text-xs text-slate-600">
-                  <span className="shrink-0">سهمیه ایمیل این طرح:</span>
-                  <span className="font-bold text-slate-900 text-left break-words min-w-0">+{selectedPlanForPayment.monthlyEmailLimit} آدرس ایمیل</span>
+                <div className="flex justify-between items-center text-xs text-slate-600">
+                  <span>سهمیه ایمیل این طرح:</span>
+                  <span className="font-bold text-slate-900">+{selectedPlanForPayment.monthlyEmailLimit} آدرس ایمیل</span>
                 </div>
                 <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-semibold text-center">
                   ✨ سهمیه خریداری شده به مانده قبلی حساب شما اضافه شده و جمع آن در مانده ایمیل نمایش داده خواهد شد.
                 </div>
-                <div className="border-t border-slate-200 pt-3 flex justify-between items-center gap-3 text-sm">
-                  <span className="font-bold text-slate-800 shrink-0">مبلغ قابل پرداخت:</span>
-                  <span className="font-extrabold text-indigo-600 text-left whitespace-nowrap">
+                <div className="border-t border-slate-200 pt-3 flex justify-between items-center text-sm">
+                  <span className="font-bold text-slate-800">مبلغ قابل پرداخت:</span>
+                  <span className="font-extrabold text-indigo-600">
                     {selectedPlanForPayment.priceToman === 0 ? 'رایگان' : `${selectedPlanForPayment.priceToman.toLocaleString()} تومان`}
                   </span>
                 </div>
@@ -360,7 +198,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setExpandedPlanId(isExpanded ? null : plan.id)}
-                      className="w-full p-3.5 sm:p-4 text-right flex items-center justify-between gap-2 sm:gap-3 cursor-pointer select-none transition-colors hover:bg-slate-50/80 active:bg-slate-100/60"
+                      className="w-full p-3.5 sm:p-4 text-right flex items-center justify-between gap-3 cursor-pointer select-none transition-colors hover:bg-slate-50/80 active:bg-slate-100/60"
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         {/* Plan Icon */}
@@ -375,7 +213,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                         {/* Title & Badge */}
                         <div className="min-w-0 text-right">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <h4 className="font-extrabold text-slate-900 text-xs sm:text-sm break-words">
+                            <h4 className="font-extrabold text-slate-900 text-xs sm:text-sm">
                               {plan.title}
                             </h4>
                             {plan.badge && (
@@ -391,9 +229,9 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                       </div>
 
                       {/* Right Summary: Price & Chevron Arrow */}
-                      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-                        <div className="text-left font-mono whitespace-nowrap">
-                          <div className="text-[11px] sm:text-sm font-black text-indigo-600">
+                      <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+                        <div className="text-left font-mono">
+                          <div className="text-xs sm:text-sm font-black text-indigo-600">
                             {isFree ? 'رایگان' : `${plan.priceToman.toLocaleString()} تومان`}
                           </div>
                           {!isFree && (
@@ -413,10 +251,10 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
 
                     {/* Accordion Content (Details Underneath) */}
                     {isExpanded && (
-                      <div className="px-3.5 pb-4 sm:px-5 sm:pb-5 pt-3 border-t border-slate-100 space-y-3.5 animate-in fade-in slide-in-from-top-1 duration-200 bg-slate-50/40">
+                      <div className="px-3.5 pb-4 sm:px-5 sm:pb-5 pt-2 border-t border-slate-100 space-y-3.5 animate-in fade-in slide-in-from-top-1 duration-200 bg-slate-50/40">
                         {/* Description Text */}
                         {plan.description && (
-                          <div className="p-3 rounded-xl bg-white border border-slate-200/70 text-xs text-slate-600 leading-relaxed break-words">
+                          <div className="p-3 rounded-xl bg-white border border-slate-200/70 text-xs text-slate-600 leading-relaxed">
                             {plan.description}
                           </div>
                         )}
@@ -482,7 +320,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="p-3.5 pb-[max(0.875rem,env(safe-area-inset-bottom))] sm:p-4 sm:pb-4 border-t border-slate-100 bg-slate-50/80 flex flex-col xs:flex-row items-stretch xs:items-center justify-between gap-2.5 text-[11px] text-slate-500 px-4 sm:px-6 shrink-0">
+        <div className="p-3.5 sm:p-4 border-t border-slate-100 bg-slate-50/80 flex flex-col xs:flex-row items-stretch xs:items-center justify-between gap-2.5 text-[11px] text-slate-500 px-4 sm:px-6">
           <span className="flex items-center gap-1 text-[10px] sm:text-[11px]">
             <Shield className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
             <span>پرداخت امن متصل به شبکه شتاب از طریق درگاه رسمی بلوپال</span>

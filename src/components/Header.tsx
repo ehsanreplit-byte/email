@@ -1,6 +1,6 @@
 import React from 'react';
 import { ActiveTab, Language } from '../types';
-import { Mail, Volume2, VolumeX, Globe, RefreshCw, Sun, Moon, ShieldCheck, User, LogIn } from 'lucide-react';
+import { Mail, Volume2, VolumeX, Globe, RefreshCw, Sun, Moon, ShieldCheck, User, LogIn, FileText } from 'lucide-react';
 
 interface HeaderProps {
   activeTab: ActiveTab;
@@ -92,6 +92,11 @@ export const Header: React.FC<HeaderProps> = ({
               <Mail className="w-4 h-4" />
               <span>{isFa ? 'صندوق ورودی' : 'Inbox'}</span>
             </button>
+
+            <a href="/blog/" aria-label={isFa ? 'نوشته‌ها' : 'Articles'} title={isFa ? 'نوشته‌ها' : 'Articles'} className="flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 transition-all">
+              <FileText className="w-4 h-4" />
+              <span className="hidden sm:inline">{isFa ? 'نوشته‌ها' : 'Articles'}</span>
+            </a>
 
             {/* Admin Panel Badge Button if 09134336627 or Admin is logged in */}
             {isAdmin && (

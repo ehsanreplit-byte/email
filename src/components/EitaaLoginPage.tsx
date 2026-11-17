@@ -12,6 +12,7 @@ interface EitaaLoginPageProps {
     syncedTelegramCount?: number
   ) => void;
   onBackToLanding?: () => void;
+  onShowSubscriptions?: () => void;
 }
 
 // Ensure WebApp version is set to at least 1.4 to prevent WebAppMethodUnsupported exceptions
@@ -56,7 +57,8 @@ const checkIsInsideActualEitaa = (): boolean => {
 };
 
 export const EitaaLoginPage: React.FC<EitaaLoginPageProps> = ({
-  onLoginSuccess
+  onLoginSuccess,
+  onShowSubscriptions
 }) => {
   // Pre-patch before state initialization
   patchEitaaWebAppVersion();
@@ -400,6 +402,15 @@ export const EitaaLoginPage: React.FC<EitaaLoginPageProps> = ({
                   <div className="mt-2.5 px-3 py-1.5 rounded-xl bg-rose-500/95 backdrop-blur-sm text-white text-xs font-bold shadow-lg">
                     {errorMessage}
                   </div>
+                )}
+                {onShowSubscriptions && (
+                  <button
+                    type="button"
+                    onClick={onShowSubscriptions}
+                    className="mt-3 w-full min-h-[48px] py-3 px-6 rounded-2xl bg-white/95 hover:bg-white active:scale-95 text-slate-900 font-extrabold text-sm shadow-xl border border-white/70 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <span>مشاهده اشتراک‌ها</span>
+                  </button>
                 )}
               </>
             )}

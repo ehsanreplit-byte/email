@@ -31,6 +31,8 @@ const DB_FILES: Record<string, string> = {
   user_accounts: 'user_accounts.json',
   inboxes_store: 'inboxes_store.json',
   analytics_logins: 'analytics_logins.json',
+  blog: 'blog.json',
+  blog_ai_config: 'blog_ai_config.json',
 };
 
 export interface BackupConfig {

@@ -157,6 +157,66 @@ class Storage {
     return value;
   }
 
+  /** Reads a persisted JSON document from MongoDB (or the local store). */
+  public async readDocument(key: string): Promise<string | null> {
+    await this.pending.get(key)?.catch(() => undefined);
+    if (this.db) {
+      const doc = await this.jsonCollection().findOne({ _id: key as any });
+      if (!doc || typeof doc.data !== 'string') {
+        this.cache.delete(key);
+        return null;
+      }
+      this.cache.set(key, doc.data);
+      return doc.data;
+    }
+    const cached = this.cache.get(key);
+    if (cached !== undefined) return cached;
+    try {
+      const value = fs.readFileSync(path.join(LOCAL_DIR, key), 'utf8');
+      this.cache.set(key, value);
+      return value;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Atomically replaces a revisioned document after checking its current revision. */
+  public async compareAndSetDocumentRevision(key: string, expectedRevision: number, next: string): Promise<boolean> {
+    await this.pending.get(key)?.catch(() => undefined);
+    const readRevision = (raw: string | null) => {
+      if (!raw) return 0;
+      try { return Number(JSON.parse(raw)?.revision) || 0; } catch { return 0; }
+    };
+
+    if (this.db) {
+      const collection = this.jsonCollection();
+      const current = await collection.findOne({ _id: key as any });
+      const currentData = current && typeof current.data === 'string' ? current.data : null;
+      if (readRevision(currentData) !== expectedRevision) return false;
+      if (currentData === null) {
+        try {
+          await collection.insertOne({ _id: key as any, data: next, updatedAt: new Date() });
+          this.cache.set(key, next);
+          return true;
+        } catch (error: any) {
+          if (error?.code === 11000) return false;
+          throw error;
+        }
+      }
+      const result = await collection.updateOne(
+        { _id: key as any, data: currentData },
+        { $set: { data: next, updatedAt: new Date() } }
+      );
+      if (result.matchedCount !== 1) return false;
+      this.cache.set(key, next);
+      return true;
+    }
+
+    const currentData = await this.readDocument(key);
+    if (readRevision(currentData) !== expectedRevision) return false;
+    this.writeFileSync(key, next);
+    return true;
+  }
   public writeFileSync(key: string, content: string): void {
     this.cache.set(key, content);
 

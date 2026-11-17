@@ -21,6 +21,12 @@ import { parseInboundEmail, decodeMimeHeader, fixMojibake } from './server/mimeD
 import { inboundWebhookGuard } from './server/webhookGuard';
 import { signToken, requireAdmin } from './server/authMiddleware';
 import { storage } from './server/storage';
+import { createBlogService, BlogError } from './blogService';
+import { createBlogRouter } from './blogRoutes';
+import { createAvalBlogProvider } from './blogAiProvider';
+import { createBlogAiService, BlogAiRetry } from './blogAi';
+import { createBlogAiRouter } from './blogAiRoutes';
+import { readBlogState, compareAndSetBlogState, readBlogAiConfig, writeBlogAiConfig, writeBlogAiApiKey } from './server/blogStore';
 import fs from 'fs';
 import crypto from 'crypto';
 
@@ -187,6 +193,23 @@ async function startServer() {
     next();
   });
 
+  // Serve blog media from the durable upload collection.
+  app.get('/uploads/blog/:name', async (req, res) => {
+    try {
+      const name = path.basename(req.params.name);
+      const file = await storage.getUpload(name);
+      if (!file) return res.status(404).end();
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Content-Disposition', 'inline');
+      res.setHeader('Content-Type', file.contentType || 'application/octet-stream');
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      return res.send(file.data);
+    } catch (err) {
+      console.error('[Blog uploads] Failed to serve image:', err);
+      return res.status(500).end();
+    }
+  });
+
   // Serve uploaded attachments. Files live in MongoDB; a local-file fallback is
   // kept for development when MONGODB_URI is not configured.
   app.get('/uploads/:name', async (req, res) => {
@@ -205,6 +228,61 @@ async function startServer() {
     }
   });
 
+  // Blog content and AI settings use the same durable MongoDB-backed store as
+  // the rest of this application, so posts survive Vercel function recycling.
+  const blogAdminGuard = (req: any, res: any, next: any) => requireAdmin(req, res, () => {
+    req.currentUser = { role: 'admin', name: req.auth?.sub || 'مدیر سامانه' };
+    next();
+  });
+  const blogAiConfig = async () => {
+    const config = await readBlogAiConfig();
+    return { ...config, avalaiApiKey: process.env.AVALAI_API_KEY || config.apiKey || '', aiEnabled: true };
+  };
+  const blogUpload = async (bytes: Buffer, contentType: string) => {
+    if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(contentType)) {
+      throw new BlogError(415, 'قالب تصویر پشتیبانی نمی‌شود.');
+    }
+    const extension = ({ 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'image/gif': '.gif' } as Record<string, string>)[contentType];
+    const filename = `${crypto.randomUUID()}${extension}`;
+    await storage.saveUpload(filename, bytes, contentType);
+    return `/uploads/blog/${filename}`;
+  };
+  const blogAiProvider = createAvalBlogProvider({ settings: blogAiConfig, upload: blogUpload });
+  const blogAi = createBlogAiService({
+    blog: createBlogService({ read: readBlogState, compareAndSet: compareAndSetBlogState }),
+    provider: blogAiProvider,
+    dispatch: async (jobId) => {
+      const run = () => { void blogAi.process(jobId).catch(error => { if (error instanceof BlogAiRetry) setTimeout(run, error.afterSeconds * 1000); }); };
+      setTimeout(run, 0);
+    }
+  });
+  const blogRateLimits = new Map<string, number[]>();
+  const hitBlogRateLimit = (req: any, key: string, max: number, windowMs: number) => {
+    const now = Date.now();
+    const bucketKey = `${key}:${req.ip || req.socket?.remoteAddress || 'unknown'}`;
+    const times = (blogRateLimits.get(bucketKey) || []).filter(time => now - time < windowMs);
+    if (times.length >= max) { blogRateLimits.set(bucketKey, times); return true; }
+    times.push(now); blogRateLimits.set(bucketKey, times);
+    return false;
+  };
+  app.post('/api/admin/blog/upload', requireAdmin, express.raw({ type: 'image/*', limit: '15mb' }), async (req, res) => {
+    try {
+      if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: 'فایل تصویر دریافت نشد.' });
+      const url = await blogUpload(req.body, String(req.headers['content-type'] || ''));
+      res.status(201).json({ url });
+    } catch (error: any) {
+      res.status(error instanceof BlogError ? error.status : 500).json({ error: error.message || 'بارگذاری تصویر ناموفق بود.' });
+    }
+  });
+  app.use(createBlogAiRouter({ service: blogAi, provider: blogAiProvider, adminGuard: blogAdminGuard,
+    saveModels: (textModel, searchModel) => writeBlogAiConfig(textModel, searchModel),
+    saveApiKey: apiKey => writeBlogAiApiKey(apiKey) }));
+  app.use(createBlogRouter({ read: readBlogState, compareAndSet: compareAndSetBlogState, adminGuard: blogAdminGuard,
+    adminForPreview: async req => req.currentUser?.role === 'admin',
+    commentRateLimited: async req => hitBlogRateLimit(req, 'comment', 5, 10 * 60 * 1000),
+    viewRateLimited: async (req, postId) => hitBlogRateLimit(req, `view:${postId}`, 1, 24 * 60 * 60 * 1000)
+  }));
+
   // SEO Static Files Handler
   app.get('/robots.txt', (req, res) => {
     const host = req.get('host') || '';
@@ -212,7 +290,7 @@ async function startServer() {
     const baseUrl = isLocal ? `${req.protocol}://${host}` : 'https://ja-be-ja.ir';
     
     res.type('text/plain').send(
-      `User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /uploads/\n\nSitemap: ${baseUrl}/sitemap.xml\n`
+      `User-agent: *\nAllow: /\nAllow: /uploads/blog/\nDisallow: /api/\nDisallow: /uploads/\n\nSitemap: ${baseUrl}/sitemap.xml\n`
     );
   });
 

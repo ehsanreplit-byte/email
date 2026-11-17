@@ -4,6 +4,7 @@ import { api } from './services/api';
 // صفحه‌های ورودی (لندینگ ایتا و وب‌اپ) باید فوری رندر شوند و lazy نیستند.
 import { EitaaLoginPage } from './components/EitaaLoginPage';
 import { WebAppInboxView } from './components/WebAppInboxView';
+import { ADMIN_POST_PAGES, adminPostPage, type AdminPostSection } from './utils/adminPostsNavigation';
 
 import { playNewEmailSound, playCopySound } from './utils/audio';
 import { extractValidPhoneNumber } from './utils/phone';
@@ -31,6 +32,7 @@ const AdminDashboardView = lazy(() => import('./components/AdminDashboardView').
 const BluPalView = lazy(() => import('./components/BluPalView').then((m) => ({ default: m.BluPalView })));
 const BackupView = lazy(() => import('./components/BackupView').then((m) => ({ default: m.BackupView })));
 const EitaaView = lazy(() => import('./components/EitaaView').then((m) => ({ default: m.EitaaView })));
+const AdminBlog = lazy(() => import('./components/admin/AdminBlog'));
 
 /** نمایشگر سبک برای زمان دانلود چانک‌های تنبل */
 const LazyChunkFallback = ({ label = 'در حال بارگذاری…' }: { label?: string }) => (
@@ -96,7 +98,10 @@ export default function App() {
 
   // Admin right-side panel & active tab
   const [isAdminSidebarOpen, setIsAdminSidebarOpen] = useState<boolean>(false);
-  const [adminActiveTab, setAdminActiveTab] = useState<ActiveTab>('inbox');
+  const [adminActiveTab, setAdminActiveTab] = useState<ActiveTab>(() =>
+    ADMIN_POST_PAGES.find(page => window.location.pathname === page.path)?.tab || 'inbox'
+  );
+  const adminPostNavigationGuardRef = useRef<null | (() => boolean)>(null);
   const [unreadTicketsCount, setUnreadTicketsCount] = useState<number>(0);
 
   // Poll for unread support tickets count in real-time
@@ -233,6 +238,8 @@ export default function App() {
     const handleUrlChange = () => {
       const isEitaa = checkIsEitaaUrl();
       setIsEitaaPage(isEitaa);
+      const postPage = ADMIN_POST_PAGES.find(page => window.location.pathname === page.path);
+      if (postPage) setAdminActiveTab(postPage.tab);
       if (isEitaa) {
         setIsWebAppPage(false);
       } else {
@@ -954,6 +961,12 @@ export default function App() {
   if (isEitaaPage) {
     return (
       <EitaaLoginPage
+        onShowSubscriptions={() => {
+          setIsEitaaPage(false);
+          setIsWebAppPage(false);
+          window.history.pushState({}, '', '/');
+          setIsSubscriptionModalOpen(true);
+        }}
         onLoginSuccess={(phone, serverInboxes, remainingEmails, syncedTelegramCount) => {
           const cleanPhone = /^eitaa[:_]/i.test(phone) ? phone : (extractValidPhoneNumber(phone) || phone);
           handleLoginSuccess(cleanPhone, serverInboxes, remainingEmails, syncedTelegramCount);
@@ -1080,6 +1093,7 @@ export default function App() {
                 {adminActiveTab === 'tickets' && 'سیستم پشتیبانی و تیکت‌ها'}
                 {adminActiveTab === 'blupal' && 'تنظیمات درگاه بانکی بلوپال'}
                 {adminActiveTab === 'backup' && 'پشتیبان‌گیری و بازگردانی'}
+                {adminPostPage(adminActiveTab)?.label}
               </span>
               <button
                 onClick={() => setAdminActiveTab('inbox')}
@@ -1100,6 +1114,17 @@ export default function App() {
                 {adminActiveTab === 'tickets' && <TicketsView isFa={true} />}
                 {adminActiveTab === 'blupal' && <BluPalView lang="fa" />}
                 {adminActiveTab === 'backup' && <BackupView isFa={true} />}
+                {adminPostPage(adminActiveTab) && <AdminBlog
+                  section={adminPostPage(adminActiveTab)!.section as AdminPostSection}
+                  onNavigate={(section, postId) => {
+                    if (adminPostNavigationGuardRef.current && !adminPostNavigationGuardRef.current()) return;
+                    const target = adminPostPage(`posts_${section}`) || adminPostPage('posts');
+                    setAdminActiveTab(section === 'write' ? 'posts_write' : target?.tab || 'posts');
+                    const path = section === 'write' ? `/admin/posts/write${postId ? `?id=${encodeURIComponent(postId)}` : ''}` : target?.path || '/admin/posts';
+                    window.history.pushState({}, '', path);
+                  }}
+                  onNavigationGuardChange={guard => { adminPostNavigationGuardRef.current = guard; }}
+                />}
               </Suspense>
             </div>
           </div>
@@ -1465,7 +1490,11 @@ export default function App() {
             isRefreshing={isRefreshing}
             activeTab={adminActiveTab}
             setActiveTab={(tab: ActiveTab) => {
+              if (tab !== adminActiveTab && adminPostNavigationGuardRef.current && !adminPostNavigationGuardRef.current()) return;
               setAdminActiveTab(tab);
+              const page = adminPostPage(tab);
+              if (page) window.history.pushState({}, '', page.path);
+              else if (window.location.pathname.startsWith('/admin/posts')) window.history.pushState({}, '', '/');
               setIsAdminSidebarOpen(false);
             }}
             unreadTicketsCount={unreadTicketsCount}

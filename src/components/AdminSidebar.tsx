@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { ActiveTab, Language } from '../types';
 import { api } from '../services/api';
+import { AdminPostsMenu } from './admin/AdminPostsMenu';
 
 interface AdminSidebarProps {
   isOpenMobile: boolean;
@@ -257,6 +258,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
 
         {/* Navigation list */}
         <div className="flex-1 px-4 py-2 space-y-1 overflow-y-auto">
+          <AdminPostsMenu currentTab={activeTab} onSelect={tab => setActiveTab(tab)} mobile />
           {menuItems.map((item) => {
             const isActive = activeTab === item.id;
             const Icon = item.icon;
