@@ -568,7 +568,7 @@ async function startServer() {
     }
   });
 
-app.post('/api/inbox/create', async (req, res) => {
+  app.post('/api/inbox/create', async (req, res) => {
     try {
       await syncStoresFromDb(0);
       const { username, domain, ttl, user, phone } = req.body || {};
