@@ -830,8 +830,9 @@ export default function App() {
     sessionStorage.setItem('admin_auth_user', cleanUser);
     sessionStorage.setItem('admin_is_authenticated', 'true');
 
+    const guestStorageKey = isAuthenticated && currentUser ? `tempmail_inboxes_${currentUser}` : 'tempmail_inboxes';
     const guestInboxes: TempInbox[] = (() => {
-      try { return JSON.parse(localStorage.getItem('tempmail_inboxes') || '[]'); } catch { return []; }
+      try { return JSON.parse(localStorage.getItem(guestStorageKey) || '[]'); } catch { return []; }
     })();
     const guestEmails = guestInboxes.map((inbox) => inbox?.email).filter(Boolean);
     const userInboxesKey = `tempmail_inboxes_${cleanUser}`;
@@ -886,6 +887,7 @@ export default function App() {
     localStorage.setItem(userInboxesKey, JSON.stringify(userInboxes));
     localStorage.setItem('tempmail_inboxes', JSON.stringify(userInboxes));
     localStorage.removeItem('guest_created_emails');
+    localStorage.setItem('tempmail_inboxes', JSON.stringify([]));
 
     // Register active inboxes with Eitaa bot
     for (const inb of userInboxes) {
