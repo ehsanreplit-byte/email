@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, Mail, LogOut, User, Globe, 
   Send, Users, CreditCard, MessageSquare, Database,
-  KeyRound, Check, AlertCircle, X, Eye, EyeOff, Power
+  KeyRound, Check, AlertCircle, X, Eye, EyeOff, Power, PanelRightClose, PanelRightOpen
 } from 'lucide-react';
 import { ActiveTab, Language } from '../types';
 import { api } from '../services/api';
@@ -11,6 +11,8 @@ import { AdminPostsMenu } from './admin/AdminPostsMenu';
 interface AdminSidebarProps {
   isOpenMobile: boolean;
   onCloseMobile: () => void;
+  isCollapsed?: boolean;
+  onToggleCollapsed?: () => void;
   isFa: boolean;
   adminUsername: string;
   totalMessagesCount: number;
@@ -39,6 +41,8 @@ interface AdminSidebarProps {
 export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   isOpenMobile,
   onCloseMobile,
+  isCollapsed = false,
+  onToggleCollapsed,
   isFa,
   adminUsername,
   totalMessagesCount,
@@ -221,22 +225,22 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
 
       {/* Sidebar Panel */}
       <aside
-        className={`fixed top-0 bottom-0 z-50 w-[14.4rem] sm:w-64 bg-white border-l border-slate-200 shadow-2xl flex flex-col justify-between transition-transform duration-300 ease-in-out lg:translate-x-0 ${
+        className={`fixed top-0 bottom-0 z-50 w-[14.4rem] sm:w-64 ${isCollapsed ? 'lg:w-[4.5rem]' : 'lg:w-64'} bg-white border-l border-slate-200 shadow-2xl flex flex-col justify-between transition-[width,transform] duration-300 ease-in-out lg:translate-x-0 ${
           isFa
             ? `right-0 ${isOpenMobile ? 'translate-x-0' : 'translate-x-full'}`
             : `left-0 border-r border-l-0 ${isOpenMobile ? 'translate-x-0' : '-translate-x-full'}`
         }`}
       >
         {/* Header section */}
-        <div className="p-4 sm:p-5 flex flex-col gap-3">
+        <div className={`flex flex-col gap-3 ${isCollapsed ? 'p-2 sm:p-3 lg:p-1 lg:items-center' : 'p-4 sm:p-5'}`}>
           {/* User profile & Close button */}
-          <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200 shadow-2xs">
-            <div className="flex items-center gap-2.5 min-w-0">
+          <div className={`flex items-center rounded-xl bg-slate-50 border border-slate-200 shadow-2xs ${isCollapsed ? 'justify-between p-2 lg:flex-col lg:justify-center lg:gap-2 lg:p-1' : 'justify-between p-3'}`}>
+            <div className={`flex items-center min-w-0 ${isCollapsed ? 'gap-0 lg:justify-center' : 'gap-2.5'}`}>
               <div className="relative w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 font-bold flex items-center justify-center text-xs shrink-0 border border-indigo-100">
                 <User className="w-4 h-4" />
                 <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white" />
               </div>
-              <div className="min-w-0">
+              <div className={`min-w-0 ${isCollapsed ? 'lg:hidden' : ''}`}>
                 <div className="text-xs font-bold text-slate-800 truncate">
                   {adminUsername || (isFa ? 'مدیر سیستم' : 'Administrator')}
                 </div>
@@ -245,6 +249,17 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                 </div>
               </div>
             </div>
+
+            <button
+              type="button"
+              onClick={onToggleCollapsed}
+              className="hidden lg:flex p-1.5 min-h-[34px] min-w-[34px] items-center justify-center rounded-lg text-slate-500 hover:text-indigo-700 hover:bg-indigo-50 transition-colors cursor-pointer"
+              title={isCollapsed ? (isFa ? 'باز کردن سایدبار' : 'Expand sidebar') : (isFa ? 'جمع کردن سایدبار' : 'Collapse sidebar')}
+              aria-label={isCollapsed ? (isFa ? 'باز کردن سایدبار' : 'Expand sidebar') : (isFa ? 'جمع کردن سایدبار' : 'Collapse sidebar')}
+              aria-expanded={!isCollapsed}
+            >
+              {isCollapsed ? <PanelRightOpen className="w-4 h-4" /> : <PanelRightClose className="w-4 h-4" />}
+            </button>
 
             <button
               onClick={onCloseMobile}
@@ -257,8 +272,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
         </div>
 
         {/* Navigation list */}
-        <div className="flex-1 px-4 py-2 space-y-1 overflow-y-auto">
-          <AdminPostsMenu currentTab={activeTab} onSelect={tab => setActiveTab(tab)} mobile />
+        <div className={`flex-1 py-2 space-y-1 overflow-y-auto ${isCollapsed ? 'px-2 lg:px-2' : 'px-4'}`}>
+          <AdminPostsMenu currentTab={activeTab} onSelect={tab => setActiveTab(tab)} mobile collapsed={isCollapsed} />
           {menuItems.map((item) => {
             const isActive = activeTab === item.id;
             const Icon = item.icon;
@@ -270,15 +285,16 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                   setActiveTab(item.id);
                   onCloseMobile();
                 }}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                title={isCollapsed ? `${item.label}${item.badge ? ` (${item.badge})` : ''}` : undefined}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${isCollapsed ? 'lg:justify-center lg:px-0' : ''} ${
                   isActive
                     ? `${item.activeColor} shadow-2xs`
                     : 'bg-transparent border-transparent hover:bg-slate-100 dark:hover:bg-slate-800/40 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                 }`}
               >
-                <div className="flex items-center gap-2.5 min-w-0">
+                <div className={`flex items-center min-w-0 ${isCollapsed ? 'gap-0 lg:justify-center' : 'gap-2.5'}`}>
                   <Icon className="w-4 h-4 shrink-0" />
-                  <span className="truncate">{item.label}</span>
+                  <span className={`truncate ${isCollapsed ? 'lg:hidden' : ''}`}>{item.label}</span>
                   {item.id === 'tickets' && unreadTicketsCount > 0 && (
                     <span className="relative flex h-2.5 w-2.5 shrink-0" title={`${unreadTicketsCount} تیکت خوانده‌نشده جدید`}>
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
@@ -287,7 +303,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                   )}
                 </div>
                 {item.badge !== undefined && item.badge !== null && (
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold flex items-center gap-1.5 shrink-0 transition-all ${
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold items-center gap-1.5 shrink-0 transition-all ${isCollapsed ? 'flex lg:hidden' : 'flex'} ${
                     (item as any).isBlinking 
                       ? 'bg-rose-500 text-white animate-pulse shadow-[0_0_10px_rgba(244,63,94,0.8)] ring-2 ring-rose-400/50'
                       : isActive
@@ -306,20 +322,21 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
         </div>
 
         {/* System Shutdown / Maintenance Toggle */}
-        <div className="px-4 py-1.5">
-          <div className={`p-2.5 rounded-xl border transition-all ${
+        <div className={`py-1.5 ${isCollapsed ? 'px-2 lg:px-2' : 'px-4'}`}>
+          <div className={`p-2.5 rounded-xl border transition-all ${isCollapsed ? 'lg:p-1.5' : ''} ${
             isMaintenance 
               ? 'bg-rose-500/10 border-rose-500/40 text-rose-700 dark:text-rose-400 shadow-xs' 
               : 'bg-white dark:bg-slate-950/30 border-slate-200/60 dark:border-slate-800/60'
           }`}>
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+            <div className={`flex items-center justify-between gap-2 ${isCollapsed ? 'lg:justify-center' : ''}`}>
+              <div className={`flex items-center min-w-0 ${isCollapsed ? 'gap-0 lg:justify-center' : 'gap-2'}`}>
+                <div className={`relative w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
                   isMaintenance ? 'bg-rose-500 text-white animate-pulse' : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400'
                 }`}>
                   <Power className="w-4 h-4" />
+                  {isCollapsed && <button type="button" disabled={isTogglingMaintenance} onClick={handleToggleMaintenance} className="absolute inset-0 hidden lg:block cursor-pointer" title={isFa ? 'تغییر وضعیت خاموشی سیستم' : 'Toggle system maintenance'} aria-label={isFa ? 'تغییر وضعیت خاموشی سیستم' : 'Toggle system maintenance'} />}
                 </div>
-                <div className="min-w-0">
+                <div className={`min-w-0 ${isCollapsed ? 'lg:hidden' : ''}`}>
                   <div className="text-[11px] font-bold text-slate-800 dark:text-slate-200 truncate">
                     {isFa ? 'خاموش کردن سیستم' : 'System Shutdown'}
                   </div>
@@ -339,7 +356,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                 disabled={isTogglingMaintenance}
                 onClick={handleToggleMaintenance}
                 title={isFa ? 'تغییر وضعیت خاموشی سیستم' : 'Toggle system maintenance'}
-                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${isCollapsed ? 'lg:hidden' : ''} ${
                   isMaintenance ? 'bg-rose-500' : 'bg-slate-300 dark:bg-slate-700'
                 }`}
               >
@@ -351,7 +368,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
               </button>
             </div>
             {isMaintenance && (
-              <div className="mt-2 text-[9.5px] text-rose-600 dark:text-rose-400 bg-rose-500/10 p-1.5 rounded-md leading-relaxed border border-rose-500/20">
+              <div className={`mt-2 text-[9.5px] text-rose-600 dark:text-rose-400 bg-rose-500/10 p-1.5 rounded-md leading-relaxed border border-rose-500/20 ${isCollapsed ? 'lg:hidden' : ''}`}>
                 {isFa ? '⚠️ پیام «سیستم در حال بروز رسانی است» به کاربران نمایش داده می‌شود.' : '⚠️ "System under maintenance" message is active.'}
               </div>
             )}
@@ -359,23 +376,25 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
         </div>
 
         {/* Bottom controls & Logout */}
-        <div className="p-4 grid grid-cols-2 gap-2">
+        <div className={`grid gap-2 ${isCollapsed ? 'p-2 grid-cols-2 lg:grid-cols-1 lg:p-2' : 'p-4 grid-cols-2'}`}>
           {/* Change Password Button */}
           <button
             onClick={handleOpenPasswordModal}
-            className="flex items-center justify-center gap-1 py-2 px-2 rounded-lg text-slate-700 dark:text-slate-300 bg-white hover:bg-slate-100 dark:bg-slate-800/80 dark:hover:bg-slate-800 text-[10.5px] font-medium transition-all cursor-pointer border border-slate-200 dark:border-slate-700/80 shadow-2xs whitespace-nowrap"
+            title={isFa ? 'تغییر رمز عبور' : 'Change password'}
+            className={`flex items-center justify-center gap-1 py-2 px-2 rounded-lg text-slate-700 dark:text-slate-300 bg-white hover:bg-slate-100 dark:bg-slate-800/80 dark:hover:bg-slate-800 text-[10.5px] font-medium transition-all cursor-pointer border border-slate-200 dark:border-slate-700/80 shadow-2xs whitespace-nowrap ${isCollapsed ? 'lg:px-0' : ''}`}
           >
             <KeyRound className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
-            <span className="truncate">{isFa ? 'تغییر رمز عبور' : 'Change Pass'}</span>
+            <span className={isCollapsed ? 'lg:hidden' : 'truncate'}>{isFa ? 'تغییر رمز عبور' : 'Change Pass'}</span>
           </button>
 
           {/* Logout Button */}
           <button
             onClick={onLogout}
-            className="flex items-center justify-center gap-1 py-2 px-2 rounded-lg text-rose-600 dark:text-rose-400 bg-rose-50/40 hover:bg-rose-50 dark:bg-rose-950/10 dark:hover:bg-rose-950/20 text-[10.5px] font-bold transition-all cursor-pointer border border-rose-100/50 dark:border-rose-950/30 whitespace-nowrap"
+            title={isFa ? 'خروج' : 'Logout'}
+            className={`flex items-center justify-center gap-1 py-2 px-2 rounded-lg text-rose-600 dark:text-rose-400 bg-rose-50/40 hover:bg-rose-50 dark:bg-rose-950/10 dark:hover:bg-rose-950/20 text-[10.5px] font-bold transition-all cursor-pointer border border-rose-100/50 dark:border-rose-950/30 whitespace-nowrap ${isCollapsed ? 'lg:px-0' : ''}`}
           >
             <LogOut className="w-3.5 h-3.5 shrink-0" />
-            <span>{isFa ? 'خروج' : 'Logout'}</span>
+            <span className={isCollapsed ? 'lg:hidden' : ''}>{isFa ? 'خروج' : 'Logout'}</span>
           </button>
         </div>
       </aside>

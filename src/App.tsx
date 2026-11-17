@@ -98,6 +98,7 @@ export default function App() {
 
   // Admin right-side panel & active tab
   const [isAdminSidebarOpen, setIsAdminSidebarOpen] = useState<boolean>(false);
+  const [isAdminSidebarCollapsed, setIsAdminSidebarCollapsed] = useState<boolean>(false);
   const [adminActiveTab, setAdminActiveTab] = useState<ActiveTab>(() =>
     ADMIN_POST_PAGES.find(page => window.location.pathname === page.path)?.tab || 'inbox'
   );
@@ -995,7 +996,7 @@ export default function App() {
   }
 
   return (
-    <div className={`min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-indigo-500 selection:text-white relative overflow-x-hidden ${isAdminUser ? 'lg:pr-64' : ''}`}>
+    <div className={`min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-indigo-500 selection:text-white relative overflow-x-hidden ${isAdminUser ? (isAdminSidebarCollapsed ? 'lg:pr-[4.5rem]' : 'lg:pr-64') : ''}`}>
       {/* Subtle Background Pattern */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden opacity-40">
         <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[600px] h-[350px] bg-indigo-200/40 rounded-full blur-3xl" />
@@ -1468,6 +1469,8 @@ export default function App() {
           <AdminSidebar
             isOpenMobile={isAdminSidebarOpen}
             onCloseMobile={() => setIsAdminSidebarOpen(false)}
+            isCollapsed={isAdminSidebarCollapsed}
+            onToggleCollapsed={() => setIsAdminSidebarCollapsed(value => !value)}
             isFa={true}
             adminUsername={currentUser || '09134336627'}
             totalMessagesCount={messages.length}
