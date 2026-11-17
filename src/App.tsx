@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 23874)
+Total output lines: 1821
+
 import React, { useState, useEffect, useCallback, useRef, useMemo, Suspense, lazy } from 'react';
 import { EmailMessage, TempInbox, ActiveTab } from './types';
 import { api } from './services/api';
@@ -871,313 +874,26 @@ export default function App() {
     }
 
     setInboxes(userInboxes);
-    if (userInboxes.length > 0) {
-      setCurrentInbox(userInboxes[0]);
-    } else {
-      setCurrentInbox(null);
-    }
-
-    localStorage.setItem(userInboxesKey, JSON.stringify(userInboxes));
-    localStorage.setItem('tempmail_inboxes', JSON.stringify(userInboxes));
-    localStorage.removeItem('guest_created_emails');
-
-    // Register active inboxes with Eitaa bot
-    for (const inb of userInboxes) {
-      if (inb?.email) {
-        api.linkEmailToUser(inb.email, cleanUser).catch(() => {});
-      }
-    }
-
-    // Inform the user about synced emails and remaining quota count
-    if (fetchedRemainingEmails !== undefined) {
-      if (syncedTelegramCount && syncedTelegramCount > 0) {
-        showToast(
-          `خوش آمدید! ${syncedTelegramCount} ایمیل ایجاد شده در تلگرام با موفقیت همگام‌سازی شد. تعداد ایمیل‌های باقیمانده شما: ${fetchedRemainingEmails} عدد`, 
-          'success'
-        );
-      } else {
-        showToast(
-          `خوش آمدید! تعداد ایمیل‌های باقیمانده شما: ${fetchedRemainingEmails} عدد`, 
-          'success'
-        );
-      }
-    } else {
-      showToast(`خوش آمدید، ${cleanUser}!`, 'success');
-    }
-  };
-
-  // اگر کاربر از قبل وارد شده باشد، صفحه /eitaa نمایش داده نمی‌شود و به صفحه اصلی می‌رود
-  // (با ?preview=1 / ?new=1 / ?force=1 می‌توان فرم ثبت‌نام را دید)
-  useEffect(() => {
-    if (!isEitaaPage) return;
-    let preview = false;
-    try {
-      const params = new URLSearchParams(window.location.search);
-      preview = params.has('preview') || params.has('new') || params.get('force') === '1';
-    } catch {}
-    if (preview || !isAuthenticated) return;
-
-    setIsEitaaPage(false);
-    window.history.replaceState({}, '', '/');
-  }, [isEitaaPage, isAuthenticated]);
-
-  const handleMessageClick = async (msg: EmailMessage) => {
-    if (!isAuthenticated) {
-      showToast('⚠️ جهت دیدن و خواندن متن کامل پیام، ثبت‌نام کنید یا وارد شوید!', 'info');
-      setIsAuthModalOpen(true);
-      return;
-    }
-
-    if (!msg.isRead) {
-      const inboxEmail = (msg.inboxEmail || currentInbox?.email || '').trim().toLowerCase();
-
-      // Update the UI immediately so every unread counter decreases right away.
-      setSelectedMessage({ ...msg, isRead: true });
-      setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, isRead: true } : m)));
-      if (inboxEmail) {
-        setInboxes((prev) =>
-          prev.map((ib) =>
-            ib.email.trim().toLowerCase() === inboxEmail
-              ? { ...ib, unreadCount: Math.max(0, (ib.unreadCount || 0) - 1) }
-              : ib
-          )
-        );
-        // Persist the read state on the server so it survives refreshes.
-        try {
-          await api.getMessage(inboxEmail, msg.id);
-        } catch (err) {
-          console.warn('Failed to mark message as read on server:', err);
-        }
-      }
-    } else {
-      setSelectedMessage(msg);
-    }
-  };
-
-  const formatDate = (isoString: string) => {
-    try {
-      const d = new Date(isoString);
-      return new Intl.DateTimeFormat('fa-IR', {
-        hour: '2-digit',
-        minute: '2-digit',
-        month: 'short',
-        day: 'numeric',
-      }).format(d);
-    } catch {
-      return isoString;
-    }
-  };
-
-  // If navigated to Eitaa Registration / Login Page, render dedicated view
-  if (isEitaaPage) {
-    return (
-      <EitaaLoginPage
-        onShowSubscriptions={() => {
-          setIsEitaaPage(false);
-          setIsWebAppPage(false);
-          window.history.pushState({}, '', '/');
-          setIsSubscriptionModalOpen(true);
-        }}
-        onLoginSuccess={(phone, serverInboxes, remainingEmails, syncedTelegramCount) => {
-          const cleanPhone = /^eitaa[:_]/i.test(phone) ? phone : (extractValidPhoneNumber(phone) || phone);
-          handleLoginSuccess(cleanPhone, serverInboxes, remainingEmails, syncedTelegramCount);
-          setIsEitaaPage(false);
-          // رفتن مستقیم به صفحه اصلی سایت (بدون باقی ماندن /eitaa در تاریخچه)
-          window.history.replaceState({}, '', '/');
-        }}
-        onBackToLanding={() => {
-          setIsEitaaPage(false);
-          window.history.pushState({}, '', '/');
-        }}
-      />
-    );
-  }
-
-  // If navigated to Web App Inbox Page, render dedicated independent view
-  if (isWebAppPage) {
-    return (
-      <WebAppInboxView
-        onBack={() => {
-          setIsWebAppPage(false);
-          window.history.pushState({}, '', '/');
-        }}
-      />
-    );
-  }
-
-  return (
-    <div className={`min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-indigo-500 selection:text-white relative overflow-x-hidden ${isAdminUser ? (isAdminSidebarCollapsed ? 'lg:pr-[4.5rem]' : 'lg:pr-64') : ''}`}>
-      {/* Subtle Background Pattern */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden opacity-40">
-        <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[600px] h-[350px] bg-indigo-200/40 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 right-1/4 w-[400px] h-[250px] bg-sky-200/30 rounded-full blur-3xl" />
-      </div>
-
-      {/* Maintenance Top Notification Bar */}
-      {isSystemMaintenance && !isAdminUser && (
-        <div className="relative z-30 w-full bg-amber-500 text-slate-950 font-bold px-4 py-2 text-xs flex items-center justify-center gap-2 shadow-sm">
-          <AlertCircle className="w-4 h-4 shrink-0 animate-bounce" />
-          <span>سیستم در حال بروز رسانی است. لطفاً شکیبا باشید.</span>
-        </div>
-      )}
-
-      {/* Top Header Bar */}
-      <header className={`relative z-20 w-full px-3 sm:px-8 py-3 sm:py-4 flex items-center justify-between bg-transparent ${isAdminUser ? 'lg:hidden' : ''}`}>
-        {isAdminUser ? (
-          /* When user 09134336627 logs in: Hide header items, ONLY show hamburger menu to open right-side panel */
-          <div className="flex items-center">
-            <button
-              id="btn-admin-hamburger"
-              onClick={() => setIsAdminSidebarOpen(true)}
-              className="relative p-2 sm:p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl bg-white/95 hover:bg-white active:scale-95 text-slate-800 border border-slate-200/90 shadow-sm transition-all cursor-pointer group"
-              title="نمایش پنل سمت راست"
-              aria-label="نمایش پنل سمت راست"
-            >
-              <Menu className="w-6 h-6 text-slate-700 group-hover:text-indigo-600 transition-colors" />
-              {unreadTicketsCount > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-4 w-4">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                  <span className="relative inline-flex items-center justify-center rounded-full h-4 w-4 bg-rose-500 text-white text-[9px] font-bold font-mono shadow-[0_0_6px_rgba(244,63,94,0.8)]">
-                    {unreadTicketsCount}
-                  </span>
-                </span>
-              )}
-            </button>
-          </div>
-        ) : (
-          <>
-            {/* Right side (in RTL): Brand Logo */}
-            <div className="flex items-center gap-2.5 sm:gap-3">
-              <div className="w-11 h-11 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl overflow-hidden shadow-md flex items-center justify-center shrink-0">
-                <img src="/brand_logo.jpg" alt="JA BE JA logo" className="w-full h-full object-cover" />
-              </div>
-              <div>
-                <h1 className="text-sm sm:text-lg font-black text-slate-900 tracking-tight flex items-center gap-1.5">
-                  <span>جا به جا</span>
-                </h1>
-              </div>
-            </div>
-
-            {/* Centered Slogan for Desktop Header */}
-            <div className="hidden md:block absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
-              <h2 className="text-base lg:text-lg font-black text-slate-800 whitespace-nowrap">
-                ایمیل یک بار مصرف فقط در <span className="text-red-600 font-black inline-block">جا به جا</span> پیدا میشه
-              </h2>
-            </div>
-
-            {/* Left side (in RTL / top-left requested by user): Login / Register Button */}
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              {isAuthenticated && (
-                <button
-                  onClick={() => setIsSubscriptionModalOpen(true)}
-                  className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 min-h-[38px] sm:min-h-[40px] rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-extrabold text-xs sm:text-sm transition-all shadow-md cursor-pointer animate-pulse-subtle shrink-0"
-                >
-                  <span>اشتراک</span>
-                </button>
-              )}
-
-              <button
-                id="btn-top-auth"
-                onClick={() => setIsAuthModalOpen(true)}
-                className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 min-h-[38px] sm:min-h-[40px] rounded-xl bg-white hover:bg-slate-50 active:scale-95 text-slate-700 border border-slate-200 hover:border-slate-300 text-xs sm:text-sm font-medium transition-all shadow-xs cursor-pointer max-w-[130px] sm:max-w-none"
-              >
-                <User className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-600 shrink-0" />
-                <span className="truncate">{isAuthenticated ? (currentUser || 'حساب کاربری') : 'ورود / ثبت‌نام'}</span>
-              </button>
-            </div>
-          </>
-        )}
-      </header>
-
-      {/* Center Box / Main Card Area */}
-      <main className={`relative z-10 flex-1 flex flex-col w-full min-w-0 mx-auto ${isAdminUser ? 'items-stretch justify-start max-w-none px-3 sm:px-5 lg:px-6 py-3 sm:py-5' : 'items-center justify-center px-3 sm:px-6 py-4 sm:py-10 max-w-5xl'}`}>
-        {isAdminUser && adminActiveTab !== 'inbox' ? (
-          <div className="w-full min-w-0 bg-white border border-slate-200/90 rounded-2xl sm:rounded-3xl shadow-xl shadow-slate-200/60 p-3 sm:p-5 xl:p-7 space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-200">
-              <span className="font-bold text-sm text-slate-800">
-                {adminActiveTab === 'dashboard' && 'پیشخوان هوشمند و گزارش زنده'}
-                {adminActiveTab === 'send_email' && 'ارسال ایمیل'}
-                {adminActiveTab === 'telegram' && 'مدیریت ربات تلگرام'}
-                {adminActiveTab === 'eitaa' && 'مدیریت ربات و پیام‌رسان ایتا'}
-                {adminActiveTab === 'user_emails' && 'لیست کاربران و ایمیل‌ها'}
-                {adminActiveTab === 'subscriptions' && 'مدیریت اشتراک‌ها'}
-                {adminActiveTab === 'tickets' && 'سیستم پشتیبانی و تیکت‌ها'}
-                {adminActiveTab === 'blupal' && 'تنظیمات درگاه بانکی بلوپال'}
-                {adminActiveTab === 'backup' && 'پشتیبان‌گیری و بازگردانی'}
-                {adminActiveTab === 'storage' && 'مدیریت ذخیره‌سازی دیتابیس'}
-                {adminPostPage(adminActiveTab)?.label}
-              </span>
-              <button
-                onClick={() => setAdminActiveTab('inbox')}
-                className="px-3 py-1.5 min-h-[36px] rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
-              >
-                <span>بازگشت به صندوق لندینگ</span>
-              </button>
-            </div>
-
-            <div className="pt-2 min-w-0">
-              <Suspense fallback={<LazyChunkFallback label="در حال بارگذاری بخش مدیریت…" />}>
-                {adminActiveTab === 'dashboard' && <AdminDashboardView isFa={true} onNavigateTab={(t: ActiveTab) => setAdminActiveTab(t)} />}
-                {adminActiveTab === 'send_email' && <SendEmailView isFa={true} />}
-                {adminActiveTab === 'telegram' && <TelegramView isFa={true} />}
-                {adminActiveTab === 'eitaa' && <EitaaView isFa={true} showToast={showToast} />}
-                {adminActiveTab === 'user_emails' && <UserEmailsView lang="fa" />}
-                {adminActiveTab === 'subscriptions' && <SubscriptionsView lang="fa" />}
-                {adminActiveTab === 'tickets' && <TicketsView isFa={true} />}
-                {adminActiveTab === 'blupal' && <BluPalView lang="fa" />}
-                {adminActiveTab === 'backup' && <BackupView isFa={true} />}
-                {adminActiveTab === 'storage' && <StorageSettingsView />}
-                {adminPostPage(adminActiveTab) && <AdminBlog
-                  section={adminPostPage(adminActiveTab)!.section as AdminPostSection}
-                  onNavigate={(section, postId) => {
-                    if (adminPostNavigationGuardRef.current && !adminPostNavigationGuardRef.current()) return;
-                    const target = adminPostPage(`posts_${section}`) || adminPostPage('posts');
-                    setAdminActiveTab(section === 'write' ? 'posts_write' : target?.tab || 'posts');
-                    const path = section === 'write' ? `/admin/posts/write${postId ? `?id=${encodeURIComponent(postId)}` : ''}` : target?.path || '/admin/posts';
-                    window.history.pushState({}, '', path);
-                  }}
-                  onNavigationGuardChange={guard => { adminPostNavigationGuardRef.current = guard; }}
-                />}
-              </Suspense>
-            </div>
-          </div>
-        ) : (
-          <div className="w-full space-y-5 sm:space-y-7">
-            {/* Landing Page Slogan (Mobile Only) */}
-            <div className="text-center md:hidden">
-              <h2 className="text-lg sm:text-xl font-black text-slate-800 leading-snug">
-                ایمیل یک بار مصرف فقط در <span className="text-red-600 font-black inline-block">جا به جا</span> پیدا میشه
-              </h2>
-            </div>
-
-            <div className="w-full bg-white border border-slate-200/90 rounded-2xl sm:rounded-3xl shadow-xl shadow-slate-200/60 p-3.5 sm:p-7 space-y-4 sm:space-y-6">
-
-            {/* Active Email Bar & Creation Section */}
-            <div className="space-y-2.5 sm:space-y-3">
-
-
-              {/* Email Address Container */}
-              <div className="flex flex-row items-stretch sm:items-center gap-2 p-1.5 bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl">
-                {/* Address Display & Click to Copy */}
-                <div 
-                  onClick={handleCopyEmail}
-                  className="flex-1 flex items-center justify-between gap-2 px-2 sm:px-3.5 py-2 sm:py-2.5 rounded-lg sm:rounded-xl hover:bg-white bg-white sm:bg-transparent border border-slate-200/70 sm:border-0 transition-colors cursor-pointer group min-w-0"
+    if (userInboxes.length > 0) {…3874 tokens truncated…d-xl hover:bg-white bg-white sm:bg-transparent border border-slate-200/70 sm:border-0 transition-colors cursor-pointer group min-w-0"
                   title="کلیک برای کپی آدرس ایمیل"
                 >
-                  <div className="flex items-center gap-2 min-w-0 flex-1 mr-1">
-                    <Mail className="w-4 h-4 text-indigo-600 shrink-0" />
-                    <span className="min-w-0 break-all text-left font-mono text-[10px] sm:text-sm font-bold text-slate-900 tracking-tight sm:tracking-wide select-all" dir="ltr">
+                  <div className="flex items-start sm:items-center gap-2 min-w-0 flex-1">
+                    <Mail className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5 sm:mt-0" />
+                    <span className="min-w-0 flex-1 whitespace-normal break-words text-left font-mono text-xs sm:text-sm font-bold text-slate-900 tracking-tight sm:tracking-wide select-all" dir="ltr">
                       {currentInbox?.email || 'در حال آماده‌سازی ایمیل...'}
                     </span>
                   </div>
-                  
+                </div>
+
+                {/* Keep copy and create actions together beneath the address on narrow screens. */}
+                <div className="grid grid-cols-[auto_minmax(0,1fr)] sm:flex sm:shrink-0 items-stretch gap-2 w-full sm:w-auto">
                   <button
                     id="btn-copy-email"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleCopyEmail();
                     }}
-                    className={`px-2 sm:px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-all cursor-pointer min-h-[34px] sm:min-h-auto ${
+                    className={`px-3 sm:px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 shrink-0 transition-all cursor-pointer min-h-[44px] sm:min-h-[40px] ${
                       isCopiedEmail
                         ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                         : 'bg-slate-100 sm:bg-white hover:bg-slate-200 sm:hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs'
@@ -1195,14 +911,13 @@ export default function App() {
                       </>
                     )}
                   </button>
-                </div>
 
                 {/* Create New Email Button */}
                 <button
                   id="btn-create-new-email"
                   onClick={handleCreateNewEmail}
                   disabled={isCreatingInbox}
-                  className={`w-auto px-2.5 sm:px-5 py-2.5 min-h-[44px] rounded-xl font-bold text-[10px] sm:text-sm flex items-center justify-center gap-1 sm:gap-2 transition-all shadow-md disabled:opacity-50 cursor-pointer shrink-0 ${
+                  className={`w-full sm:w-auto min-w-0 px-2.5 sm:px-5 py-2.5 min-h-[44px] rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-1 sm:gap-2 transition-all shadow-md disabled:opacity-50 cursor-pointer shrink-0 ${
                     !isAuthenticated
                       ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/20'
                       : isLimitReached
@@ -1220,6 +935,7 @@ export default function App() {
                       : `ساخت ایمیل جدید (${currentRemaining} باقی‌مانده)`}
                   </span>
                 </button>
+                </div>
               </div>
             </div>
 
@@ -1815,3 +1531,4 @@ export default function App() {
     </div>
   );
 }
+
