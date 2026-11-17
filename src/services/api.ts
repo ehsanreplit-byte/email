@@ -220,6 +220,25 @@ export const api = {
     return inbox;
   },
 
+  async claimGuestInboxes(emails: string[], account: string): Promise<{ success: boolean; inboxes?: TempInbox[]; remainingEmails?: number; limit?: number; totalUsed?: number }> {
+    try {
+      const res = await fetch('/api/inbox/claim-guest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emails, account }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        const err: any = new Error(data?.message || data?.error || 'انتقال صندوق مهمان ناموفق بود.');
+        err.code = data?.error || 'GUEST_CLAIM_FAILED';
+        throw err;
+      }
+      return data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
   async linkEmailToUser(email: string, phone: string): Promise<boolean> {
     try {
       const res = await fetch('/api/eitaa/link-email', {
