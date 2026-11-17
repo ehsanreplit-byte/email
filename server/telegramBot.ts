@@ -213,6 +213,25 @@ class TelegramBotService {
   /**
    * Clears all linked emails and history for a registered Telegram user
    */
+  public clearAllUserEmails(): { userCount: number; emailReferenceCount: number } {
+    const users = Array.from(this.registeredUsers.values());
+    let emailReferenceCount = 0;
+
+    for (const user of users) {
+      const emails = new Set([
+        ...(user.history || []).map(item => item.email?.toLowerCase().trim()).filter(Boolean),
+        ...(user.permanentEmail ? [user.permanentEmail.toLowerCase().trim()] : []),
+      ]);
+      emailReferenceCount += emails.size;
+      user.history = [];
+      user.permanentEmail = undefined;
+    }
+
+    this.emailToChatMap.clear();
+    this.saveUsersToStorage();
+    return { userCount: users.length, emailReferenceCount };
+  }
+
   public clearUserEmails(chatId: number): string[] {
     const user = this.registeredUsers.get(chatId);
     if (!user) return [];

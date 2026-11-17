@@ -458,6 +458,25 @@ export class EitaaBotService {
   /**
    * Clears all linked emails and history for a registered Eitaa user
    */
+  public clearAllUserEmails(): { userCount: number; emailReferenceCount: number } {
+    const users = new Set(this.users.values());
+    let emailReferenceCount = 0;
+
+    for (const user of users) {
+      const emails = new Set([
+        ...(user.emails || []).map(email => email.toLowerCase().trim()),
+        ...(user.history || []).map(item => item.email?.toLowerCase().trim()).filter(Boolean) as string[],
+      ]);
+      emailReferenceCount += emails.size;
+      user.emails = [];
+      user.history = [];
+    }
+
+    this.emailToPhoneMap.clear();
+    this.saveUsers();
+    return { userCount: users.size, emailReferenceCount };
+  }
+
   public clearUserEmails(identifier: string): string[] {
     const user = this.findUser(identifier);
     if (!user) return [];

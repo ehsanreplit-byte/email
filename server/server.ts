@@ -179,6 +179,67 @@ async function startServer() {
     res.json({ status: 'ok', timestamp: new Date().toISOString(), storage: storage.provider, database: storage.provider === 'mongodb' ? storage.databaseName : storage.provider });
   });
 
+  // One-time, token-protected email data purge for the confirmed production cleanup.
+  app.post('/api/admin/purge-all-email-data', async (req, res) => {
+    const expectedToken = String(process.env.EMAIL_DATA_PURGE_TOKEN || '');
+    const suppliedToken = String(req.headers['x-email-data-purge-token'] || '');
+    if (!expectedToken || suppliedToken !== expectedToken) {
+      return res.status(404).json({ success: false, error: 'Not found' });
+    }
+    if (req.body?.confirm !== 'DELETE_ALL_EMAIL_DATA') {
+      return res.status(400).json({ success: false, error: 'Explicit confirmation is required.' });
+    }
+
+    const markerKey = 'email_data_purge_20261117.json';
+    try {
+      await storage.refreshProviderIfChanged();
+      if (storage.provider !== 'postgres') {
+        return res.status(409).json({ success: false, error: 'Active storage is not PostgreSQL.' });
+      }
+      if (await storage.readDocument(markerKey)) {
+        return res.status(409).json({ success: false, error: 'Email data purge has already run.' });
+      }
+
+      const inboxes = emailStore.clearAllEmailData();
+      const telegram = telegramBotService.clearAllUserEmails();
+      const eitaa = eitaaBotService.clearAllUserEmails();
+      await storage.flush();
+
+      emailStore.loadFromStorage();
+      telegramBotService.loadUsers();
+      eitaaBotService.loadUsers();
+      const verification = {
+        inboxCount: emailStore.getStats().activeInboxesCount,
+        historicalEmailCount: emailStore.getCreatedEmailsCount(),
+        telegramEmailReferences: telegramBotService.getRegisteredUsers().reduce((n, user) =>
+          n + (user.history?.length || 0) + (user.permanentEmail ? 1 : 0), 0),
+        eitaaEmailReferences: eitaaBotService.getUsers().reduce((n, user) =>
+          n + (user.emails?.length || 0) + (user.history?.length || 0), 0),
+      };
+      if (Object.values(verification).some(count => count !== 0)) {
+        return res.status(500).json({ success: false, error: 'Verification failed after purge.', verification });
+      }
+
+      storage.writeFileSync(markerKey, JSON.stringify({ completedAt: new Date().toISOString() }));
+      await storage.flush();
+      return res.json({
+        success: true,
+        deleted: {
+          inboxes: inboxes.inboxCount,
+          receivedMessages: inboxes.messageCount,
+          historicalEmailAddresses: inboxes.historicalEmailCount,
+          telegramEmailReferences: telegram.emailReferenceCount,
+          eitaaEmailReferences: eitaa.emailReferenceCount,
+        },
+        verification,
+        activeProvider: storage.provider,
+      });
+    } catch (error: any) {
+      console.error('[EmailDataPurge] Failed:', error?.message || error);
+      return res.status(500).json({ success: false, error: 'Email data purge failed.' });
+    }
+  });
+
   app.get('/api/db/status', requireAdmin, async (_req, res) => {
     try { res.json({ success: true, status: await storage.getStorageStatus() }); }
     catch (error: any) { res.status(500).json({ success: false, error: error?.message || 'خواندن وضعیت ذخیره‌سازی ناموفق بود.' }); }
