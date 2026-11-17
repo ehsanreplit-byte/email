@@ -204,6 +204,20 @@ async function startServer() {
     next();
   });
 
+  // Every API request observes the centrally selected database before handlers read stores.
+  app.use('/api', async (_req, res, next) => {
+    try {
+      await syncStoresFromDb(0);
+      next();
+    } catch (error: any) {
+      console.error('[Storage] Failed to load the selected database provider:', error?.message || error);
+      res.status(503).json({
+        success: false,
+        error: error?.message || 'دیتابیس انتخاب‌شده در دسترس نیست.',
+      });
+    }
+  });
+
   // Serve blog media from the durable upload collection.
   app.get('/uploads/blog/:name', async (req, res) => {
     try {
