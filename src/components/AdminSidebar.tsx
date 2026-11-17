@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useId } from 'react';
 import { 
   LayoutDashboard, Mail, LogOut, User,
   Send, Bot, MessageCircle, UsersRound, CreditCard, Headset, WalletCards, DatabaseBackup, HardDrive,
-  KeyRound, Check, AlertCircle, X, Eye, EyeOff, Power, PanelRightClose, PanelRightOpen
+  KeyRound, Check, AlertCircle, X, Eye, EyeOff, Power, PanelRightClose, PanelRightOpen, Settings, ChevronDown
 } from 'lucide-react';
 import { ActiveTab, Language } from '../types';
 import { api } from '../services/api';
@@ -168,18 +168,6 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       activeColor: 'bg-violet-50 dark:bg-violet-950/30 text-violet-600 dark:text-violet-400 border-violet-100 dark:border-violet-900/30',
     },
     {
-      id: 'telegram' as ActiveTab,
-      label: isFa ? 'ربات تلگرام' : 'Telegram Bot',
-      icon: Bot,
-      activeColor: 'bg-sky-50 dark:bg-sky-950/30 text-sky-600 dark:text-sky-400 border-sky-100 dark:border-sky-900/30',
-    },
-    {
-      id: 'eitaa' as ActiveTab,
-      label: isFa ? 'ربات ایتا' : 'Eitaa Bot',
-      icon: MessageCircle,
-      activeColor: 'bg-orange-50 dark:bg-orange-950/30 text-orange-600 dark:text-orange-400 border-orange-100 dark:border-orange-900/30',
-    },
-    {
       id: 'user_emails' as ActiveTab,
       label: isFa ? 'لیست کاربران' : 'Users & Emails',
       icon: UsersRound,
@@ -199,25 +187,19 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       isBlinking: true,
       activeColor: 'bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 border-amber-100 dark:border-amber-900/30',
     },
-    {
-      id: 'blupal' as ActiveTab,
-      label: isFa ? 'تنظیمات بلوپال' : 'BluPal Config',
-      icon: WalletCards,
-      activeColor: 'bg-teal-50 dark:bg-teal-950/30 text-teal-600 dark:text-teal-400 border-teal-100 dark:border-teal-900/30',
-    },
-    {
-      id: 'backup' as ActiveTab,
-      label: isFa ? 'پشتیبان‌گیری' : 'Backup & Restore',
-      icon: DatabaseBackup,
-      activeColor: 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30',
-    },
-    {
-      id: 'storage' as ActiveTab,
-      label: isFa ? 'ذخیره‌سازی دیتابیس' : 'Database Storage',
-      icon: HardDrive,
-      activeColor: 'bg-cyan-50 dark:bg-cyan-950/30 text-cyan-700 dark:text-cyan-300 border-cyan-100 dark:border-cyan-900/30',
-    },
   ];
+
+  const settingsItems = [
+    { id: 'storage' as ActiveTab, label: isFa ? 'ذخیره‌سازی دیتابیس' : 'Database Storage', icon: HardDrive, activeColor: 'bg-cyan-50 dark:bg-cyan-950/30 text-cyan-700 dark:text-cyan-300 border-cyan-100 dark:border-cyan-900/30' },
+    { id: 'backup' as ActiveTab, label: isFa ? 'پشتیبان‌گیری' : 'Backup & Restore', icon: DatabaseBackup, activeColor: 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30' },
+    { id: 'blupal' as ActiveTab, label: isFa ? 'تنظیمات بلوپال' : 'BluPal Config', icon: WalletCards, activeColor: 'bg-teal-50 dark:bg-teal-950/30 text-teal-600 dark:text-teal-400 border-teal-100 dark:border-teal-900/30' },
+    { id: 'eitaa' as ActiveTab, label: isFa ? 'ربات ایتا' : 'Eitaa Bot', icon: MessageCircle, activeColor: 'bg-orange-50 dark:bg-orange-950/30 text-orange-600 dark:text-orange-400 border-orange-100 dark:border-orange-900/30' },
+    { id: 'telegram' as ActiveTab, label: isFa ? 'ربات تلگرام' : 'Telegram Bot', icon: Bot, activeColor: 'bg-sky-50 dark:bg-sky-950/30 text-sky-600 dark:text-sky-400 border-sky-100 dark:border-sky-900/30' },
+  ];
+  const settingsActive = settingsItems.some(item => activeTab === item.id);
+  const [settingsOpen, setSettingsOpen] = useState(settingsActive);
+  const settingsSubmenuId = useId();
+  useEffect(() => { if (settingsActive) setSettingsOpen(true); }, [settingsActive, activeTab]);
 
   return (
     <>
@@ -325,6 +307,30 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
               </button>
             );
           })}
+          <div className="pt-0.5">
+            <button type="button" aria-expanded={isCollapsed || settingsOpen} aria-controls={settingsSubmenuId}
+              onClick={() => {
+                if (isCollapsed && window.matchMedia('(min-width: 1024px)').matches) setActiveTab('storage');
+                else setSettingsOpen(value => !value);
+              }}
+              title={isCollapsed ? (isFa ? 'تنظیمات' : 'Settings') : undefined}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-colors ${isCollapsed ? 'lg:justify-center lg:px-0' : ''} ${settingsActive ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'text-slate-600 hover:bg-slate-100'}`}>
+              <span className={`flex items-center gap-2.5 ${isCollapsed ? 'lg:justify-center lg:gap-0' : ''}`}><Settings className="w-4 h-4" /><span className={isCollapsed ? 'lg:hidden' : ''}>{isFa ? 'تنظیمات' : 'Settings'}</span></span>
+              <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isCollapsed ? 'lg:hidden' : ''} ${settingsOpen ? 'rotate-180' : ''}`} />
+            </button>
+            <div id={settingsSubmenuId} className={`mt-0.5 space-y-0.5 ${!settingsOpen ? (isCollapsed ? 'hidden lg:block' : 'hidden') : ''} ${isCollapsed ? 'pr-3 lg:pr-0' : 'pr-3'}`} aria-label={isFa ? 'زیرمنوی تنظیمات' : 'Settings submenu'}>
+              {settingsItems.map(item => {
+                const Icon = item.icon;
+                const selected = activeTab === item.id;
+                return <button type="button" key={item.id} aria-current={selected ? 'page' : undefined}
+                  onClick={() => { setActiveTab(item.id); onCloseMobile(); }}
+                  title={isCollapsed ? item.label : undefined}
+                  className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-[11px] font-bold border-r-2 transition-colors ${isCollapsed ? 'lg:justify-center lg:px-0 lg:border-r-0' : ''} ${selected ? `${item.activeColor} shadow-2xs` : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100 border-transparent'}`}>
+                  <Icon className="w-3.5 h-3.5 shrink-0" /><span className={`truncate ${isCollapsed ? 'lg:hidden' : ''}`}>{item.label}</span>
+                </button>;
+              })}
+            </div>
+          </div>
         </div>
 
         {/* System Shutdown / Maintenance Toggle */}
