@@ -1,416 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  LayoutDashboard, Mail, LogOut, User, Globe, 
-  Send, Users, CreditCard, MessageSquare, Database,
-  KeyRound, Check, AlertCircle, X, Eye, EyeOff, Power, PanelRightClose, PanelRightOpen
-} from 'lucide-react';
-import { ActiveTab, Language } from '../types';
-import { api } from '../services/api';
-import { AdminPostsMenu } from './admin/AdminPostsMenu';
-
-interface AdminSidebarProps {
-  isOpenMobile: boolean;
-  onCloseMobile: () => void;
-  isCollapsed?: boolean;
-  onToggleCollapsed?: () => void;
-  isFa: boolean;
-  adminUsername: string;
-  totalMessagesCount: number;
-  unreadMessagesCount: number;
-  onLogout: () => void;
-  theme: 'light' | 'dark';
-  setTheme: (t: 'light' | 'dark') => void;
-  lang: Language;
-  setLang: (l: Language) => void;
-  soundEnabled: boolean;
-  setSoundEnabled: (s: boolean) => void;
-  activeInboxesCount: number;
-  createdEmailsCount?: number;
-  telegramEmailsCount?: number;
-  eitaaEmailsCount?: number;
-  webEmailsCount?: number;
-  totalUsersCount?: number;
-  totalReceivedCount?: number;
-  onManualRefresh?: () => void;
-  isRefreshing?: boolean;
-  activeTab: ActiveTab;
-  setActiveTab: (tab: ActiveTab) => void;
-  unreadTicketsCount?: number;
-}
-
-export const AdminSidebar: React.FC<AdminSidebarProps> = ({
-  isOpenMobile,
-  onCloseMobile,
-  isCollapsed = false,
-  onToggleCollapsed,
-  isFa,
-  adminUsername,
-  totalMessagesCount,
-  unreadMessagesCount,
-  onLogout,
-  theme,
-  setTheme,
-  lang,
-  setLang,
-  soundEnabled,
-  setSoundEnabled,
-  activeInboxesCount,
-  createdEmailsCount,
-  telegramEmailsCount,
-  eitaaEmailsCount,
-  webEmailsCount,
-  totalUsersCount,
-  totalReceivedCount,
-  onManualRefresh,
-  isRefreshing,
-  activeTab,
-  setActiveTab,
-  unreadTicketsCount = 0,
-}) => {
-  const isDark = theme === 'dark';
-
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassText, setShowPassText] = useState(false);
-  const [isChangingPass, setIsChangingPass] = useState(false);
-  const [passError, setPassError] = useState<string | null>(null);
-  const [passSuccess, setPassSuccess] = useState<string | null>(null);
-
-  // System Shutdown / Maintenance state
-  const [isMaintenance, setIsMaintenance] = useState(false);
-  const [isTogglingMaintenance, setIsTogglingMaintenance] = useState(false);
-
-  useEffect(() => {
-    api.getSystemStatus().then((res) => {
-      if (res && typeof res.maintenance === 'boolean') {
-        setIsMaintenance(res.maintenance);
-      }
-    });
-  }, []);
-
-  const handleToggleMaintenance = async () => {
-    const nextState = !isMaintenance;
-    setIsTogglingMaintenance(true);
-    const ok = await api.updateSystemStatus(nextState);
-    if (ok) {
-      setIsMaintenance(nextState);
-      window.dispatchEvent(new CustomEvent('system_maintenance_changed', { detail: { maintenance: nextState } }));
-      localStorage.setItem('system_maintenance_mode', nextState ? 'true' : 'false');
-    }
-    setIsTogglingMaintenance(false);
-  };
-
-  const handleOpenPasswordModal = () => {
-    setCurrentPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
-    setPassError(null);
-    setPassSuccess(null);
-    setShowPasswordModal(true);
-  };
-
-  const handleChangePasswordSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setPassError(null);
-    setPassSuccess(null);
-
-    if (!currentPassword) {
-      setPassError(isFa ? 'Ø±Ù…Ø² Ø¹Ø¨ÙˆØ± ÙØ¹Ù„ÛŒ Ø±Ø§ ÙˆØ§Ø±Ø¯ Ú©Ù†ÛŒØ¯.' : 'Enter current password.');
-      return;
-    }
-    if (newPassword.length < 6) {
-      setPassError(isFa ? 'Ø±Ù…Ø² Ø¹Ø¨ÙˆØ± Ø¬Ø¯ÛŒØ¯ Ø¨Ø§ÛŒØ¯ Ø­Ø¯Ø§Ù‚Ù„ Û¶ Ú©Ø§Ø±Ø§Ú©ØªØ± Ø¨Ø§Ø´Ø¯.' : 'New password must be at least 6 characters.');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setPassError(isFa ? 'ØªÚ©Ø±Ø§Ø± Ø±Ù…Ø² Ø¹Ø¨ÙˆØ± Ø¬Ø¯ÛŒØ¯ Ø¨Ø§ Ø¢Ù† Ù‡Ù…Ø®ÙˆØ§Ù†ÛŒ Ù†Ø¯Ø§Ø±Ø¯.' : 'Passwords do not match.');
-      return;
-    }
-
-    setIsChangingPass(true);
-    try {
-      const res = await api.changeAdminPassword(currentPassword, newPassword);
-      setIsChangingPass(false);
-      if (res.success) {
-        setPassSuccess(isFa ? 'Ø±Ù…Ø² Ø¹Ø¨ÙˆØ± Ø¬Ø¯ÛŒØ¯ Ø¨Ø§ Ù…ÙˆÙÙ‚ÛŒØª Ø°Ø®ÛŒØ±Ù‡ Ø´Ø¯.' : 'Password updated successfully.');
-        setTimeout(() => {
-          setShowPasswordModal(false);
-        }, 1200);
-      } else {
-        setPassError(res.error || (isFa ? 'Ø®Ø·Ø§ Ø¯Ø± ØªØºÛŒÛŒØ± Ø±Ù…Ø² Ø¹Ø¨ÙˆØ±.' : 'Failed to change password.'));
-      }
-    } catch {
-      setIsChangingPass(false);
-      setPassError(isFa ? 'Ø®Ø·Ø§ Ø¯Ø± Ø§Ø±ØªØ¨Ø§Ø· Ø¨Ø§ Ø³Ø±ÙˆØ±.' : 'Server connection error.');
-    }
-  };
-
-  const menuItems = [
-    {
-      id: 'dashboard' as ActiveTab,
-      label: isFa ? 'Ú©Ø§Ø±Øª Ù¾ÛŒØ´Ø®ÙˆØ§Ù† Ù‡ÙˆØ´Ù…Ù†Ø¯' : 'Smart Dashboard',
-      icon: LayoutDashboard,
-      activeColor: 'bg-indigo-50/90 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 shadow-2xs',
-    },
-    {
-      id: 'inbox' as ActiveTab,
-      label: isFa ? 'ØµÙ†Ø¯ÙˆÙ‚ ÙˆØ±ÙˆØ¯ÛŒ' : 'Inbox',
-      icon: Mail,
-      badge: unreadMessagesCount > 0 ? unreadMessagesCount : null,
-      activeColor: 'bg-indigo-50/80 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border-indigo-100 dark:border-indigo-900/50',
-    },
-    {
-      id: 'send_email' as ActiveTab,
-      label: isFa ? 'Ø§Ø±Ø³Ø§Ù„ Ø§ÛŒÙ…ÛŒÙ„' : 'Send Email',
-      icon: Send,
-      activeColor: 'bg-violet-50 dark:bg-violet-950/30 text-violet-600 dark:text-violet-400 border-violet-100 dark:border-violet-900/30',
-    },
-    {
-      id: 'telegram' as ActiveTab,
-      label: isFa ? 'Ø±Ø¨Ø§Øª ØªÙ„Ú¯Ø±Ø§Ù…' : 'Telegram Bot',
-      icon: Send,
-      activeColor: 'bg-sky-50 dark:bg-sky-950/30 text-sky-600 dark:text-sky-400 border-sky-100 dark:border-sky-900/30',
-    },
-    {
-      id: 'eitaa' as ActiveTab,
-      label: isFa ? 'Ø±Ø¨Ø§Øª Ø§ÛŒØªØ§' : 'Eitaa Bot',
-      icon: MessageSquare,
-      activeColor: 'bg-orange-50 dark:bg-orange-950/30 text-orange-600 dark:text-orange-400 border-orange-100 dark:border-orange-900/30',
-    },
-    {
-      id: 'user_emails' as ActiveTab,
-      label: isFa ? 'Ù„ÛŒØ³Øª Ú©Ø§Ø±Ø¨Ø±Ø§Ù†' : 'Users & Emails',
-      icon: Users,
-      activeColor: 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30',
-    },
-    {
-      id: 'subscriptions' as ActiveTab,
-      label: isFa ? 'Ø§Ø´ØªØ±Ø§Ú©â€ŒÙ‡Ø§' : 'Subscriptions',
-      icon: CreditCard,
-      activeColor: 'bg-indigo-50/80 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border-indigo-100 dark:border-indigo-900/50',
-    },
-    {
-      id: 'tickets' as ActiveTab,
-      label: isFa ? 'ØªÛŒÚ©Øªâ€ŒÙ‡Ø§' : 'Tickets',
-      icon: MessageSquare,
-      badge: unreadTicketsCount > 0 ? unreadTicketsCount : null,
-      isBlinking: true,
-      activeColor: 'bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 border-amber-100 dark:border-amber-900/30',
-    },
-    {
-      id: 'blupal' as ActiveTab,
-      label: isFa ? 'ØªÙ†Ø¸ÛŒÙ…Ø§Øª Ø¨Ù„ÙˆÙ¾Ø§Ù„' : 'BluPal Config',
-      icon: Globe,
-      activeColor: 'bg-teal-50 dark:bg-teal-950/30 text-teal-600 dark:text-teal-400 border-teal-100 dark:border-teal-900/30',
-    },
-    {
-      id: 'backup' as ActiveTab,
-      label: isFa ? 'Ù¾Ø´ØªÛŒØ¨Ø§Ù†â€ŒÚ¯ÛŒØ±ÛŒ' : 'Backup & Restore',
-      icon: Database,
-      activeColor: 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30',
-    },
-    {
-      id: 'storage' as ActiveTab,
-      label: isFa ? 'Ø°Ø®ÛŒØ±Ù‡â€ŒØ³Ø§Ø²ÛŒ Ø¯ÛŒØªØ§Ø¨ÛŒØ³' : 'Database Storage',
-      icon: Database,
-      activeColor: 'bg-cyan-50 dark:bg-cyan-950/30 text-cyan-700 dark:text-cyan-300 border-cyan-100 dark:border-cyan-900/30',
-    },
-  ];
-
-  return (
-    <>
-      {/* Screen Backdrop */}
-      {isOpenMobile && (
-        <div
-          onClick={onCloseMobile}
-          className="fixed inset-0 z-40 bg-slate-900/30 backdrop-blur-xs animate-in fade-in duration-200 lg:hidden"
-        />
-      )}
-
-      {/* Sidebar Panel */}
-      <aside
-        className={`fixed top-0 bottom-0 z-50 w-[14.4rem] sm:w-64 ${isCollapsed ? 'lg:w-[4.5rem]' : 'lg:w-64'} bg-white border-l border-slate-200 shadow-2xl flex flex-col justify-between transition-[width,transform] duration-300 ease-in-out lg:translate-x-0 ${
-          isFa
-            ? `right-0 ${isOpenMobile ? 'translate-x-0' : 'translate-x-full'}`
-            : `left-0 border-r border-l-0 ${isOpenMobile ? 'translate-x-0' : '-translate-x-full'}`
-        }`}
-      >
-        {/* Header section */}
-        <div className={`flex flex-col gap-3 ${isCollapsed ? 'p-2 sm:p-3 lg:p-1 lg:items-center' : 'p-4 sm:p-5'}`}>
-          {/* User profile & Close button */}
-          <div className={`flex items-center rounded-xl bg-slate-50 border border-slate-200 shadow-2xs ${isCollapsed ? 'justify-between p-2 lg:flex-col lg:justify-center lg:gap-2 lg:p-1' : 'justify-between p-3'}`}>
-            <div className={`flex items-center min-w-0 ${isCollapsed ? 'gap-0 lg:justify-center' : 'gap-2.5'}`}>
-              <div className="relative w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 font-bold flex items-center justify-center text-xs shrink-0 border border-indigo-100">
-                <User className="w-4 h-4" />
-                <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white" />
-              </div>
-              <div className={`min-w-0 ${isCollapsed ? 'lg:hidden' : ''}`}>
-                <div className="text-xs font-bold text-slate-800 truncate">
-                  {adminUsername || (isFa ? 'Ù…Ø¯ÛŒØ± Ø³ÛŒØ³ØªÙ…' : 'Administrator')}
-                </div>
-                <div className="text-[10px] text-emerald-600 font-medium">
-                  {isFa ? 'Ù¾Ù†Ù„ Ø§Ø®ØªØµØ§ØµÛŒ Ù…Ø¯ÛŒØ±ÛŒØª' : 'Admin Panel'}
-                </div>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={onToggleCollapsed}
-              className="hidden lg:flex p-1.5 min-h-[34px] min-w-[34px] items-center justify-center rounded-lg text-slate-500 hover:text-indigo-700 hover:bg-indigo-50 transition-colors cursor-pointer"
-              title={isCollapsed ? (isFa ? 'Ø¨Ø§Ø² Ú©Ø±Ø¯Ù† Ø³Ø§ÛŒØ¯Ø¨Ø§Ø±' : 'Expand sidebar') : (isFa ? 'Ø¬Ù…Ø¹ Ú©Ø±Ø¯Ù† Ø³Ø§ÛŒØ¯Ø¨Ø§Ø±' : 'Collapse sidebar')}
-              aria-label={isCollapsed ? (isFa ? 'Ø¨Ø§Ø² Ú©Ø±Ø¯Ù† Ø³Ø§ÛŒØ¯Ø¨Ø§Ø±' : 'Expand sidebar') : (isFa ? 'Ø¬Ù…Ø¹ Ú©Ø±Ø¯Ù† Ø³Ø§ÛŒØ¯Ø¨Ø§Ø±' : 'Collapse sidebar')}
-              aria-expanded={!isCollapsed}
-            >
-              {isCollapsed ? <PanelRightOpen className="w-4 h-4" /> : <PanelRightClose className="w-4 h-4" />}
-            </button>
-
-            <button
-              onClick={onCloseMobile}
-              className="p-1.5 min-h-[34px] min-w-[34px] flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer lg:hidden"
-              title={isFa ? 'Ø¨Ø³ØªÙ† Ù…Ù†Ùˆ' : 'Close'}
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* Navigation list */}
-        <div className={`flex-1 py-2 space-y-1 overflow-y-auto ${isCollapsed ? 'px-2 lg:px-2' : 'px-4'}`}>
-          <AdminPostsMenu currentTab={activeTab} onSelect={tab => setActiveTab(tab)} mobile collapsed={isCollapsed} />
-          {menuItems.map((item) => {
-            const isActive = activeTab === item.id;
-            const Icon = item.icon;
-
-            return (
-              <button
-                key={item.id}
-                onClick={() => {
-                  setActiveTab(item.id);
-                  onCloseMobile();
-                }}
-                title={isCollapsed ? `${item.label}${item.badge ? ` (${item.badge})` : ''}` : undefined}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${isCollapsed ? 'lg:justify-center lg:px-0' : ''} ${
-                  isActive
-                    ? `${item.activeColor} shadow-2xs`
-                    : 'bg-transparent border-transparent hover:bg-slate-100 dark:hover:bg-slate-800/40 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-                }`}
-              >
-                <div className={`flex items-center min-w-0 ${isCollapsed ? 'gap-0 lg:justify-center' : 'gap-2.5'}`}>
-                  <Icon className="w-4 h-4 shrink-0" />
-                  <span className={`truncate ${isCollapsed ? 'lg:hidden' : ''}`}>{item.label}</span>
-                  {item.id === 'tickets' && unreadTicketsCount > 0 && (
-                    <span className="relative flex h-2.5 w-2.5 shrink-0" title={`${unreadTicketsCount} ØªÛŒÚ©Øª Ø®ÙˆØ§Ù†Ø¯Ù‡â€ŒÙ†Ø´Ø¯Ù‡ Ø¬Ø¯ÛŒØ¯`}>
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]"></span>
-                    </span>
-                  )}
-                </div>
-                {item.badge !== undefined && item.badge !== null && (
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold items-center gap-1.5 shrink-0 transition-all ${isCollapsed ? 'flex lg:hidden' : 'flex'} ${
-                    (item as any).isBlinking 
-                      ? 'bg-rose-500 text-white animate-pulse shadow-[0_0_10px_rgba(244,63,94,0.8)] ring-2 ring-rose-400/50'
-                      : isActive
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-slate-200/60 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-                  }`}>
-                    <span>{item.badge}</span>
-                    {(item as any).isBlinking && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-white inline-block animate-ping shrink-0" />
-                    )}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* System Shutdown / Maintenance Toggle */}
-        <div className={`py-1.5 ${isCollapsed ? 'px-2 lg:px-2' : 'px-4'}`}>
-          <div className={`p-2.5 rounded-xl border transition-all ${isCollapsed ? 'lg:p-1.5' : ''} ${
-            isMaintenance 
-              ? 'bg-rose-500/10 border-rose-500/40 text-rose-700 dark:text-rose-400 shadow-xs' 
-              : 'bg-white dark:bg-slate-950/30 border-slate-200/60 dark:border-slate-800/60'
-          }`}>
-            <div className={`flex items-center justify-between gap-2 ${isCollapsed ? 'lg:justify-center' : ''}`}>
-              <div className={`flex items-center min-w-0 ${isCollapsed ? 'gap-0 lg:justify-center' : 'gap-2'}`}>
-                <div className={`relative w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-                  isMaintenance ? 'bg-rose-500 text-white animate-pulse' : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400'
-                }`}>
-                  <Power className="w-4 h-4" />
-                  {isCollapsed && <button type="button" disabled={isTogglingMaintenance} onClick={handleToggleMaintenance} className="absolute inset-0 hidden lg:block cursor-pointer" title={isFa ? 'ØªØºÛŒÛŒØ± ÙˆØ¶Ø¹ÛŒØª Ø®Ø§Ù…ÙˆØ´ÛŒ Ø³ÛŒØ³ØªÙ…' : 'Toggle system maintenance'} aria-label={isFa ? 'ØªØºÛŒÛŒØ± ÙˆØ¶Ø¹ÛŒØª Ø®Ø§Ù…ÙˆØ´ÛŒ Ø³ÛŒØ³ØªÙ…' : 'Toggle system maintenance'} />}
-                </div>
-                <div className={`min-w-0 ${isCollapsed ? 'lg:hidden' : ''}`}>
-                  <div className="text-[11px] font-bold text-slate-800 dark:text-slate-200 truncate">
-                    {isFa ? 'Ø®Ø§Ù…ÙˆØ´ Ú©Ø±Ø¯Ù† Ø³ÛŒØ³ØªÙ…' : 'System Shutdown'}
-                  </div>
-                  <div className={`text-[9.5px] font-medium truncate ${
-                    isMaintenance ? 'text-rose-600 dark:text-rose-400 font-bold' : 'text-emerald-600 dark:text-emerald-400'
-                  }`}>
-                    {isMaintenance 
-                      ? (isFa ? 'Ø®Ø§Ù…ÙˆØ´ (Ø¯Ø± Ø­Ø§Ù„ Ø¨Ø±ÙˆØ²Ø±Ø³Ø§Ù†ÛŒ)' : 'System Maintenance')
-                      : (isFa ? 'Ø³ÛŒØ³ØªÙ… ÙØ¹Ø§Ù„ Ùˆ Ø¢Ù†Ù„Ø§ÛŒÙ†' : 'System Operational')}
-                  </div>
-                </div>
-              </div>
-
-              {/* Toggle Switch */}
-              <button
-                type="button"
-                disabled={isTogglingMaintenance}
-                onClick={handleToggleMaintenance}
-                title={isFa ? 'ØªØºÛŒÛŒØ± ÙˆØ¶Ø¹ÛŒØª Ø®Ø§Ù…ÙˆØ´ÛŒ Ø³ÛŒØ³ØªÙ…' : 'Toggle system maintenance'}
-                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${isCollapsed ? 'lg:hidden' : ''} ${
-                  isMaintenance ? 'bg-rose-500' : 'bg-slate-300 dark:bg-slate-700'
-                }`}
-              >
-                <span
-                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                    isMaintenance ? (isFa ? '-translate-x-4' : 'translate-x-4') : 'translate-x-0'
-                  }`}
-                />
-              </button>
-            </div>
-            {isMaintenance && (
-              <div className={`mt-2 text-[9.5px] text-rose-600 dark:text-rose-400 bg-rose-500/10 p-1.5 rounded-md leading-relaxed border border-rose-500/20 ${isCollapsed ? 'lg:hidden' : ''}`}>
-                {isFa ? 'âš ï¸ Ù¾ÛŒØ§Ù… Â«Ø³ÛŒØ³ØªÙ… Ø¯Ø± Ø­Ø§Ù„ Ø¨Ø±ÙˆØ² Ø±Ø³Ø§Ù†ÛŒ Ø§Ø³ØªÂ» Ø¨Ù‡ Ú©Ø§Ø±Ø¨Ø±Ø§Ù† Ù†Ù…Ø§ÛŒØ´ Ø¯Ø§Ø¯Ù‡ Ù…ÛŒâ€ŒØ´ÙˆØ¯.' : 'âš ï¸ "System under maintenance" message is active.'}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Bottom controls & Logout */}
-        <div className={`grid gap-2 ${isCollapsed ? 'p-2 grid-cols-2 lg:grid-cols-1 lg:p-2' : 'p-4 grid-cols-2'}`}>
-          {/* Change Password Button */}
-          <button
-            onClick={handleOpenPasswordModal}
-            title={isFa ? 'ØªØºÛŒÛŒØ± Ø±Ù…Ø² Ø¹Ø¨ÙˆØ±' : 'Change password'}
-            className={`flex items-center justify-center gap-1 py-2 px-2 rounded-lg text-slate-700 dark:text-slate-300 bg-white hover:bg-slate-100 dark:bg-slate-800/80 dark:hover:bg-slate-800 text-[10.5px] font-medium transition-all cursor-pointer border border-slate-200 dark:border-slate-700/80 shadow-2xs whitespace-nowrap ${isCollapsed ? 'lg:px-0' : ''}`}
-          >
-            <KeyRound className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
-            <span className={isCollapsed ? 'lg:hidden' : 'truncate'}>{isFa ? 'ØªØºÛŒÛŒØ± Ø±Ù…Ø² Ø¹Ø¨ÙˆØ±' : 'Change Pass'}</span>
-          </button>
-
-          {/* Logout Button */}
-          <button
-            onClick={onLogout}
-            title={isFa ? 'Ø®Ø±ÙˆØ¬' : 'Logout'}
-            className={`flex items-center justify-center gap-1 py-2 px-2 rounded-lg text-rose-600 dark:text-rose-400 bg-rose-50/40 hover:bg-rose-50 dark:bg-rose-950/10 dark:hover:bg-rose-950/20 text-[10.5px] font-bold transition-all cursor-pointer border border-rose-100/50 dark:border-rose-950/30 whitespace-nowrap ${isCollapsed ? 'lg:px-0' : ''}`}
-          >
-            <LogOut className="w-3.5 h-3.5 shrink-0" />
-            <span className={isCollapsed ? 'lg:hidden' : ''}>{isFa ? 'Ø®Ø±ÙˆØ¬' : 'Logout'}</span>
-          </button>
-        </div>
-      </aside>
-
-      {/* Change Password Modal */}
-      {showPasswordModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-sm w-full p-5 space-y-4 relative">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-              <div className="flex items-center gap-2">
+YªçŠx-®éÜj×¢ëiºÚ+Š§j[h‘éÜ¢éíóÏyN‹Z–‹­¦ëeŠw¬Õ¥µÁ½ÉĞI•…Ğ°ìÕÍ•MÑ…Ñ”°ÕÍ•™™•Ğô™É½´€É•…Ğœì4)¥µÁ½ÉĞì€4(€1…å½ÕÑ…Í¡‰½…É°5…¥°°1½=ÕĞ°UÍ•È°4(€M•¹°	½Ğ°5•ÍÍ…•¥É±”°UÍ•ÉÍI½Õ¹°É•‘¥Ñ…É°!•…‘Í•Ğ°]…±±•Ñ…É‘Ì°…Ñ…‰…Í•	…­ÕÀ°!…É‘É¥Ù”°4(€-•åI½Õ¹°¡•¬°±•ÉÑ¥É±”°`°å”°å•=™˜°A½İ•È°A…¹•±I¥¡Ñ±½Í”°A…¹•±I¥¡Ñ=Á•¸4)ô™É½´€±Õ¥‘”µÉ•…Ğœì4)¥µÁ½ÉĞìÑ¥Ù•Q…ˆ°1…¹Õ…”ô™É½´€œ¸¸½ÑåÁ•Ìœì4)¥µÁ½ÉĞì…Á¤ô™É½´€œ¸¸½Í•ÉÙ¥•Ì½…Á¤œì4)¥µÁ½ÉĞì‘µ¥¹A½ÍÑÍ5•¹Ôô™É½´€œ¸½…‘µ¥¸½‘µ¥¹A½ÍÑÍ5•¹Ôœì4(4)¥¹Ñ•É™…”‘µ¥¹M¥‘•‰…ÉAÉ½ÁÌì4(€¥Í=Á•¹5½‰¥±”è‰½½±•…¸ì4(€½¹±½Í•5½‰¥±”è€ ¤€ôøÙ½¥ì4(€¥Í½±±…ÁÍ•üè‰½½±•…¸ì4(€½¹Q½±•½±±…ÁÍ•üè€ ¤€ôøÙ½¥ì4(€¥Í„è‰½½±•…¸ì4(€…‘µ¥¹UÍ•É¹…µ”èÍÑÉ¥¹œì4(€Ñ½Ñ…±5•ÍÍ…•Í½Õ¹Ğè¹Õµ‰•Èì4(€Õ¹É•…‘5•ÍÍ…•Í½Õ¹Ğè¹Õµ‰•Èì4(€½¹1½½ÕĞè€ ¤€ôøÙ½¥ì4(€Ñ¡•µ”è€±¥¡Ğœğ€‘…É¬œì4(€Í•ÑQ¡•µ”è€¡Ğè€±¥¡Ğœğ€‘…É¬œ¤€ôøÙ½¥ì4(€±…¹œè1…¹Õ…”ì4(€Í•Ñ1…¹œè€¡°è1…¹Õ…”¤€ôøÙ½¥ì4(€Í½Õ¹‘¹…‰±•è‰½½±•…¸ì4(€Í•ÑM½Õ¹‘¹…‰±•è€¡Ìè‰½½±•…¸¤€ôøÙ½¥ì4(€…Ñ¥Ù•%¹‰½á•Í½Õ¹Ğè¹Õµ‰•Èì4(€É•…Ñ•‘µ…¥±Í½Õ¹Ğüè¹Õµ‰•Èì4(€Ñ•±•É…µµ…¥±Í½Õ¹Ğüè¹Õµ‰•Èì4(€•¥Ñ……µ…¥±Í½Õ¹Ğüè¹Õµ‰•Èì4(€İ•‰µ…¥±Í½Õ¹Ğüè¹Õµ‰•Èì4(€Ñ½Ñ…±UÍ•ÉÍ½Õ¹Ğüè¹Õµ‰•Èì4(€Ñ½Ñ…±I••¥Ù•‘½Õ¹Ğüè¹Õµ‰•Èì4(€½¹5…¹Õ…±I•™É•Í üè€ ¤€ôøÙ½¥ì4(€¥ÍI•™É•Í¡¥¹œüè‰½½±•…¸ì4(€…Ñ¥Ù•Q…ˆèÑ¥Ù•Q…ˆì4(€Í•ÑÑ¥Ù•Q…ˆè€¡Ñ…ˆèÑ¥Ù•Q…ˆ¤€ôøÙ½¥ì4(€Õ¹É•…‘Q¥­•ÑÍ½Õ¹Ğüè¹Õµ‰•Èì4)ô4(4)•áÁ½ÉĞ½¹ÍĞ‘µ¥¹M¥‘•‰…ÈèI•…Ğ¹ñ‘µ¥¹M¥‘•‰…ÉAÉ½ÁÌø€ô€¡ì4(€¥Í=Á•¹5½‰¥±”°4(€½¹±½Í•5½‰¥±”°4(€¥Í½±±…ÁÍ•€ô™…±Í”°4(€½¹Q½±•½±±…ÁÍ•°4(€¥Í„°4(€…‘µ¥¹UÍ•É¹…µ”°4(€Ñ½Ñ…±5•ÍÍ…•Í½Õ¹Ğ°4(€Õ¹É•…‘5•ÍÍ…•Í½Õ¹Ğ°4(€½¹1½½ÕĞ°4(€Ñ¡•µ”°4(€Í•ÑQ¡•µ”°4(€±…¹œ°4(€Í•Ñ1…¹œ°4(€Í½Õ¹‘¹…‰±•°4(€Í•ÑM½Õ¹‘¹…‰±•°4(€…Ñ¥Ù•%¹‰½á•Í½Õ¹Ğ°4(€É•…Ñ•‘µ…¥±Í½Õ¹Ğ°4(€Ñ•±•É…µµ…¥±Í½Õ¹Ğ°4(€•¥Ñ……µ…¥±Í½Õ¹Ğ°4(€İ•‰µ…¥±Í½Õ¹Ğ°4(€Ñ½Ñ…±UÍ•ÉÍ½Õ¹Ğ°4(€Ñ½Ñ…±I••¥Ù•‘½Õ¹Ğ°4(€½¹5…¹Õ…±I•™É•Í °4(€¥ÍI•™É•Í¡¥¹œ°4(€…Ñ¥Ù•Q…ˆ°4(€Í•ÑÑ¥Ù•Q…ˆ°4(€Õ¹É•…‘Q¥­•ÑÍ½Õ¹Ğ€ô€À°4)ô¤€ôøì4(€½¹ÍĞ¥Í…É¬€ôÑ¡•µ”€ôôô€‘…É¬œì4(4(€½¹ÍĞmÍ¡½İA…ÍÍİ½É‘5½‘…°°Í•ÑM¡½İA…ÍÍİ½É‘5½‘…±t€ôÕÍ•MÑ…Ñ”¡™…±Í”¤ì4(€½¹ÍĞmÕÉÉ•¹ÑA…ÍÍİ½É°Í•ÑÕÉÉ•¹ÑA…ÍÍİ½É‘t€ôÕÍ•MÑ…Ñ” œœ¤ì4(€½¹ÍĞm¹•İA…ÍÍİ½É°Í•Ñ9•İA…ÍÍİ½É‘t€ôÕÍ•MÑ…Ñ” œœ¤ì4(€½¹ÍĞm½¹™¥ÉµA…ÍÍİ½É°Í•Ñ½¹™¥ÉµA…ÍÍİ½É‘t€ôÕÍ•MÑ…Ñ” œœ¤ì4(€½¹ÍĞmÍ¡½İA…ÍÍQ•áĞ°Í•ÑM¡½İA…ÍÍQ•áÑt€ôÕÍ•MÑ…Ñ”¡™…±Í”¤ì4(€½¹ÍĞm¥Í¡…¹¥¹A…ÍÌ°Í•Ñ%Í¡…¹¥¹A…ÍÍt€ôÕÍ•MÑ…Ñ”¡™…±Í”¤ì4(€½¹ÍĞmÁ…ÍÍÉÉ½È°Í•ÑA…ÍÍÉÉ½Ét€ôÕÍ•MÑ…Ñ”ñÍÑÉ¥¹œğ¹Õ±°ø¡¹Õ±°¤ì4(€½¹ÍĞmÁ…ÍÍMÕ•ÍÌ°Í•ÑA…ÍÍMÕ•ÍÍt€ôÕÍ•MÑ…Ñ”ñÍÑÉ¥¹œğ¹Õ±°ø¡¹Õ±°¤ì4(4(€€¼¼MåÍÑ•´M¡ÕÑ‘½İ¸€¼5…¥¹Ñ•¹…¹”ÍÑ…Ñ”4(€½¹ÍĞm¥Í5…¥¹Ñ•¹…¹”°Í•Ñ%Í5…¥¹Ñ•¹…¹•t€ôÕÍ•MÑ…Ñ”¡™…±Í”¤ì4(€½¹ÍĞm¥ÍQ½±¥¹5…¥¹Ñ•¹…¹”°Í•Ñ%ÍQ½±¥¹5…¥¹Ñ•¹…¹•t€ôÕÍ•MÑ…Ñ”¡™…±Í”¤ì4(4(€ÕÍ•™™•Ğ  ¤€ôøì4(€€€…Á¤¹•ÑMåÍÑ•µMÑ…ÑÕÌ ¤¹Ñ¡•¸ ¡É•Ì¤€ôøì4(€€€€€¥˜€¡É•Ì€˜˜ÑåÁ•½˜É•Ì¹µ…¥¹Ñ•¹…¹”€ôôô€‰½½±•…¸œ¤ì4(€€€€€€€Í•Ñ%Í5…¥¹Ñ•¹…¹”¡É•Ì¹µ…¥¹Ñ•¹…¹”¤ì4(€€€€€ô4(€€€ô¤ì4(€ô°mt¤ì4(4(€½¹ÍĞ¡…¹‘±•Q½±•5…¥¹Ñ•¹…¹”€ô…Íå¹Œ€ ¤€ôøì4(€€€½¹ÍĞ¹•áÑMÑ…Ñ”€ô€…¥Í5…¥¹Ñ•¹…¹”ì4(€€€Í•Ñ%ÍQ½±¥¹5…¥¹Ñ•¹…¹”¡ÑÉÕ”¤ì4(€€€½¹ÍĞ½¬€ô…İ…¥Ğ…Á¤¹ÕÁ‘…Ñ•MåÍÑ•µMÑ…ÑÕÌ¡¹•áÑMÑ…Ñ”¤ì4(€€€¥˜€¡½¬¤ì4(€€€€€Í•Ñ%Í5…¥¹Ñ•¹…¹”¡¹•áÑMÑ…Ñ”¤ì4(€€€€€İ¥¹‘½Ü¹‘¥ÍÁ…Ñ¡Ù•¹Ğ¡¹•ÜÕÍÑ½µÙ•¹Ğ ÍåÍÑ•µ}µ…¥¹Ñ•¹…¹•}¡…¹•œ°ì‘•Ñ…¥°èìµ…¥¹Ñ•¹…¹”è¹•áÑMÑ…Ñ”ôô¤¤ì4(€€€€€±½…±MÑ½É…”¹Í•Ñ%Ñ•´ ÍåÍÑ•µ}µ…¥¹Ñ•¹…¹•}µ½‘”œ°¹•áÑMÑ…Ñ”€ü€ÑÉÕ”œ€è€™…±Í”œ¤ì4(€€€ô4(€€€Í•Ñ%ÍQ½±¥¹5…¥¹Ñ•¹…¹”¡™…±Í”¤ì4(€ôì4(4(€½¹ÍĞ¡…¹‘±•=Á•¹A…ÍÍİ½É‘5½‘…°€ô€ ¤€ôøì4(€€€Í•ÑÕÉÉ•¹ÑA…ÍÍİ½É œœ¤ì4(€€€Í•Ñ9•İA…ÍÍİ½É œœ¤ì4(€€€Í•Ñ½¹™¥ÉµA…ÍÍİ½É œœ¤ì4(€€€Í•ÑA…ÍÍÉÉ½È¡¹Õ±°¤ì4(€€€Í•ÑA…ÍÍMÕ•ÍÌ¡¹Õ±°¤ì4(€€€Í•ÑM¡½İA…ÍÍİ½É‘5½‘…°¡ÑÉÕ”¤ì4(€ôì4(4(€½¹ÍĞ¡…¹‘±•¡…¹•A…ÍÍİ½É‘MÕ‰µ¥Ğ€ô…Íå¹Œ€¡”èI•…Ğ¹½ÉµÙ•¹Ğ¤€ôøì4(€€€”¹ÁÉ•Ù•¹Ñ•™…Õ±Ğ ¤ì4(€€€Í•ÑA…ÍÍÉÉ½È¡¹Õ±°¤ì4(€€€Í•ÑA…ÍÍMÕ•ÍÌ¡¹Õ±°¤ì4(4(€€€¥˜€ …ÕÉÉ•¹ÑA…ÍÍİ½É¤ì4(€€€€€Í•ÑA…ÍÍÉÉ½È¡¥Í„€ü€ŸbÇfbÈƒbçb£f#bÄƒfbçfn0ƒbÇbœƒf#bŸbÇb¼ƒj§fn3b¼¸œ€è€¹Ñ•ÈÕÉÉ•¹ĞÁ…ÍÍİ½É¸œ¤ì4(€€€€€É•ÑÕÉ¸ì4(€€€ô4(€€€¥˜€¡¹•İA…ÍÍİ½É¹±•¹Ñ €ğ€Ø¤ì4(€€€€€Í•ÑA…ÍÍÉÉ½È¡¥Í„€ü€ŸbÇfbÈƒbçb£f#bÄƒb³b¿n3b¼ƒb£bŸn3b¼ƒb·b¿bŸffƒnØƒj§bŸbÇbŸj§b«bÄƒb£bŸbÓb¼¸œ€è€9•ÜÁ…ÍÍİ½ÉµÕÍĞ‰”…Ğ±•…ÍĞ€Ø¡…É…Ñ•ÉÌ¸œ¤ì4(€€€€€É•ÑÕÉ¸ì4(€€€ô4(€€€¥˜€¡¹•İA…ÍÍİ½É€„ôô½¹™¥ÉµA…ÍÍİ½É¤ì4(€€€€€Í•ÑA…ÍÍÉÉ½È¡¥Í„€ü€Ÿb«j§bÇbŸbÄƒbÇfbÈƒbçb£f#bÄƒb³b¿n3b¼ƒb£bœƒb‹fƒffb»f#bŸfn0ƒfb¿bŸbÇb¼¸œ€è€A…ÍÍİ½É‘Ì‘¼¹½Ğµ…Ñ ¸œ¤ì4(€€€€€É•ÑÕÉ¸ì4(€€€ô4(4(€€€Í•Ñ%Í¡…¹¥¹A…ÍÌ¡ÑÉÕ”¤ì4(€€€ÑÉäì4(€€€€€½¹ÍĞÉ•Ì€ô…İ…¥Ğ…Á¤¹¡…¹•‘µ¥¹A…ÍÍİ½É¡ÕÉÉ•¹ÑA…ÍÍİ½É°¹•İA…ÍÍİ½É¤ì4(€€€€€Í•Ñ%Í¡…¹¥¹A…ÍÌ¡™…±Í”¤ì4(€€€€€¥˜€¡É•Ì¹ÍÕ•ÍÌ¤ì4(€€€€€€€Í•ÑA…ÍÍMÕ•ÍÌ¡¥Í„€ü€ŸbÇfbÈƒbçb£f#bÄƒb³b¿n3b¼ƒb£bœƒff#ffn3b¨ƒbÃb»n3bÇfƒbÓb¼¸œ€è€A…ÍÍİ½ÉÕÁ‘…Ñ•ÍÕ•ÍÍ™Õ±±ä¸œ¤ì4(€€€€€€€Í•ÑQ¥µ•½ÕĞ  ¤€ôøì4(€€€€€€€€€Í•ÑM¡½İA…ÍÍİ½É‘5½‘…°¡™…±Í”¤ì4(€€€€€€€ô°€ÄÈÀÀ¤ì4(€€€€€ô•±Í”ì4(€€€€€€€Í•ÑA…ÍÍÉÉ½È¡É•Ì¹•ÉÉ½Èñğ€¡¥Í„€ü€Ÿb»bßbœƒb¿bÄƒb«bën3n3bÄƒbÇfbÈƒbçb£f#bÄ¸œ€è€…¥±•Ñ¼¡…¹”Á…ÍÍİ½É¸œ¤¤ì4(€€€€€ô4(€€€ô…Ñ ì4(€€€€€Í•Ñ%Í¡…¹¥¹A…ÍÌ¡™…±Í”¤ì4(€€€€€Í•ÑA…ÍÍÉÉ½È¡¥Í„€ü€Ÿb»bßbœƒb¿bÄƒbŸbÇb«b£bŸbÜƒb£bœƒbÏbÇf#bÄ¸œ€è€M•ÉÙ•È½¹¹•Ñ¥½¸•ÉÉ½È¸œ¤ì4(€€€ô4(€ôì4(4(€½¹ÍĞµ•¹Õ%Ñ•µÌ€ôl4(€€€ì4(€€€€€¥è€‘…Í¡‰½…Éœ…ÌÑ¥Ù•Q…ˆ°4(€€€€€±…‰•°è¥Í„€ü€Ÿj§bŸbÇb¨ƒfûn3bÓb»f#bŸfƒff#bÓffb¼œ€è€Mµ…ÉĞ…Í¡‰½…Éœ°4(€€€€€¥½¸è1…å½ÕÑ…Í¡‰½…É°4(€€€€€…Ñ¥Ù•½±½Èè€‰œµ¥¹‘¥¼´ÔÀ¼äÀ‘…É¬é‰œµ¥¹‘¥¼´äÔÀ¼ÔÀÑ•áĞµ¥¹‘¥¼´ÜÀÀ‘…É¬éÑ•áĞµ¥¹‘¥¼´ÌÀÀ‰½É‘•Èµ¥¹‘¥¼´ÈÀÀ‘…É¬é‰½É‘•Èµ¥¹‘¥¼´àÀÀÍ¡…‘½Ü´ÉáÌœ°4(€€€ô°4(€€€ì4(€€€€€¥è€¥¹‰½àœ…ÌÑ¥Ù•Q…ˆ°4(€€€€€±…‰•°è¥Í„€ü€Ÿb×fb¿f#fƒf#bÇf#b¿n0œ€è€%¹‰½àœ°4(€€€€€¥½¸è5…¥°°4(€€€€€‰…‘”èÕ¹É•…‘5•ÍÍ…•Í½Õ¹Ğ€ø€À€üÕ¹É•…‘5•ÍÍ…•Í½Õ¹Ğ€è¹Õ±°°4(€€€€€…Ñ¥Ù•½±½Èè€‰œµ¥¹‘¥¼´ÔÀ¼àÀ‘…É¬é‰œµ¥¹‘¥¼´äÔÀ¼ĞÀÑ•áĞµ¥¹‘¥¼´ØÀÀ‘…É¬éÑ•áĞµ¥¹‘¥¼´ĞÀÀ‰½É‘•Èµ¥¹‘¥¼´ÄÀÀ‘…É¬é‰½É‘•Èµ¥¹‘¥¼´äÀÀ¼ÔÀœ°4(€€€ô°4(€€€ì4(€€€€€¥è€Í•¹‘}•µ…¥°œ…ÌÑ¥Ù•Q…ˆ°4(€€€€€±…‰•°è¥Í„€ü€ŸbŸbÇbÏbŸfƒbŸn3fn3fœ€è€M•¹µ…¥°œ°4(€€€€€¥½¸èM•¹°4(€€€€€…Ñ¥Ù•½±½Èè€‰œµÙ¥½±•Ğ´ÔÀ‘…É¬é‰œµÙ¥½±•Ğ´äÔÀ¼ÌÀÑ•áĞµÙ¥½±•Ğ´ØÀÀ‘…É¬éÑ•áĞµÙ¥½±•Ğ´ĞÀÀ‰½É‘•ÈµÙ¥½±•Ğ´ÄÀÀ‘…É¬é‰½É‘•ÈµÙ¥½±•Ğ´äÀÀ¼ÌÀœ°4(€€€ô°4(€€€ì4(€€€€€¥è€Ñ•±•É…´œ…ÌÑ¥Ù•Q…ˆ°4(€€€€€±…‰•°è¥Í„€ü€ŸbÇb£bŸb¨ƒb«fj¿bÇbŸfœ€è€Q•±•É…´	½Ğœ°4(ƒ=æÚ$z{-®éÜj×ems-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
                   <KeyRound className="w-4 h-4" />
                 </div>
