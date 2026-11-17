@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { AlertCircle, CheckCircle2, Copy, Database, HardDrive, RefreshCw, Server, ShieldCheck } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Copy, Database, HardDrive, RefreshCw, Server, ShieldCheck, Trash2 } from 'lucide-react';
 
 type Provider = 'mongodb' | 'postgres';
 interface DbState {
@@ -13,6 +13,17 @@ interface DbState {
   documents: Array<{ name: string; bytes: number; updatedAt?: string | null }>;
 }
 
+const cleanableGroups = [
+  { id: 'mailboxes', label: 'صندوق‌ها و پیام‌ها', keys: ['inboxes_store.json', 'email_registry.json'] },
+  { id: 'eitaa', label: 'سوابق ایمیل ربات ایتا', keys: ['eitaa_users.json'] },
+  { id: 'telegram', label: 'سوابق ایمیل ربات تلگرام', keys: ['telegram_users.json'] },
+  { id: 'accounts', label: 'حساب‌ها و اعتبارنامه‌ها', keys: ['user_credentials.json', 'admin_users.json', 'admin_auth.json'] },
+  { id: 'analytics', label: 'آمار و گزارش‌ها', keys: ['analytics.json'] },
+  { id: 'tickets', label: 'تیکت‌ها و پشتیبانی', keys: ['tickets.json', 'support_tickets.json'] },
+  { id: 'subscriptions', label: 'اشتراک‌ها', keys: ['subscriptions.json'] },
+  { id: 'blog', label: 'محتوای وبلاگ', keys: ['blog_posts.json', 'blog_ai_config.json'] },
+  { id: 'mailConfig', label: 'تنظیمات ایمیل و ربات‌ها', keys: ['email_senders.json', 'telegram_config.json', 'eitaa_config.json'] },
+] as const;
 const labels: Record<Provider, string> = { mongodb: 'MongoDB', postgres: 'PostgreSQL' };
 const formatBytes = (bytes: number) => bytes < 1024 ? `${bytes} بایت` : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} کیلوبایت` : `${(bytes / (1024 * 1024)).toFixed(1)} مگابایت`;
 
@@ -21,6 +32,8 @@ export const StorageSettingsView: React.FC = () => {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
+  const [selectedCleanupGroups, setSelectedCleanupGroups] = useState<string[]>([]);
+  const [cleanupPhrase, setCleanupPhrase] = useState('');
 
   const reload = useCallback(async () => {
     setError('');
@@ -44,6 +57,27 @@ export const StorageSettingsView: React.FC = () => {
       setState(body.status);
       setNotice(successText);
     } catch (err: any) { setError(err?.message || 'عملیات انجام نشد.'); await reload(); }
+    finally { setBusy(false); }
+  };
+
+  const deleteSelectedDocuments = async () => {
+    if (!selectedCleanupGroups.length) { setError('ابتدا بخش‌های موردنظر را انتخاب کنید.'); return; }
+    if (cleanupPhrase !== 'حذف اطلاعات انتخاب‌شده') { setError('عبارت تأیید را دقیقاً وارد کنید.'); return; }
+    const keys = Array.from(new Set(cleanableGroups.filter(group => selectedCleanupGroups.includes(group.id)).flatMap(group => [...group.keys])));
+    setBusy(true); setError(''); setNotice('');
+    try {
+      const response = await fetch('/api/db/documents/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keys, confirm: 'DELETE_SELECTED_DOCUMENTS' }),
+      });
+      const body = await response.json();
+      if (!response.ok || !body.success) throw new Error(body.error || 'پاک‌سازی انجام نشد.');
+      setState(body.status);
+      setSelectedCleanupGroups([]);
+      setCleanupPhrase('');
+      setNotice(`اسناد انتخاب‌شده حذف شدند (${body.result.deleted.length.toLocaleString('fa-IR')} سند).`);
+    } catch (err: any) { setError(err?.message || 'پاک‌سازی انجام نشد.'); await reload(); }
     finally { setBusy(false); }
   };
 
@@ -102,9 +136,23 @@ export const StorageSettingsView: React.FC = () => {
         })}
       </div>
 
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-        <div className="border-b border-slate-100 px-4 py-3"><h3 className="font-black text-slate-800">اسناد برنامه</h3><p className="mt-1 text-xs text-slate-500">اطلاعات سیستمی هر بخش که در دیتابیس فعال نگهداری می‌شود.</p></div>
-        <div className="max-h-80 overflow-auto"><table className="w-full text-right text-xs"><thead className="sticky top-0 bg-slate-50 text-slate-500"><tr><th className="px-4 py-2">نام سند</th><th className="px-4 py-2">حجم</th></tr></thead><tbody>{state.documents.map(item => <tr key={item.name} className="border-t border-slate-100"><td dir="ltr" className="px-4 py-2 font-mono text-slate-700">{item.name}</td><td className="px-4 py-2 text-slate-500">{formatBytes(item.bytes)}</td></tr>)}</tbody></table></div>
+      <section className="rounded-2xl border border-rose-200 bg-white p-4">
+        <div className="flex items-start gap-3">
+          <div className="rounded-xl bg-rose-50 p-2 text-rose-600"><Trash2 size={18} /></div>
+          <div><h3 className="font-black text-slate-800">پاک‌سازی انتخابی اطلاعات</h3><p className="mt-1 text-xs leading-6 text-slate-500">بخش‌هایی را که می‌خواهید حذف شوند انتخاب کنید. پاک‌سازی روی دیتابیس فعال انجام می‌شود و اسناد تنظیمات/کنترل و فایل‌های بارگذاری‌شده را دست نمی‌زند.</p></div>
+        </div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          {cleanableGroups.map(group => (
+            <label key={group.id} className="flex cursor-pointer items-start gap-2 rounded-xl border border-slate-200 p-3 text-xs font-bold text-slate-700 hover:bg-slate-50">
+              <input type="checkbox" disabled={busy} checked={selectedCleanupGroups.includes(group.id)} onChange={event => setSelectedCleanupGroups(previous => event.target.checked ? [...previous, group.id] : previous.filter(id => id !== group.id))} className="mt-0.5 accent-rose-600" />
+              <span>{group.label}</span>
+            </label>
+          ))}
+        </div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+          <input value={cleanupPhrase} onChange={event => setCleanupPhrase(event.target.value)} disabled={busy} placeholder="برای تأیید بنویسید: حذف اطلاعات انتخاب‌شده" className="min-h-10 rounded-xl border border-slate-200 px-3 text-xs outline-none focus:border-rose-400" />
+          <button onClick={() => void deleteSelectedDocuments()} disabled={busy || !selectedCleanupGroups.length || cleanupPhrase !== 'حذف اطلاعات انتخاب‌شده'} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 text-xs font-black text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"><Trash2 size={15} />حذف بخش‌های انتخاب‌شده</button>
+        </div>
       </section>
     </>}
   </div>;
