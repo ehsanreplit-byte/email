@@ -853,6 +853,11 @@ async function startServer() {
 
       // 4. Other Live Platform Stats & Created Emails Breakdown
       const activeInboxesCount = activeInboxes.length;
+      const expiringInboxesCount = activeInboxes.filter((inbox: any) => {
+        if (inbox.isPermanent) return false;
+        const expiresAt = new Date(inbox.expiresAt).getTime();
+        return Number.isFinite(expiresAt) && expiresAt > Date.now();
+      }).length;
       const unreadTicketsCount = ticketStore.getUnreadCount();
 
       const detailedEmailStats = emailStore.getDetailedEmailStats(tgUsers, eitaaUsers);
@@ -904,6 +909,7 @@ async function startServer() {
           todayWebUsers: 0,
           totalUsersCount,
           activeInboxesCount,
+          expiringInboxesCount,
           createdEmailsCount,
           telegramEmailsCount,
           eitaaEmailsCount,
