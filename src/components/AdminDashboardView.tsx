@@ -148,19 +148,19 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
             </div>
           </div>
 
-          {/* Card 4: صندوق‌های فعال هم‌اکنون */}
+          {/* Card 4: inboxes with an active expiration date */}
           <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-50/80 via-white to-emerald-50/30 border border-emerald-200/80 shadow-xs flex flex-col justify-between space-y-2.5">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-emerald-950">{isFa ? 'صندوق‌های فعال سیستم' : 'Active Inboxes'}</span>
+              <span className="text-xs font-bold text-emerald-950">{isFa ? 'صندوق‌های دارای تاریخ انقضا' : 'Inboxes With Expiration'}</span>
               <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center shadow-xs">
                 <Activity className="w-4 h-4" />
               </div>
             </div>
             <div className="flex items-baseline gap-1.5">
               <span className="text-2xl sm:text-3xl font-black text-slate-900 font-mono">
-                {isLoading ? '...' : formatNumber(stats?.activeInboxesCount || 0)}
+                {isLoading ? '...' : formatNumber(stats?.expiringInboxesCount ?? 0)}
               </span>
-              <span className="text-[11px] font-bold text-emerald-600">{isFa ? 'صندوق آنلاین' : 'Active'}</span>
+              <span className="text-[11px] font-bold text-emerald-600">{isFa ? 'دارای انقضای معتبر' : 'With valid expiration'}</span>
             </div>
             <div className="pt-2 border-t border-emerald-100 flex items-center justify-between text-[10px] text-slate-500">
               <span className="flex items-center gap-1">
